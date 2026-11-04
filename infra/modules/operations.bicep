@@ -19,12 +19,18 @@ var labTags = {
   deploymentInstanceId: deploymentInstanceId
 }
 
+var storageRegionNames = {
+  italynorth: 'ItalyNorth'
+  swedencentral: 'SwedenCentral'
+  spaincentral: 'SpainCentral'
+}
+
 var egress = [
   { name: 'wire-server', destination: '168.63.129.16', ports: ['80', '32526'] }
   { name: 'entra', destination: 'AzureActiveDirectory', ports: ['443'] }
   { name: 'resource-manager', destination: 'AzureResourceManager', ports: ['443'] }
   { name: 'monitor', destination: 'AzureMonitor', ports: ['443'] }
-  { name: 'storage', destination: 'Storage.${location == 'italynorth' ? 'ItalyNorth' : 'SwedenCentral'}', ports: ['443'] }
+  { name: 'storage', destination: 'Storage.${storageRegionNames[location]}', ports: ['443'] }
   { name: 'bootstrap-https', destination: 'Internet', ports: ['443'] }
   { name: 'private-services', destination: 'VirtualNetwork', ports: ['443', '5432'] }
 ]

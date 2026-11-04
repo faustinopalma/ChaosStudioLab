@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1500" height="960" viewBox="0 0 1500 960">
   <title>Deterministic native Chaos suite - required evidence and verdicts</title>
-  <desc>Independent verdicts for baseline, exact-instance process crash, zone-selected process crash, PostgreSQL failover, combined overlapping effects and genuine infrastructure-zone loss. Every acknowledged write must be reconciled. The current run is quota-blocked.</desc>
+  <desc>Independent verdicts for baseline, exact-instance process crash, zone-selected process crash, PostgreSQL failover, combined overlapping effects and genuine infrastructure-zone loss. Every acknowledged write must be reconciled. Spain Central allocation validation supplies no application or native-test verdict.</desc>
   <defs>
     <style>text { font-family: Segoe UI, sans-serif; fill: #000; font-size: 20px } .title { font-size: 32px; font-weight: 600 } .heading { font-size: 23px; font-weight: 600 } .small { font-size: 18px }</style>
   </defs>

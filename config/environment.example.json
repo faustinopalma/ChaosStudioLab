@@ -3,7 +3,8 @@
   "tenantId": "",
   "expectedAccount": "",
   "azureConfigDirectory": "",
-  "deploymentRegion": "swedencentral",
+  "deploymentRegion": "spaincentral",
+  "chaosWorkspaceRegion": "swedencentral",
   "requiredPolicyExemptions": [],
   "resourceGroups": {
     "network": "",

@@ -24,8 +24,14 @@ foreach ($key in @('subscriptionId', 'tenantId')) {
 $script:LabSubscription = $script:LabEnvironment.subscriptionId
 $script:LabTenant = $script:LabEnvironment.tenantId
 $script:LabLocation = $script:LabEnvironment.deploymentRegion
-if ($script:LabLocation -notin @('italynorth', 'swedencentral')) {
-    throw 'Only italynorth (preferred) and swedencentral (fallback for unavailable required services) are authorized. Verify regional capabilities and use the explicitly approved environment.'
+if ($script:LabLocation -notin @('italynorth', 'swedencentral', 'spaincentral')) {
+    throw 'Only italynorth, swedencentral and the explicitly qualified spaincentral candidate are authorized. Verify regional capabilities and use the explicitly approved environment.'
+}
+$script:LabChaosLocation = if ($script:LabEnvironment.ContainsKey('chaosWorkspaceRegion')) {
+    $script:LabEnvironment.chaosWorkspaceRegion
+} else { $script:LabLocation }
+if ($script:LabChaosLocation -ne 'swedencentral') {
+    throw 'Explicitly select the qualified swedencentral Chaos Workspace region; its native Scenarios can target resources in another region.'
 }
 $script:LabGroups = @(
     foreach ($role in @('network', 'workload', 'operations')) {

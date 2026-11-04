@@ -1,7 +1,8 @@
 {
   "labId": "lab-dev01",
   "projectDefaultRegion": "italynorth",
-  "deploymentRegion": "swedencentral",
+  "deploymentRegion": "spaincentral",
+  "chaosWorkspaceRegion": "swedencentral",
   "resourceGroupPrefixes": {
     "network": "rg-csl-net",
     "workload": "rg-csl-work",

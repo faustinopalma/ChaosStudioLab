@@ -15,7 +15,8 @@ foreach ($name in @('Assert-PreflightRead', 'Invoke-PreflightAz', 'Assert-Prefli
 }
 $script:LabSubscription = [Guid]::NewGuid().ToString()
 $script:LabTenant = [Guid]::NewGuid().ToString()
-$script:LabLocation = 'swedencentral'
+$script:LabLocation = 'spaincentral'
+$script:LabChaosLocation = 'swedencentral'
 $script:LabGroups = @('rg-test-network', 'rg-test-workload', 'rg-test-operations')
 $script:LabEnvironment = @{
     expectedAccount = 'test@example.invalid'
@@ -148,6 +149,10 @@ if ($env:CSL_PREFLIGHT_TEST_MODE -eq 'error') {
         $manifest.resourceIds.Count -or $manifest.status -ne 'PREFLIGHT_BLOCKED' -or
         (Get-Content $PreviousManifestPath -Raw) -cne $oldContent) {
         throw 'Preflight violated its fresh-manifest, safety, evidence or separate-verdict contract.'
+    }
+    if (@($script:invocations | Where-Object { $_ -like '*/Microsoft.Chaos/locations/swedencentral/actions?*' }).Count -ne 1 -or
+        @($script:invocations | Where-Object { $_ -like '*/Microsoft.DBforPostgreSQL/locations/spaincentral/capabilities?*' }).Count -ne 1) {
+        throw 'Preflight conflated Workspace catalog placement and workload-region HA eligibility.'
     }
     $before = $script:invocations.Count
     Expect-Rejected { Invoke-AppServicePreflight } '*fresh, nonexistent directory*'

@@ -163,7 +163,7 @@ function Invoke-AppServicePreflight {
         }
         'native-action-catalog' = {
             $catalog = @{value = @()}
-            $page = "https://management.azure.com/subscriptions/$script:LabSubscription/providers/Microsoft.Chaos/locations/$script:LabLocation/actions?api-version=2026-08-01-preview"
+            $page = "https://management.azure.com/subscriptions/$script:LabSubscription/providers/Microsoft.Chaos/locations/$script:LabChaosLocation/actions?api-version=2026-08-01-preview"
             $pageNumber = 0
             do {
                 if (++$pageNumber -gt 10) { throw 'Native Action catalog exceeded ten bounded pages.' }

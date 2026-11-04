@@ -1,8 +1,8 @@
 # Accepted design decisions
 
-**Current controlling amendments: [D17-D19](#d17-private-azure-app-service-across-three-zones) and [D20](#d20-italy-north-first-sweden-central-only-fallback).** The target is private Linux Azure App Service across three observed zones, retained PostgreSQL HA, modern Chaos Studio and PC-driven deployment with manual deletion. The [current specification](docs/specification.md) defines its acceptance gates.
+**Current controlling amendments: [D17-D19](#d17-private-azure-app-service-across-three-zones) and [D21](#d21-expanded-regional-qualification-and-cross-region-workspaces).** The target is private Linux Azure App Service across three observed zones, retained PostgreSQL HA, modern Chaos Studio and PC-driven deployment with manual deletion. The [current specification](docs/specification.md) defines its acceptance gates.
 
-D01-D16 retain the previous design record. D17-D20 supersede their conflicting Container Apps, worker-capacity, replica-adapter, controller, automated lifecycle and regional provisions. Historical execution results remain attached to their original platform. The private App Service source topology now compiles; its workload deployment and native test execution remain blocked.
+D01-D16 retain the previous design record. D17-D21 supersede their conflicting Container Apps, worker-capacity, replica-adapter, controller, automated lifecycle and regional provisions. Historical execution results remain attached to their original platform. The private App Service source topology now compiles; actual deployment and native test qualification are separate gates.
 
 ## D17. Private Azure App Service across three zones
 
@@ -40,11 +40,25 @@ Require actual overlap before qualifying a combined fault. Zone-selected process
 
 ## D20. Italy North first; Sweden Central only fallback
 
+The exclusive regional restriction below is superseded by D21. Its original provider responses remain historical evidence.
+
 The operator authorized only `italynorth` and `swedencentral`. Prefer Italy North; use Sweden Central when a required service is unavailable in Italy North. Remove other regional defaults/adapters from active source and documentation. Require explicit selection of the approved private environment and preserve existing ownership/state when resuming.
 
 The 4 November foreground check found Italy North PostgreSQL zone-redundant HA enabled for the approved subscription. The required modern Chaos `locations/actions` API returned `NoRegisteredProviderFound` for Italy North, and the provider's `workspaces` location catalog omitted Italy North. Sweden Central exposes those required native APIs, so it remains the justified current deployment fallback. The three actual lab groups were verified in Sweden Central. No relocation or additional regional deployment was performed.
 
 Service availability, SKU allocation quota, actual plan zone capability and observed application placement remain separate gates. The Sweden Central AZ-worker quota blocker authorizes no third-region fallback or requirement downgrade. Keep raw historical geography/provider responses unchanged in ignored evidence.
+
+## D21. Expanded regional qualification and cross-region Workspaces
+
+The operator subsequently authorized searching any available region until the required laboratory tests work. This supersedes the earlier geographic restriction. Retain every Linux, six-worker, three-zone, private-network and native-Action acceptance gate. Select a new workload region using live subscription-specific eligibility and exact source-derived ARM allocation validation; active adapters admit the explicitly qualified candidates.
+
+Microsoft documents that a modern [Chaos Workspace can discover and run Scenarios against resources in any Azure region](https://learn.microsoft.com/en-us/azure/chaos-studio/chaos-studio-region-availability#regional-availability-of-chaos-studio-workspaces), independently of the Workspace deployment region. Keep the qualified Workspace in Sweden Central. Missing Workspace deployment availability alone does not disqualify another region's application/database targets. This corrects the co-location assumption used during D20 qualification; Italy North's separate six-worker P1v3 allocation check nevertheless returned zero AZ quota.
+
+The expanded bounded foreground search found **Spain Central / P1v3** passes ARM validation for the unchanged six-worker zone-redundant Linux plan. Spain Central reports PostgreSQL `restricted: Disabled` and `zoneRedundantHaSupported: Enabled`. Select Spain Central for regional workload, network and runner resources, with a Sweden Central Workspace. Actual plan `maximumNumberOfZones`, six-instance placement/health/traffic, private SCM and native effects still require live qualification; an allocation validation PASS supplies none of those verdicts.
+
+Reuse the current ownership manifest and exact three existing group IDs. Their group metadata location remains Sweden Central; regional resources can have the independently selected workload location. Keep the same approved private CLI profile/environment and existing exact network-group public-IP exemption, without renewal or selector/scope changes. Preserve resources on failure and leave all deletion to the operator.
+
+The named CLI quota API and actual App Service allocation can disagree: Switzerland North reports applicable `P1v3_AZ` limit ten/usage zero while the plan provider rejects six with AZ quota zero. Treat provider allocation validation as a separate required gate; do not lower or fabricate a quota update.
 
 ## Previous decision record and retained requirements
 

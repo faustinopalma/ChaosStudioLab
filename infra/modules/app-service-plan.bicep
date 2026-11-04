@@ -1,12 +1,14 @@
 targetScope = 'resourceGroup'
 
-@allowed(['italynorth', 'swedencentral'])
+@allowed(['italynorth', 'swedencentral', 'spaincentral'])
 param location string
 param deploymentInstanceId string
 @allowed([
+  'P0v3'
   'P1v2'
   'P1v3'
   'P1v4'
+  'P2v2'
   'P2v3'
 ])
 param planSku string = 'P1v3'
@@ -24,7 +26,7 @@ resource plan 'Microsoft.Web/serverfarms@2025-03-01' = {
   }
   sku: {
     name: planSku
-    tier: planSku == 'P1v2' ? 'PremiumV2' : (planSku == 'P1v4' ? 'PremiumV4' : 'PremiumV3')
+    tier: endsWith(toLower(planSku), 'v2') ? 'PremiumV2' : (endsWith(toLower(planSku), 'v4') ? 'PremiumV4' : 'PremiumV3')
     capacity: 6
   }
   properties: {

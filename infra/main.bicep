@@ -4,8 +4,12 @@ targetScope = 'resourceGroup'
 @allowed([
   'italynorth'
   'swedencentral'
+  'spaincentral'
 ])
-param location string = 'swedencentral'
+param location string = 'spaincentral'
+
+@allowed(['swedencentral'])
+param chaosWorkspaceLocation string = 'swedencentral'
 
 @description('Approved subscription containing the three lab resource groups.')
 param labSubscriptionId string = subscription().subscriptionId
@@ -67,6 +71,7 @@ module workloadDeployment 'modules/workload.bicep' = {
   scope: resourceGroup(labSubscriptionId, workloadResourceGroupName)
   params: {
     location: location
+    chaosWorkspaceLocation: chaosWorkspaceLocation
     deploymentInstanceId: deploymentInstanceId
     privateDnsZoneIds: networkDeployment.outputs.privateDnsZoneIds
     workloadAddressPrefix: workloadAddressPrefix

@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape" width="1600" height="1080" viewBox="0 0 1600 1080">
   <title>Private Linux App Service resilience lab - target architecture</title>
-  <desc>Six required workers across three observed physical zones, separate outbound Integration and inbound Private Endpoint subnets, private PostgreSQL HA, one private runner and explicit PC orchestration. Workload provisioning is quota-blocked; placement is illustrative.</desc>
+  <desc>Spain Central candidate: six required workers across three observed physical zones, separate outbound Integration and inbound Private Endpoint subnets, private PostgreSQL HA and one private runner. A Sweden Central Chaos Workspace uses documented cross-region native targeting. Actual plan, application placement and effects require live qualification; placement is illustrative.</desc>
   <defs>
     <marker id="arrow-blue" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth"><path d="M0,0 L0,6 L9,3 z" fill="#0078d4"/></marker>
     <marker id="arrow-green" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth"><path d="M0,0 L0,6 L9,3 z" fill="#107c10"/></marker>
@@ -46,12 +46,12 @@
   </g>
   <g id="labels" inkscape:groupmode="layer" inkscape:label="Labels">
     <text x="75" y="60" class="title">Private Linux App Service resilience lab</text>
-    <text x="75" y="88" class="small">Candidate source topology | live workload provisioning blocked by SKU-specific AZ quota | actual placement remains unqualified</text>
+    <text x="75" y="88" class="small">Spain Central candidate | Sweden Central Chaos Workspace | actual plan, placement, private paths and effects require live qualification</text>
     <text x="75" y="165" class="heading">Operator PC</text>
     <text x="75" y="195">Approved CLI / explicit stages</text>
     <text x="75" y="220" class="small">Visible logs; manual group deletion</text>
     <text x="75" y="325" class="heading">Modern Chaos Studio</text>
-    <text x="75" y="355">Workspace / Scenario / Action</text>
+    <text x="75" y="355">Workspace: Sweden Central</text>
     <text x="75" y="385" class="small">Native process crash + DB failover</text>
     <text x="75" y="415" class="small">Exact owned targets; explicit starts</text>
     <text x="500" y="170" class="heading">Managed Linux Web App / Premium plan - six fixed workers</text>

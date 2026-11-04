@@ -1,6 +1,8 @@
 targetScope = 'resourceGroup'
 
 param location string
+@allowed(['swedencentral'])
+param chaosWorkspaceLocation string = 'swedencentral'
 param privateDnsZoneIds array
 param workloadAddressPrefix string
 param appServiceIntegrationSubnetPrefix string
@@ -195,7 +197,7 @@ resource monitorApplicationInsightsScope 'Microsoft.Insights/privateLinkScopes/s
 
 resource chaosWorkspace 'Microsoft.Chaos/workspaces@2026-08-01-preview' = {
   name: 'csl-chaos-${suffix}'
-  location: location
+  location: chaosWorkspaceLocation
   tags: labTags
   identity: {
     type: 'UserAssigned'

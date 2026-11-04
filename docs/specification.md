@@ -6,7 +6,7 @@ Updated: 4 November 2026.
 
 Apply [D17-D19](../DECISIONS-ACCEPTED.md#d17-private-azure-app-service-across-three-zones) over the superseded Container Apps and automatic-lifecycle decisions. The previous specification, implementation and diagrams are recoverable from Git tag `baseline-before-app-service-refactor`.
 
-[D20](../DECISIONS-ACCEPTED.md#d20-italy-north-first-sweden-central-only-fallback) limits deployment to **Italy North**, preferred, or **Sweden Central**, the sole fallback when required services are unavailable in Italy North. Current foreground provider evidence excludes Italy North from the required modern Chaos Workspaces/Actions locations, so the approved live scope remains in Sweden Central. No other region is permitted.
+[D21](../DECISIONS-ACCEPTED.md#d21-expanded-regional-qualification-and-cross-region-workspaces) authorizes expanded regional qualification after the original Italy North/Sweden Central preferences. The selected candidate is **Spain Central / P1v3** for regional workload, network and runner resources, with the qualified modern **Chaos Workspace in Sweden Central**. Workspaces support cross-region native targeting. Retain the same approved private CLI profile/environment, ownership manifest and exact three group IDs; their group metadata remains Sweden Central. Actual plan capability, placement/private access and native effects remain mandatory live gates.
 
 ## 1. Objective and requirements
 

@@ -6,8 +6,12 @@ param runnerSshPublicKey string
 param deploymentInstanceId string
 param prerequisitePrincipalIds object
 param sourceRevision string
-@allowed(['italynorth', 'swedencentral'])
-param location string = 'swedencentral'
+@allowed(['italynorth', 'swedencentral', 'spaincentral'])
+param location string = 'spaincentral'
+@allowed(['italynorth', 'swedencentral', 'spaincentral'])
+param resourceGroupLocation string = location
+@allowed(['swedencentral'])
+param chaosWorkspaceLocation string = 'swedencentral'
 param networkResourceGroupName string
 param workloadResourceGroupName string
 param operationsResourceGroupName string
@@ -20,7 +24,7 @@ var groupNames = [
 
 resource groups 'Microsoft.Resources/resourceGroups@2024-03-01' = [for name in groupNames: {
   name: name
-  location: location
+  location: resourceGroupLocation
   tags: {
     project: 'ChaosStudioLab'
     labId: 'lab-dev01'
@@ -35,6 +39,7 @@ module infrastructure 'main.bicep' = {
   scope: groups[0]
   params: {
     location: location
+    chaosWorkspaceLocation: chaosWorkspaceLocation
     labSubscriptionId: subscription().subscriptionId
     networkResourceGroupName: networkResourceGroupName
     workloadResourceGroupName: workloadResourceGroupName

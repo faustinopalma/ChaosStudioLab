@@ -16,9 +16,13 @@ function Assert([bool] $Condition, [string] $Message) {
     if (-not $Condition) { throw $Message }
 }
 $template = Compile 'infra\main.bicep'
-Assert ($template.parameters.location.allowedValues.Count -eq 2 -and
+Assert ($template.parameters.location.allowedValues.Count -eq 3 -and
     'italynorth' -in $template.parameters.location.allowedValues -and
-    'swedencentral' -in $template.parameters.location.allowedValues) 'Only the two operator-approved regions may reach ARM deployment.'
+    'swedencentral' -in $template.parameters.location.allowedValues -and
+    'spaincentral' -in $template.parameters.location.allowedValues) 'Only the three explicitly selected workload candidates may reach ARM deployment.'
+$workloadModule = @($template.resources | Where-Object name -eq 'csl-workload')[0]
+Assert ($template.parameters.chaosWorkspaceLocation.defaultValue -eq 'swedencentral' -and
+    $workloadModule.properties.parameters.chaosWorkspaceLocation.value -eq "[parameters('chaosWorkspaceLocation')]") 'Workspace placement must be wired independently of the workload region.'
 $resources = @(Resources $template)
 $retired = @($resources | Where-Object {
     $_.type -match '^Microsoft\.(App|Automation|ContainerRegistry|Storage)/' -or
@@ -60,13 +64,22 @@ Assert ($pg.properties.network.publicNetworkAccess -eq 'Disabled' -and
     $pg.properties.highAvailability.mode -eq 'ZoneRedundant') 'Private PostgreSQL zone-redundant HA drifted.'
 Assert (@($resources | Where-Object type -like 'Microsoft.Chaos/targets*').Count -eq 0 -and
     @($resources | Where-Object type -eq 'Microsoft.Chaos/workspaces').Count -eq 1) 'Modern Workspaces must remain the only Chaos model.'
+$workspace = @($resources | Where-Object type -eq 'Microsoft.Chaos/workspaces')[0]
+Assert ($workspace.location -eq "[parameters('chaosWorkspaceLocation')]") 'Cross-region targeting must not deploy the Workspace to the workload region.'
+$operations = @($template.resources | Where-Object name -eq 'csl-operations')[0].properties.template
+Assert ($operations.variables.storageRegionNames.spaincentral -eq 'SpainCentral') 'Spain Central Storage egress service-tag mapping is missing.'
 $plan = Compile 'infra\modules\app-service-plan.bicep'
 $serverFarm = @($plan.resources | Where-Object type -eq 'Microsoft.Web/serverfarms')[0]
 Assert ($serverFarm.kind -eq 'linux' -and $serverFarm.properties.reserved -and
     $serverFarm.properties.zoneRedundant -and -not $serverFarm.properties.perSiteScaling -and
     $serverFarm.sku.capacity -eq 6) 'The early plan must retain six fixed zone-redundant Linux workers.'
+Assert ($plan.parameters.planSku.allowedValues.Count -eq 6 -and
+    'P0v3' -in $plan.parameters.planSku.allowedValues -and 'P2v2' -in $plan.parameters.planSku.allowedValues -and
+    $serverFarm.sku.tier -match "endsWith.*'v2'.*'PremiumV2'.*'v4'.*'PremiumV4'.*'PremiumV3'") 'Premium SKU generations must map to their correct tiers.'
 $wrapper = Compile 'infra\validation.bicep'
 $wrappedDeployment = @($wrapper.resources | Where-Object type -eq 'Microsoft.Resources/deployments')[0]
 Assert ($wrappedDeployment.properties.parameters.sourceRevision.value -eq "[parameters('sourceRevision')]" -and
     $wrappedDeployment.properties.parameters.prerequisitePrincipalIds.value -eq "[parameters('prerequisitePrincipalIds')]") 'Validation must use the exact source/principal inputs.'
+Assert ($wrapper.resources[0].location -eq "[parameters('resourceGroupLocation')]" -and
+    $wrappedDeployment.properties.parameters.chaosWorkspaceLocation.value -eq "[parameters('chaosWorkspaceLocation')]") 'Group metadata location and Workspace location must remain independent of regional workload placement.'
 'Private Linux App Service topology, SCM credentials, subnet separation, fixed-six-worker plan, retained HA and single runner contracts passed.'
