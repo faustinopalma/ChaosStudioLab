@@ -2,6 +2,8 @@ targetScope = 'resourceGroup'
 
 param location string
 param deploymentInstanceId string
+param privateDnsZoneNames array
+param publicIpNames array
 
 var labTags = {
   project: 'ChaosStudioLab'
@@ -11,25 +13,14 @@ var labTags = {
   deploymentInstanceId: deploymentInstanceId
 }
 
-var privateDnsZoneNames = [
-  'privatelink.azurewebsites.net'
-  'privatelink.postgres.database.azure.com'
-  'privatelink.vaultcore.azure.net'
-  'privatelink.blob.${environment().suffixes.storage}'
-  'privatelink.monitor.azure.com'
-  'privatelink.oms.opinsights.azure.com'
-  'privatelink.ods.opinsights.azure.com'
-  'privatelink.agentsvc.azure-automation.net'
-]
-
 resource privateDnsZones 'Microsoft.Network/privateDnsZones@2024-06-01' = [for zoneName in privateDnsZoneNames: {
   name: zoneName
   location: 'global'
   tags: labTags
 }]
 
-resource publicIps 'Microsoft.Network/publicIPAddresses@2023-09-01' = [for purpose in ['egress', 'bastion']: {
-  name: 'pip-csl-operations-${purpose}'
+resource publicIps 'Microsoft.Network/publicIPAddresses@2023-09-01' = [for name in publicIpNames: {
+  name: name
   location: location
   tags: labTags
   sku: {

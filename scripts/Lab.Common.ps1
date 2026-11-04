@@ -33,6 +33,12 @@ $script:LabChaosLocation = if ($script:LabEnvironment.ContainsKey('chaosWorkspac
 if ($script:LabChaosLocation -ne 'swedencentral') {
     throw 'Explicitly select the qualified swedencentral Chaos Workspace region; its native Scenarios can target resources in another region.'
 }
+$script:LabOperationsLocation = if ($script:LabEnvironment.ContainsKey('operationsRegion')) {
+    $script:LabEnvironment.operationsRegion
+} else { $script:LabLocation }
+if ($script:LabOperationsLocation -notin @('italynorth', 'swedencentral', 'spaincentral')) {
+    throw 'The operations region must be an explicitly qualified candidate in the approved private environment.'
+}
 $script:LabGroups = @(
     foreach ($role in @('network', 'workload', 'operations')) {
         $name = $script:LabEnvironment.resourceGroups[$role]
@@ -552,6 +558,13 @@ function Invoke-LabDeployment {
         Write-LabJson (Join-Path $stateRoot "$Name.what-if.json") $whatIf
         if ($whatIf.status -ne 'Succeeded' -or
             ($whatIf.ContainsKey('error') -and $null -ne $whatIf.error)) { throw "What-if failed for $Name" }
+        if (($whatIf.ContainsKey('diagnostics') -and $null -ne $whatIf.diagnostics -and @($whatIf.diagnostics | Where-Object {
+                $_.level -in @('Warning', 'Error')
+            }).Count -gt 0) -or
+            ($whatIf.ContainsKey('potentialChanges') -and $null -ne $whatIf.potentialChanges -and
+                @($whatIf.potentialChanges).Count -gt 0)) {
+            throw "Incomplete effective preview for $Name. Resolve provider diagnostics, skipped nested deployments and potential changes before provisioning."
+        }
         foreach ($change in $whatIf.changes) {
             Assert-LabResourceId $change.resourceId
             if ($change.changeType -eq 'Delete') { throw "What-if proposes deletion: $($change.resourceId)" }

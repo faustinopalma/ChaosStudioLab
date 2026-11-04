@@ -3,6 +3,7 @@
   "projectDefaultRegion": "italynorth",
   "deploymentRegion": "spaincentral",
   "chaosWorkspaceRegion": "swedencentral",
+  "operationsRegion": "swedencentral",
   "resourceGroupPrefixes": {
     "network": "rg-csl-net",
     "workload": "rg-csl-work",

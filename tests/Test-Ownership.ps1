@@ -48,11 +48,14 @@ try {
     $m.outputs = @{}
     $script:previewChanges = @(@{ resourceId = $m.resourceIds[0]; changeType = 'Create' })
     $script:deployCalls = 0
+    $script:previewDiagnostics = @()
+    $script:potentialChanges = @()
     function Invoke-LabAz([string[]] $Arguments) {
         if ($Arguments[0] -eq 'group' -and $Arguments[1] -eq 'exists') { return 'false' }
         if ($Arguments[2] -eq 'what-if') {
             if ('--no-pretty-print' -notin $Arguments) { throw 'Missing machine-readable preview flag.' }
-            return (@{status='Succeeded';error=$null;changes=$script:previewChanges} | ConvertTo-Json -Depth 10)
+            return (@{status='Succeeded';error=$null;changes=$script:previewChanges;
+                diagnostics=$script:previewDiagnostics;potentialChanges=$script:potentialChanges} | ConvertTo-Json -Depth 10)
         }
         if ($Arguments[2] -eq 'create') {
             $script:deployCalls++
@@ -63,6 +66,16 @@ try {
     $name = "csl-safety-$([Guid]::NewGuid().ToString('N'))"
     Invoke-LabDeployment $m $temp $script:LabGroups[0] $name 'unused.bicep' @{} | Out-Null
     if ($script:deployCalls -ne 1) { throw 'A successful preview with a null error did not deploy.' }
+    $script:previewDiagnostics = @(@{level='Warning';code='NestedDeploymentShortCircuited';message='Owned child resources were skipped.'})
+    Expect-Rejected { Invoke-LabDeployment $m $temp $script:LabGroups[0] $name 'unused.bicep' @{} }
+    $script:previewDiagnostics = @()
+    $script:previewDiagnostics = $null
+    Invoke-LabDeployment $m $temp $script:LabGroups[0] $name 'unused.bicep' @{} | Out-Null
+    if ($script:deployCalls -ne 2) { throw 'A complete provider preview with null diagnostics did not deploy.' }
+    $script:previewDiagnostics = @()
+    $script:potentialChanges = @(@{resourceId=$script:previewChanges[0].resourceId})
+    Expect-Rejected { Invoke-LabDeployment $m $temp $script:LabGroups[0] $name 'unused.bicep' @{} }
+    $script:potentialChanges = @()
     $script:previewChanges[0].changeType = 'Delete'
     Expect-Rejected { Invoke-LabDeployment $m $temp $script:LabGroups[0] $name 'unused.bicep' @{} }
     $script:previewChanges[0].changeType = 'Modify'
@@ -81,7 +94,7 @@ try {
         }
     })
     Expect-Rejected { Invoke-LabDeployment $m $temp $script:LabGroups[0] $name 'unused.bicep' @{} }
-    if ($script:deployCalls -ne 1) { throw 'A forbidden preview reached deployment.' }
+    if ($script:deployCalls -ne 2) { throw 'A forbidden preview reached deployment.' }
     $publicIp = $script:previewChanges[0]
     $publicIp.after.properties.Remove('ipTags')
     Assert-LabPublicIpChanges @($publicIp)

@@ -11,6 +11,9 @@ param location string = 'spaincentral'
 @allowed(['swedencentral'])
 param chaosWorkspaceLocation string = 'swedencentral'
 
+@allowed(['italynorth', 'swedencentral', 'spaincentral'])
+param operationsLocation string = 'swedencentral'
+
 @description('Approved subscription containing the three lab resource groups.')
 param labSubscriptionId string = subscription().subscriptionId
 
@@ -57,12 +60,40 @@ param workloadPrivateEndpointsSubnetPrefix string = '10.81.10.0/24'
 @description('Operations management subnet.')
 param operationsSubnetPrefix string = '10.82.1.0/24'
 
+var privateDnsZoneNames = [
+  'privatelink.azurewebsites.net'
+  'privatelink.postgres.database.azure.com'
+  'privatelink.vaultcore.azure.net'
+  'privatelink.blob.${environment().suffixes.storage}'
+  'privatelink.monitor.azure.com'
+  'privatelink.oms.opinsights.azure.com'
+  'privatelink.ods.opinsights.azure.com'
+  'privatelink.agentsvc.azure-automation.net'
+]
+var privateDnsZoneIds = [for name in privateDnsZoneNames: resourceId(labSubscriptionId, networkResourceGroupName, 'Microsoft.Network/privateDnsZones', name)]
+var operationsPublicIpNames = ['pip-csl-operations-egress', 'pip-csl-operations-bastion']
+var workloadVnetId = resourceId(labSubscriptionId, workloadResourceGroupName, 'Microsoft.Network/virtualNetworks', 'vnet-csl-workload')
+var operationsVnetId = resourceId(labSubscriptionId, operationsResourceGroupName, 'Microsoft.Network/virtualNetworks', 'vnet-csl-operations')
+var workloadResourceGroupId = '/subscriptions/${labSubscriptionId}/resourceGroups/${workloadResourceGroupName}'
+var workloadSuffix = uniqueString(workloadResourceGroupId, deploymentInstanceId)
+var resourceNames = {
+  application: 'csl-api-${workloadSuffix}'
+  vault: take('csl-kv-${workloadSuffix}', 24)
+  postgres: take('csl-pg-${workloadSuffix}', 63)
+  logs: 'law-csl-${workloadSuffix}'
+  insights: 'appi-csl-${workloadSuffix}'
+  monitorScope: 'ampls-csl-${workloadSuffix}'
+  chaosWorkspace: 'csl-chaos-${workloadSuffix}'
+}
+
 module networkDeployment 'modules/network-core.bicep' = {
   name: 'csl-network-core'
   scope: resourceGroup(labSubscriptionId, networkResourceGroupName)
   params: {
-    location: location
+    location: operationsLocation
     deploymentInstanceId: deploymentInstanceId
+    privateDnsZoneNames: privateDnsZoneNames
+    publicIpNames: operationsPublicIpNames
   }
 }
 
@@ -72,14 +103,16 @@ module workloadDeployment 'modules/workload.bicep' = {
   params: {
     location: location
     chaosWorkspaceLocation: chaosWorkspaceLocation
+    resourceNames: resourceNames
     deploymentInstanceId: deploymentInstanceId
-    privateDnsZoneIds: networkDeployment.outputs.privateDnsZoneIds
+    privateDnsZoneIds: privateDnsZoneIds
     workloadAddressPrefix: workloadAddressPrefix
     appServiceIntegrationSubnetPrefix: appServiceIntegrationSubnetPrefix
     privateEndpointsSubnetPrefix: workloadPrivateEndpointsSubnetPrefix
     postgresqlAdministratorPassword: postgresqlAdministratorPassword
     migrationPrincipalId: prerequisitePrincipalIds.migration
   }
+  dependsOn: [networkDeployment]
 }
 
 module operationsDeployment 'modules/operations.bicep' = {
@@ -87,15 +120,17 @@ module operationsDeployment 'modules/operations.bicep' = {
   scope: resourceGroup(labSubscriptionId, operationsResourceGroupName)
   params: {
     location: location
+    operationsLocation: operationsLocation
     deploymentInstanceId: deploymentInstanceId
     operationsAddressPrefix: operationsAddressPrefix
     operationsSubnetPrefix: operationsSubnetPrefix
     bastionSubnetPrefix: operationsBastionSubnetPrefix
-    natPublicIpId: networkDeployment.outputs.natPublicIpId
-    bastionPublicIpId: networkDeployment.outputs.bastionPublicIpId
+    natPublicIpId: resourceId(labSubscriptionId, networkResourceGroupName, 'Microsoft.Network/publicIPAddresses', operationsPublicIpNames[0])
+    bastionPublicIpId: resourceId(labSubscriptionId, networkResourceGroupName, 'Microsoft.Network/publicIPAddresses', operationsPublicIpNames[1])
     migrationIdentityId: resourceId(labSubscriptionId, workloadResourceGroupName, 'Microsoft.ManagedIdentity/userAssignedIdentities', 'id-csl-migrations')
     runnerSshPublicKey: runnerSshPublicKey
   }
+  dependsOn: [networkDeployment]
 }
 
 module dnsLinks 'modules/dns-links.bicep' = {
@@ -103,29 +138,32 @@ module dnsLinks 'modules/dns-links.bicep' = {
   scope: resourceGroup(labSubscriptionId, networkResourceGroupName)
   params: {
     deploymentInstanceId: deploymentInstanceId
-    workloadVnetId: workloadDeployment.outputs.vnetId
-    operationsVnetId: operationsDeployment.outputs.vnetId
+    workloadVnetId: workloadVnetId
+    operationsVnetId: operationsVnetId
   }
+  dependsOn: [networkDeployment, workloadDeployment, operationsDeployment]
 }
 
 module workloadToOperations 'modules/vnet-peering.bicep' = {
   name: 'csl-peer-workload-to-operations'
   scope: resourceGroup(labSubscriptionId, workloadResourceGroupName)
   params: {
-    sourceVnetName: workloadDeployment.outputs.vnetName
-    remoteVnetId: operationsDeployment.outputs.vnetId
+    sourceVnetName: 'vnet-csl-workload'
+    remoteVnetId: operationsVnetId
     peeringName: 'workload-to-operations'
   }
+  dependsOn: [workloadDeployment, operationsDeployment]
 }
 
 module operationsToWorkload 'modules/vnet-peering.bicep' = {
   name: 'csl-peer-operations-to-workload'
   scope: resourceGroup(labSubscriptionId, operationsResourceGroupName)
   params: {
-    sourceVnetName: operationsDeployment.outputs.vnetName
-    remoteVnetId: workloadDeployment.outputs.vnetId
+    sourceVnetName: 'vnet-csl-operations'
+    remoteVnetId: workloadVnetId
     peeringName: 'operations-to-workload'
   }
+  dependsOn: [workloadDeployment, operationsDeployment]
 }
 
 module runnerWorkloadAccess 'runner-access.bicep' = {
@@ -133,10 +171,11 @@ module runnerWorkloadAccess 'runner-access.bicep' = {
   scope: resourceGroup(labSubscriptionId, workloadResourceGroupName)
   params: {
     runnerPrincipalId: prerequisitePrincipalIds.runner
-    applicationName: application.outputs.applicationName
-    vaultName: workloadDeployment.outputs.vaultName
-    logAnalyticsName: last(split(workloadDeployment.outputs.logAnalyticsId, '/'))
+    applicationName: resourceNames.application
+    vaultName: resourceNames.vault
+    logAnalyticsName: resourceNames.logs
   }
+  dependsOn: [workloadDeployment, application]
 }
 
 module application 'workload-app.bicep' = {
@@ -145,10 +184,12 @@ module application 'workload-app.bicep' = {
   params: {
     location: location
     deploymentInstanceId: deploymentInstanceId
-    vnetId: workloadDeployment.outputs.vnetId
-    applicationPrivateDnsZoneId: networkDeployment.outputs.privateDnsZoneIds[0]
+    resourceNames: resourceNames
+    vnetId: workloadVnetId
+    applicationPrivateDnsZoneId: privateDnsZoneIds[0]
     sourceRevision: sourceRevision
   }
+  dependsOn: [networkDeployment, workloadDeployment]
 }
 
 output network object = {

@@ -1,6 +1,7 @@
 targetScope = 'resourceGroup'
 
 param location string
+param resourceNames object
 @allowed(['swedencentral'])
 param chaosWorkspaceLocation string = 'swedencentral'
 param privateDnsZoneIds array
@@ -20,9 +21,8 @@ var labTags = {
   deploymentInstanceId: deploymentInstanceId
 }
 
-var suffix = uniqueString(resourceGroup().id, deploymentInstanceId)
-var vaultName = take('csl-kv-${suffix}', 24)
-var databaseName = take('csl-pg-${suffix}', 63)
+var vaultName = resourceNames.vault
+var databaseName = resourceNames.postgres
 var postgresZoneId = privateDnsZoneIds[1]
 var vaultZoneId = privateDnsZoneIds[2]
 var monitorZoneIds = [
@@ -140,7 +140,7 @@ module postgresEntraAdministrator 'postgres-admin.bicep' = {
 }
 
 resource logAnalytics 'Microsoft.OperationalInsights/workspaces@2023-09-01' = {
-  name: 'law-csl-${suffix}'
+  name: resourceNames.logs
   location: location
   tags: labTags
   properties: {
@@ -154,7 +154,7 @@ resource logAnalytics 'Microsoft.OperationalInsights/workspaces@2023-09-01' = {
 }
 
 resource applicationInsights 'Microsoft.Insights/components@2020-02-02' = {
-  name: 'appi-csl-${suffix}'
+  name: resourceNames.insights
   location: location
   tags: labTags
   kind: 'web'
@@ -168,7 +168,7 @@ resource applicationInsights 'Microsoft.Insights/components@2020-02-02' = {
 }
 
 resource monitorPrivateLinkScope 'Microsoft.Insights/privateLinkScopes@2021-07-01-preview' = {
-  name: 'ampls-csl-${suffix}'
+  name: resourceNames.monitorScope
   location: 'global'
   tags: labTags
   properties: {
@@ -196,7 +196,7 @@ resource monitorApplicationInsightsScope 'Microsoft.Insights/privateLinkScopes/s
 }
 
 resource chaosWorkspace 'Microsoft.Chaos/workspaces@2026-08-01-preview' = {
-  name: 'csl-chaos-${suffix}'
+  name: resourceNames.chaosWorkspace
   location: chaosWorkspaceLocation
   tags: labTags
   identity: {

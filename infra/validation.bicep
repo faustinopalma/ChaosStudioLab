@@ -12,6 +12,8 @@ param location string = 'spaincentral'
 param resourceGroupLocation string = location
 @allowed(['swedencentral'])
 param chaosWorkspaceLocation string = 'swedencentral'
+@allowed(['italynorth', 'swedencentral', 'spaincentral'])
+param operationsLocation string = 'swedencentral'
 param networkResourceGroupName string
 param workloadResourceGroupName string
 param operationsResourceGroupName string
@@ -40,6 +42,7 @@ module infrastructure 'main.bicep' = {
   params: {
     location: location
     chaosWorkspaceLocation: chaosWorkspaceLocation
+    operationsLocation: operationsLocation
     labSubscriptionId: subscription().subscriptionId
     networkResourceGroupName: networkResourceGroupName
     workloadResourceGroupName: workloadResourceGroupName

@@ -23,6 +23,8 @@ Assert ($template.parameters.location.allowedValues.Count -eq 3 -and
 $workloadModule = @($template.resources | Where-Object name -eq 'csl-workload')[0]
 Assert ($template.parameters.chaosWorkspaceLocation.defaultValue -eq 'swedencentral' -and
     $workloadModule.properties.parameters.chaosWorkspaceLocation.value -eq "[parameters('chaosWorkspaceLocation')]") 'Workspace placement must be wired independently of the workload region.'
+Assert ($template.parameters.operationsLocation.defaultValue -eq 'swedencentral' -and
+    @($template.resources | Where-Object name -eq 'csl-network-core')[0].properties.parameters.location.value -eq "[parameters('operationsLocation')]") 'Management public IPs must use the operations region.'
 $resources = @(Resources $template)
 $retired = @($resources | Where-Object {
     $_.type -match '^Microsoft\.(App|Automation|ContainerRegistry|Storage)/' -or
@@ -46,8 +48,13 @@ $endpoint = @($resources | Where-Object name -eq 'pe-csl-app-service')[0]
 Assert ($endpoint.properties.subnet.id -like '*/subnets/private-endpoints*' -and
     $endpoint.properties.privateLinkServiceConnections[0].properties.groupIds[0] -eq 'sites') 'Inbound Private Endpoint must use its own subnet and sites group.'
 $network = @($template.resources | Where-Object name -eq 'csl-network-core')[0].properties.template
-Assert ('privatelink.azurewebsites.net' -in $network.variables.privateDnsZoneNames -and
-    @($network.variables.privateDnsZoneNames | Where-Object { $_ -match 'azurecontainer|azurecr|privatelink\.azure-automation\.net' }).Count -eq 0) 'Application/SCM DNS or retired DNS zones drifted.'
+Assert ('privatelink.azurewebsites.net' -in $template.variables.privateDnsZoneNames -and
+    @($template.variables.privateDnsZoneNames | Where-Object { $_ -match 'azurecontainer|azurecr|privatelink\.azure-automation\.net' }).Count -eq 0) 'Application/SCM DNS or retired DNS zones drifted.'
+foreach ($module in @($template.resources | Where-Object type -eq 'Microsoft.Resources/deployments')) {
+    foreach ($parameter in $module.properties.parameters.Values) {
+        Assert ($parameter.value -notlike '*reference(*') 'Nested module parameters must use source-derived names/IDs rather than unresolved deployment-output references.'
+    }
+}
 $vnets = @($resources | Where-Object type -eq 'Microsoft.Network/virtualNetworks')
 Assert ($vnets.Count -eq 2) 'Expected exactly two VNets.'
 $work = @($vnets | Where-Object name -eq 'vnet-csl-workload')[0]
@@ -55,6 +62,9 @@ $integration = @($work.properties.subnets | Where-Object name -eq 'app-service-i
 Assert ($integration.properties.delegations[0].properties.serviceName -eq 'Microsoft.Web/serverFarms') 'App Service subnet delegation drifted.'
 $vms = @($resources | Where-Object type -eq 'Microsoft.Compute/virtualMachines')
 Assert ($vms.Count -eq 1 -and $vms[0].name -eq 'vm-csl-runner') 'Exactly one private runner is required.'
+Assert ($vms[0].location -eq "[parameters('operationsLocation')]" -and
+    @($vnets | Where-Object name -eq 'vnet-csl-operations')[0].location -eq "[parameters('operationsLocation')]" -and
+    $work.location -eq "[parameters('location')]") 'Management and workload regions must be independently wired without moving the existing identity.'
 $nics = @($resources | Where-Object type -eq 'Microsoft.Network/networkInterfaces')
 Assert ($nics.Count -eq 1 -and -not $nics[0].properties.ipConfigurations[0].properties.ContainsKey('publicIPAddress')) 'The runner must have only a private NIC.'
 Assert (@($resources | Where-Object type -eq 'Microsoft.Network/bastionHosts').Count -eq 1 -and

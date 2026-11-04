@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape" width="1600" height="1080" viewBox="0 0 1600 1080">
   <title>Private Linux App Service resilience lab - target architecture</title>
-  <desc>Spain Central candidate: six required workers across three observed physical zones, separate outbound Integration and inbound Private Endpoint subnets, private PostgreSQL HA and one private runner. A Sweden Central Chaos Workspace uses documented cross-region native targeting. Actual plan, application placement and effects require live qualification; placement is illustrative.</desc>
+  <desc>Spain Central workload: six required workers across three observed physical zones, separate outbound Integration and inbound Private Endpoint subnets and private PostgreSQL HA. The single private runner and operations VNet/NAT/Bastion remain in Sweden Central with global VNet peering. A Sweden Central Chaos Workspace uses documented cross-region native targeting. Actual plan maximumNumberOfZones is three; application placement and effects remain unqualified and illustrative.</desc>
   <defs>
     <marker id="arrow-blue" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth"><path d="M0,0 L0,6 L9,3 z" fill="#0078d4"/></marker>
     <marker id="arrow-green" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth"><path d="M0,0 L0,6 L9,3 z" fill="#107c10"/></marker>
@@ -46,7 +46,7 @@
   </g>
   <g id="labels" inkscape:groupmode="layer" inkscape:label="Labels">
     <text x="75" y="60" class="title">Private Linux App Service resilience lab</text>
-    <text x="75" y="88" class="small">Spain Central candidate | Sweden Central Chaos Workspace | actual plan, placement, private paths and effects require live qualification</text>
+    <text x="75" y="88" class="small">Spain Central workload | Sweden Central management and Chaos | plan zone capability verified; app placement and effects remain unqualified</text>
     <text x="75" y="165" class="heading">Operator PC</text>
     <text x="75" y="195">Approved CLI / explicit stages</text>
     <text x="75" y="220" class="small">Visible logs; manual group deletion</text>
@@ -60,7 +60,7 @@
     <text x="540" y="312">worker 1</text><text x="695" y="312">worker 2</text><text x="890" y="312">worker 3</text><text x="1045" y="312">worker 4</text><text x="1240" y="312">worker 5</text><text x="1395" y="312">worker 6</text>
     <text x="500" y="400" class="small">Illustrative distribution: capture actual six instance IDs, physicalZone, health and successful business traffic.</text>
     <text x="500" y="430" class="small">Private application + SCM; public access disabled; .NET 10; versioned, checksummed package.</text>
-    <text x="75" y="560" class="heading">Operations VNet</text>
+    <text x="75" y="560" class="heading">Operations: Sweden Central</text>
     <text x="95" y="625" class="heading">One private runner</text><text x="95" y="655">Bastion SSH + NAT egress</text><text x="95" y="685" class="small">Bounded load / private publication</text>
     <text x="500" y="560" class="heading">Workload VNet - dedicated, separate subnets</text>
     <text x="525" y="625" class="heading">Outbound VNet Integration</text>

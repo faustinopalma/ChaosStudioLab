@@ -6,7 +6,7 @@ Updated: 4 November 2026.
 
 Apply [D17-D19](../DECISIONS-ACCEPTED.md#d17-private-azure-app-service-across-three-zones) over the superseded Container Apps and automatic-lifecycle decisions. The previous specification, implementation and diagrams are recoverable from Git tag `baseline-before-app-service-refactor`.
 
-[D21](../DECISIONS-ACCEPTED.md#d21-expanded-regional-qualification-and-cross-region-workspaces) authorizes expanded regional qualification after the original Italy North/Sweden Central preferences. The selected candidate is **Spain Central / P1v3** for regional workload, network and runner resources, with the qualified modern **Chaos Workspace in Sweden Central**. Workspaces support cross-region native targeting. Retain the same approved private CLI profile/environment, ownership manifest and exact three group IDs; their group metadata remains Sweden Central. Actual plan capability, placement/private access and native effects remain mandatory live gates.
+[D21](../DECISIONS-ACCEPTED.md#d21-expanded-regional-qualification-and-cross-region-workspaces) authorizes expanded regional qualification after the original Italy North/Sweden Central preferences. The selected workload is **Spain Central / P1v3**, with PostgreSQL and the workload VNet in the same region. The single private runner, operations VNet/NAT/Bastion and modern **Chaos Workspace remain in Sweden Central**, connected through global VNet peering. Workspaces support cross-region native targeting. Retain the same approved private CLI profile/environment, ownership manifest and exact three group IDs; their group metadata remains Sweden Central. Actual plan capability, placement/private access and native effects remain mandatory live gates.
 
 ## 1. Objective and requirements
 

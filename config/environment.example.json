@@ -5,6 +5,7 @@
   "azureConfigDirectory": "",
   "deploymentRegion": "spaincentral",
   "chaosWorkspaceRegion": "swedencentral",
+  "operationsRegion": "swedencentral",
   "requiredPolicyExemptions": [],
   "resourceGroups": {
     "network": "",

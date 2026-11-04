@@ -61,7 +61,8 @@ try {
         $m.sourceRevision = $revision
         $m.outputs['csl-infrastructure'] = Invoke-LabDeployment $m $ManifestPath $script:LabGroups[0] 'csl-infrastructure' `
             (Join-Path $script:LabRoot 'infra\main.bicep') @{
-                location=$script:LabLocation; chaosWorkspaceLocation=$script:LabChaosLocation; labSubscriptionId=$script:LabSubscription
+                location=$script:LabLocation; chaosWorkspaceLocation=$script:LabChaosLocation
+                operationsLocation=$script:LabOperationsLocation; labSubscriptionId=$script:LabSubscription
                 networkResourceGroupName=$script:LabGroups[0]; workloadResourceGroupName=$script:LabGroups[1]
                 operationsResourceGroupName=$script:LabGroups[2]; deploymentInstanceId=$m.deploymentInstanceId
                 prerequisitePrincipalIds=(Get-LabPrerequisitePrincipalIds $m)

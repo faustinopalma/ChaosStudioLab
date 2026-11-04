@@ -1,6 +1,7 @@
 targetScope = 'resourceGroup'
 
 param location string
+param operationsLocation string = location
 param deploymentInstanceId string
 param operationsAddressPrefix string
 param operationsSubnetPrefix string
@@ -30,7 +31,7 @@ var egress = [
   { name: 'entra', destination: 'AzureActiveDirectory', ports: ['443'] }
   { name: 'resource-manager', destination: 'AzureResourceManager', ports: ['443'] }
   { name: 'monitor', destination: 'AzureMonitor', ports: ['443'] }
-  { name: 'storage', destination: 'Storage.${storageRegionNames[location]}', ports: ['443'] }
+  { name: 'storage', destination: 'Storage.${storageRegionNames[operationsLocation]}', ports: ['443'] }
   { name: 'bootstrap-https', destination: 'Internet', ports: ['443'] }
   { name: 'private-services', destination: 'VirtualNetwork', ports: ['443', '5432'] }
 ]
@@ -57,7 +58,7 @@ resource runnerIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-0
 
 resource nat 'Microsoft.Network/natGateways@2024-05-01' = {
   name: 'nat-csl-operations'
-  location: location
+  location: operationsLocation
   tags: labTags
   sku: { name: 'Standard' }
   properties: { publicIpAddresses: [{ id: natPublicIpId }] }
@@ -65,7 +66,7 @@ resource nat 'Microsoft.Network/natGateways@2024-05-01' = {
 
 resource nsg 'Microsoft.Network/networkSecurityGroups@2024-05-01' = {
   name: 'nsg-csl-operations'
-  location: location
+  location: operationsLocation
   tags: labTags
   properties: {
     securityRules: concat([
@@ -115,7 +116,7 @@ resource nsg 'Microsoft.Network/networkSecurityGroups@2024-05-01' = {
 
 resource vnet 'Microsoft.Network/virtualNetworks@2024-05-01' = {
   name: 'vnet-csl-operations'
-  location: location
+  location: operationsLocation
   tags: labTags
   properties: {
     addressSpace: { addressPrefixes: [operationsAddressPrefix] }
@@ -139,7 +140,7 @@ resource vnet 'Microsoft.Network/virtualNetworks@2024-05-01' = {
 
 resource bastion 'Microsoft.Network/bastionHosts@2024-05-01' = {
   name: 'bas-csl-operations'
-  location: location
+  location: operationsLocation
   tags: labTags
   sku: { name: 'Standard' }
   properties: {
@@ -159,7 +160,7 @@ resource bastion 'Microsoft.Network/bastionHosts@2024-05-01' = {
 
 resource nic 'Microsoft.Network/networkInterfaces@2024-05-01' = {
   name: 'nic-csl-runner'
-  location: location
+  location: operationsLocation
   tags: labTags
   properties: {
     ipConfigurations: [
@@ -176,7 +177,7 @@ resource nic 'Microsoft.Network/networkInterfaces@2024-05-01' = {
 
 resource runner 'Microsoft.Compute/virtualMachines@2024-07-01' = {
   name: 'vm-csl-runner'
-  location: location
+  location: operationsLocation
   tags: labTags
   zones: ['1']
   identity: {

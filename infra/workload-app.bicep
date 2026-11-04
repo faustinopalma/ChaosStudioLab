@@ -2,11 +2,11 @@ targetScope = 'resourceGroup'
 
 param location string
 param deploymentInstanceId string
+param resourceNames object
 param vnetId string
 param applicationPrivateDnsZoneId string
 param sourceRevision string
 
-var suffix = uniqueString(resourceGroup().id, deploymentInstanceId)
 var labTags = {
   project: 'ChaosStudioLab'
   labId: 'lab-dev01'
@@ -25,20 +25,20 @@ resource chaos 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' exi
   name: 'id-csl-chaos'
 }
 resource vault 'Microsoft.KeyVault/vaults@2023-07-01' existing = {
-  name: take('csl-kv-${suffix}', 24)
+  name: resourceNames.vault
 }
 resource postgres 'Microsoft.DBforPostgreSQL/flexibleServers@2024-08-01' existing = {
-  name: take('csl-pg-${suffix}', 63)
+  name: resourceNames.postgres
 }
 resource insights 'Microsoft.Insights/components@2020-02-02' existing = {
-  name: 'appi-csl-${suffix}'
+  name: resourceNames.insights
 }
 resource logs 'Microsoft.OperationalInsights/workspaces@2023-09-01' existing = {
-  name: 'law-csl-${suffix}'
+  name: resourceNames.logs
 }
 
 resource app 'Microsoft.Web/sites@2025-03-01' = {
-  name: 'csl-api-${suffix}'
+  name: resourceNames.application
   location: location
   kind: 'app,linux'
   tags: labTags
