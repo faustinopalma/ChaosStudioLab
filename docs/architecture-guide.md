@@ -1,4 +1,6 @@
-# Azure Chaos Studio resilience lab: architecture and operating guide
+# Historical Container Apps architecture and operating guide
+
+> **Superseded design walkthrough.** The text and three diagrams below describe the earlier Container Apps/Automation laboratory. The current [App Service specification](specification.md) and [D17-D19](../DECISIONS-ACCEPTED.md#d17-private-azure-app-service-across-three-zones) require private App Service across three observed zones, retained PostgreSQL HA, local deployment, manual deletion and modern Chaos Workspaces. These drawings do not establish App Service placement or implementation readiness and must be redrawn during the source refactor. Historical commands are not instructions for the new deployment.
 
 This guide explains how the lab's private architecture, resilience experiments, and lifecycle work together. Follow the three diagrams in order: first trace a business request, then observe how faults affect that request, and finally examine how the environment is suspended, restored, and removed.
 

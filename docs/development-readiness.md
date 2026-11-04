@@ -2,6 +2,25 @@
 
 Assessment updated: 4 November 2026.
 
+## Current App Service readiness
+
+The [current specification](specification.md) and [D17-D19](../DECISIONS-ACCEPTED.md#d17-private-azure-app-service-across-three-zones) define the corrected architecture. The existing source and historical qualification below concern Container Apps.
+
+| Gate | Current status |
+| --- | --- |
+| Application platform and privacy | Defined: Windows App Service, inbound Private Endpoint, outbound VNet Integration, private DNS/SCM and retained private PostgreSQL HA |
+| Three-zone acceptance | Defined: actual plan `maximumNumberOfZones >= 3`, zone redundancy, six baseline app instances and health/traffic evidence from three distinct observed `physicalZone` values |
+| Orchestration | Defined: PC-driven deployment, one private runner, explicit test execution and manual deletion; remove Automation/Hybrid Workers and automatic lifecycle |
+| Modern Chaos | Defined: native Workspaces/Scenarios/Actions, with schema, Windows support, exact instance/zone selectors and observed-effect qualification |
+| Source refactor and regressions | Pending; current Bicep/configuration/scripts still target the previous architecture |
+| Fresh App Service deployment and qualification | Not performed; historical Container Apps evidence supplies no App Service acceptance result |
+
+No downgrade to two zones is approved. A compatible region alone does not establish a three-zone App Service scale unit or actual application placement. Resolve the platform prerequisites before expensive bootstrap, and stop readiness explicitly when evidence is missing.
+
+## Historical Container Apps assessment
+
+The numbered assessment below records the earlier cycle and its old lifecycle scope. The current specification supersedes conflicting conclusions, requirements and next steps.
+
 ## 1. Verdict
 
 **The specifications support implementation of the bounded private laboratory and its first provisioning/test/destruction cycle. No additional architectural approval is needed for that scope.**

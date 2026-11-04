@@ -4,6 +4,24 @@ Recheck preview APIs, service limits, and regional availability before implement
 
 The [implementation specification](specification.md) defines the requirements and proposed acceptance thresholds. This document explains the platform behavior behind those choices.
 
+## Current App Service facts: three-zone and native-fault gates
+
+Verified against official documentation on 4 November 2026. These findings govern the App Service refactor; the numbered sections below retain the previous Container Apps investigation.
+
+- App Service plan zone redundancy is configured on `Microsoft.Web/serverfarms`. Its `maximumNumberOfZones` is a plan/scale-unit capability. A zone-enabled region and `zoneRedundant: true` do not establish three-zone capability for the actual plan.
+- The lab requires at least three supported zones and six baseline application instances across three observed physical zones. App Service's documented platform minimum of two instances is below this laboratory's requirement.
+- The Web App instance-list REST API, documented with version `2024-04-01`, exposes `physicalZone`. The portal displays this inventory under Web App > Health check > Instances. Preserve raw responses, correlate instance IDs with health and traffic, and refresh before faults and after recovery.
+- Placement is point-in-time evidence. Per-app scaling can allow an app to use fewer workers than its plan. Disable it for this lab and verify the actual application's participating instances.
+- Outbound regional VNet Integration and inbound Private Endpoint are complementary paths. Use a dedicated `Microsoft.Web/serverFarms` integration subnet, separate private-endpoint subnet and private DNS records for both application and SCM/Kudu.
+- Workspaces documents native App Service Kill process and Restart. Kill process exposes `InstanceIds` and `Zones` and is a discrete Action. The process-crash Scenario template is documented for Windows App Service only; validate the actual regional Action/runtime combination before provisioning.
+- A zone-selected process crash and a correlated infrastructure-zone outage require separate verdicts. Do not transfer a component or earlier Container Apps PASS to the new App Service acceptance gates.
+
+Sources: [Configure zone redundancy and inspect physical zones](https://learn.microsoft.com/en-us/azure/app-service/configure-zone-redundancy), [App Service reliability](https://learn.microsoft.com/en-us/azure/reliability/reliability-app-service), [VNet Integration](https://learn.microsoft.com/en-us/azure/app-service/overview-vnet-integration), [Private Endpoint](https://learn.microsoft.com/en-us/azure/app-service/overview-private-endpoint), [Workspaces Actions](https://learn.microsoft.com/en-us/azure/chaos-studio/chaos-studio-workspaces-supported-resources), [Scenario template limitations](https://learn.microsoft.com/en-us/azure/chaos-studio/chaos-studio-scenarios).
+
+## Historical Container Apps investigation
+
+The following service-specific placement, adapter and lifecycle discussion belongs to the previous design. The current specification supersedes conflicting recommendations.
+
 ## 1. Container Apps and availability zones
 
 Zone redundancy is configured on the Container Apps environment at creation. Azure distributes the underlying infrastructure and schedules app replicas across availability zones. Customers control replica counts, compute profiles, and scaling; Azure controls individual replica placement.

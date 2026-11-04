@@ -1,5 +1,7 @@
 # Architecture and flow diagrams
 
+> **Historical diagrams pending refactor.** All three drawings currently depict Container Apps and the previous Automation lifecycle. They are retained as editable historical artifacts. The [current specification](../specification.md) requires private Azure App Service across three observed zones, retained PostgreSQL HA and PC-driven deployment/manual deletion. Do not infer the new service topology or acceptance from these drawings.
+
 The SVG files are the editable sources. Open them directly in Inkscape. The PNG files provide previews for Markdown readers and sharing.
 
 For a connected explanation of the components, request paths, test evidence, and lifecycle transitions shown here, read the [architecture and operating guide](../architecture-guide.md).
@@ -63,4 +65,4 @@ Use the corresponding filename for the other diagrams. Preserve the service icon
 
 Service icons come from the supplied local Azure Public Service Icons collection. Their original artwork is embedded in the SVGs. Microsoft publishes the [Azure architecture icons and usage terms](https://learn.microsoft.com/en-us/azure/architecture/icons/). The diagrams illustrate the services in accordance with that architectural use.
 
-The design follows the [implementation specification](../specification.md) and [accepted decisions](../../DECISIONS-ACCEPTED.md).
+The historical drawings follow the earlier specification preserved at Git tag `baseline-before-app-service-refactor`. The [current specification](../specification.md) and [D17-D19](../../DECISIONS-ACCEPTED.md#d17-private-azure-app-service-across-three-zones) define their required replacement.

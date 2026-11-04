@@ -1,6 +1,40 @@
 # Accepted design decisions
 
-These decisions define the lab configuration. D01, D02, and D04 use the recommendations explicitly selected by the user. Other defaults apply the additional requirements and delegated design choices. Dates and implementation progress are kept outside this document.
+**Current controlling amendment: [D17-D19](#d17-private-azure-app-service-across-three-zones).** The target is private Azure App Service across three observed zones, retained PostgreSQL HA, modern Chaos Studio and PC-driven deployment with manual deletion. The [current specification](docs/specification.md) defines its acceptance gates.
+
+D01-D16 retain the previous design record. D17-D19 supersede their conflicting Container Apps, worker-capacity, replica-adapter, controller, automated lifecycle and regional-certification provisions. Historical execution results remain attached to their original platform. The source refactor and App Service deployment have not yet been performed.
+
+## D17. Private Azure App Service across three zones
+
+The target application platform is Azure App Service, using a Web App and an App Service Plan. Use Windows for the initial native process-crash implementation, subject to the selected regional Action and runtime support.
+
+The application must operate across three distinct observed physical availability zones. Require `properties.zoneRedundant = true` and `properties.maximumNumberOfZones >= 3` on the actual plan, together with the actual Web App instance inventory, health and traffic evidence from all three zones. A region's zone count and a configured worker count are insufficient. Preserve the earlier six-worker baseline, disable per-app scaling for this single-app lab and start with fixed capacity.
+
+Verify the actual plan's scale-unit capability early. Refresh per-instance `physicalZone` evidence before each fault and after recovery. Missing placement evidence or a two-zone plan blocks readiness. Do not silently downgrade the three-zone requirement.
+
+Provide both outbound regional VNet Integration through a subnet delegated to `Microsoft.Web/serverFarms` and inbound Web App Private Endpoint. Use separate integration/private-endpoint subnets and private DNS for the application and SCM/Kudu. Disable public data-plane access. Retain private PostgreSQL zone-redundant HA and its distinct primary/standby zones.
+
+Retain the proven workload/operations VNet topology, one private runner and required management connectivity initially. Remove the Container Apps environment, Dedicated D4 profile, registry/image-pull path and their unused endpoints. Historical Container Apps results provide no App Service or three-zone application qualification.
+
+## D18. Local deployment and operator-managed deletion
+
+Run deployment orchestration from the PC with bounded steps, visible console progress and local logs. Use the private runner for publication, migrations and probes that need private network access. Disclose buffered output instead of describing it as live streaming.
+
+Remove the Automation Account, two Hybrid Worker VMs, lifecycle control store, automatic 24-hour suspension, Suspend/Resume workflow and random-chaos controller. The operator explicitly starts tests and manually deletes the dedicated groups. Deployment failure preserves owned resources and returns an explicit error; it never triggers automatic faults or deletion.
+
+Preserve ownership manifests, private-context checks, effective-policy previews and manual missing/expired-exemption guidance. Show deletion dependencies and recoverable-object/retention limitations to the operator. There is no independent expiry enforcement when the PC disconnects.
+
+This decision supersedes the older automatic lifecycle, control-store, unattended-campaign and scripted-destruction requirements. Existing lifecycle scripts and diagrams remain historical implementation artifacts until refactored or retired.
+
+## D19. Modern native Chaos and bounded evidence
+
+Use Chaos Studio Workspaces, Scenarios and Actions, with the documented preview limitations and a validated pinned regional schema. Avoid Experiments classic. Do not silently fall back to classic when an Action is unavailable.
+
+Prioritize native App Service Kill process against exact instances or verified zone selectors, alongside native PostgreSQL forced failover. App Service process crashes are discrete effects. Replace the former Container Apps held-readiness adapter with an explicitly labeled process-crash test and at least five minutes of observation. Preserve the application-only success/latency/outage thresholds and report database recovery separately from full-phase availability.
+
+Require actual overlap before qualifying a combined fault. Zone-selected process loss has its own `HA-APP-ZONE-001` verdict. `HA-AZ-001` requires a supported correlated real-zone outage and independent affected-zone evidence across the relevant application path.
+
+## Previous decision record and retained requirements
 
 ## D01. Application availability objective
 
@@ -8,11 +42,13 @@ Automatic application recovery within 180 seconds, with zero lost acknowledged w
 
 ## D02. Three-zone architecture
 
-Use managed PostgreSQL zone-redundant HA with primary and standby in distinct zones, within a three-zone application architecture. Azure manages the additional WAL replica. Explicit placement of three full database nodes is outside this topology.
+The application must run on Azure App Service across three distinct observed physical availability zones. Require a plan with `zoneRedundant: true`, `maximumNumberOfZones >= 3` and actual app instance/health evidence from all three zones. D17 defines the detailed gate.
+
+Use managed PostgreSQL zone-redundant HA with primary and standby in distinct zones. Azure manages the additional WAL replica.
 
 ## D03. Test progression
 
-Implement database failover, replica withdrawal, and combined scenarios first. Keep HA-AZ-001 dependent on qualifying real-zone injection and evidence. Component-test success cannot establish complete zone-outage resilience.
+D19 sets the current progression: baseline, native instance/process crash, native zone-selected process crash, PostgreSQL failover and an explicitly qualified combined scenario. Keep HA-AZ-001 dependent on qualifying real-zone injection and evidence.
 
 ## D04. Advanced features and previews
 
@@ -30,13 +66,13 @@ Do not depend on an existing Azure network or runner pool. Subscription and tena
 
 ## D06. Capacity
 
-Use six minimum and twelve maximum app replicas, a Dedicated D4 profile with three minimum nodes, and the 20-operation-per-second test load.
+For the App Service refactor, preserve six baseline workers and the 20-operation-per-second load. Begin with fixed capacity to keep deterministic tests comparable. Verify actual application instances across three zones and surviving capacity. D17 supersedes the earlier six-to-twelve Container Apps replicas and Dedicated D4 profile.
 
 For PostgreSQL, start with General Purpose `Standard_D4ds_v5`, four vCores, 128 GiB storage, and zone-redundant HA. Verify regional availability and capacity before provisioning; fail preflight rather than silently weakening HA or changing the approved region.
 
 Retain surviving-capacity validation. Use ASP.NET Core on the supported .NET LTS, Npgsql, OpenTelemetry, k6, and PowerShell for the reference implementation.
 
-No spending cap or budget resource is required. Ordinary resilience sessions last a few hours; the automatic 24-hour suspension remains a safeguard. The real 24-hour soak test is separate lifecycle validation.
+No spending cap or budget resource is required. D18 removes automatic suspension and makes the operator responsible for manual deletion.
 
 ## D07. Identity and private bootstrap
 

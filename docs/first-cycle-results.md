@@ -4,6 +4,8 @@ Date: 4 November 2026. All execution timestamps below are UTC.
 
 This report starts with the latest measured results, followed by the chronological original failures and their corrections. Environment identifiers and full raw evidence remain in ignored local files.
 
+**Platform and coverage boundary:** this report records the earlier **Container Apps/PostgreSQL** cycle. Native App Service faults, application placement across three observed zones, the planned application-capacity test and the combined test were not qualified. The [current App Service specification](specification.md) supplies their new requirements. Final group deletion was handed to the operator; no independent final cleanup or purge certification is claimed here.
+
 ## Latest verified results
 
 The Sweden Central retry provisioned the complete private, zone-redundant stack and executed a genuine Chaos Studio PostgreSQL forced failover against exactly one owned server. Public access remained disabled; the primary moved from zone 1 to zone 2 and the standby to zone 1, with HA Healthy.
@@ -22,7 +24,7 @@ The Sweden Central retry provisioned the complete private, zone-redundant stack 
 | Resume resource postconditions | PASS: PostgreSQL Ready/Healthy, runner running, six replicas in one Healthy/Provisioned revision, D4 minimum three |
 | Post-resume durability | PASS: the same 3,558 acknowledged writes retained with exact checksums; zero acknowledged loss |
 | Resumed controller and private baseline | PASS: two native registrations left exactly two verified associations; each sixty-second baseline passed with 1,201 operations, zero failures/drops and p95 56/57 ms |
-| Exact teardown and external inventory | Final verification is recorded separately below; provider-created resources outside ownership remain preserved |
+| Exact teardown and external inventory | Manual group deletion handed to the operator; final cleanup/purge remains unverified in this report |
 
 The first successful fault run retained its complete raw events. A local timestamp-parsing error was corrected and the same events were reevaluated; another database disruption was unnecessary.
 
@@ -475,9 +477,9 @@ Full raw results, including the fresh baselines, private smoke checks, native fa
 
 ### Final teardown method
 
-Cleanup started after all required live measurements and observed lifecycle conditions passed. Before actual group deletion, a Windows CLI inline-JSON schedule update reached Azure without a supported JSON media type and was rejected. Cleanup now uses the shared structured ARM transport with explicit JSON content type for schedule/job mutations; tests execute that transport against both bodyless actions and structured payloads. Runtime tests were preserved and cleanup alone was retried.
+Cleanup started after the measured database and lifecycle checks passed; application-capacity, combined and real-zone tests remained unqualified. Before actual group deletion, a Windows CLI inline-JSON schedule update reached Azure without a supported JSON media type and was rejected. The historical cleanup implementation uses the shared structured ARM transport with explicit JSON content type for schedule/job mutations; tests execute that transport against both bodyless actions and structured payloads. Runtime tests were preserved and cleanup alone was retried.
 
-The dependency order is **workload -> operations -> network**. Operations NAT/Bastion reference public IPs in the network group, so those consumers must be removed first. A compiled-topology regression guards this cross-group order. Every group still requires a fresh exact-ownership/inventory check. Final deletion, purge and independent verification timestamps are recorded below when complete.
+The dependency order is **workload -> operations -> network**. Operations NAT/Bastion reference public IPs in the network group, so those consumers must be removed first. A compiled-topology regression guards this cross-group order. The operator reissued group deletion and subsequently took responsibility for its verification; background observation was stopped at the operator's request. Final deletion, recoverable-vault purge, unrelated-resource comparison and exemption comparison remain uncertified in this report.
 
 ### Interpreting run time
 

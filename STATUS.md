@@ -7,6 +7,14 @@ Research last verified: 3 November 2026
 
 ## Current phase
 
+Documentation now targets **private Azure App Service across three observed availability zones** under D17-D19. App Service requires both inbound Private Endpoint and outbound VNet Integration, private application/SCM DNS, and retained PostgreSQL HA. The three-zone gate checks the actual plan's capability and the application's observed `physicalZone`, health and traffic evidence.
+
+The source refactor and fresh App Service deployment have not started. Existing templates/configuration/scripts still implement Container Apps. The revised workflow removes Automation/Hybrid Workers, automatic suspension and automatic destruction; deployment runs from the PC, tests are explicit and resource-group deletion is manual. No current App Service acceptance PASS is claimed.
+
+The operator took over verification of the previous groups' deletion; final cleanup/purge has not been independently certified. No further background environment monitoring is authorized.
+
+## Historical Container Apps cycle
+
 The Sweden Central stack provisioned successfully with private access and cross-zone PostgreSQL HA. Managed-identity migration, immutable image publication, authenticated API integration and private telemetry passed.
 
 - Full warmup: 6,001 successful operations, zero failures/drops, p95 29 ms.
@@ -24,19 +32,19 @@ Real context, raw evidence, validation state and generated keys stay in ignored 
 
 Three [editable Inkscape diagrams](docs/diagrams/README.md), their PNG previews and the illustrated architecture guide remain the design walkthrough. API unit tests pass 9/9; targeted production-code regressions cover bootstrap, private transport, exact discovery, dispatch, recovery timestamps, durability, lifecycle context, schedule bindings and publication.
 
-## Decision review
+## Historical decision review
 
-The [accepted decisions](DECISIONS-ACCEPTED.md) contain D01-D16. D13 selects Azure-allocated Standard static IPv4 and excludes BYOIP and feature registration. D14 removes Firewall, its hub, DNS proxy and appliance UDRs. Two directly peered VNets use Azure DNS/private-zone links, operations NAT/Bastion, and retained private service access. D15 constrains the separately approved temporary exemption.
+The [accepted decisions](DECISIONS-ACCEPTED.md) preserve D01-D16 as the earlier record, with D17-D19 controlling the new App Service design. D13 selects Azure-allocated Standard static IPv4 and excludes BYOIP and feature registration. D14 removes Firewall, its hub, DNS proxy and appliance UDRs. Two directly peered VNets use Azure DNS/private-zone links, operations NAT/Bastion, and retained private service access. D15 constrains the separately approved temporary exemption.
 
 Live investigation found an inherited public-IP append policy adding `FirstPartyUsage=/Unprivileged`. Its rule, assignment and initiative contained no RG-tag opt-out. Exact identifiers stay in ignored local evidence. The helper still rejects conflicting payloads. The D15 waiver was created only after explicit user authorization; no invented tag or feature registration was used.
 
 Official compilation, ARM validation and exact-owned previews preceded deployments. Effective public-IP payloads, private endpoint contracts, identity-dependent IDs and source-derived preview repairs were verified without relaxing the ownership guard. The complete infrastructure and subsequent private runtime succeeded.
 
-The entire lab, including its network and management resources, must be created and deleted. Mandatory Azure-managed remnants are accepted; avoidable purge protection remains disabled.
+The current operator-managed deletion scope still includes all lab-owned network, workload and runner resources. Mandatory Azure-managed retention is disclosed separately.
 
-## Remaining qualification
+## Historical qualification gaps
 
-A disconnected 24-hour soak, delayed automatic dispatch, later PostgreSQL automatic-restart reconciliation, explicit-replica/combined faults, preview cancellation and interrupted-run recovery still require qualification. Initial failed-build watchdog enforcement and the unified crash-safe journal remain engineering gaps. See the [readiness assessment](docs/development-readiness.md).
+The earlier implementation left disconnected 24-hour suspension, delayed dispatch, PostgreSQL automatic-restart reconciliation and its crash-safe lifecycle contracts unqualified. D18 removes that automatic-lifecycle scope from the current refactor. Native App Service instance/zone faults, combined effects, cancellation and three-zone runtime evidence require fresh qualification under the [current readiness assessment](docs/development-readiness.md).
 
 ## Validation gap
 
@@ -44,6 +52,6 @@ HA-AZ-001 is blocked until a supported injection method and evidence of correlat
 
 ## Next steps
 
-Use the measured bounded cycle as the development baseline and preserve its exact scope/thresholds. Follow the readiness sequence for remaining engineering and broader acceptance. Fresh execution requires a new manifest, approved private context, any required finite exemption and current validation. Keep `HA-AZ-001` blocked until qualifying real-zone evidence is obtained.
+Refactor the source to the current App Service specification before fresh provisioning. Verify three-zone scale-unit capability, actual app placement, private SCM publication, both private network paths and native modern Actions. Preserve the historical cycle's bounded evidence without treating it as App Service qualification. Keep `HA-AZ-001` blocked until qualifying real-zone evidence is obtained.
 
 The [research document](docs/research.md) records the platform capabilities and constraints supporting the design.

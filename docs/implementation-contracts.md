@@ -1,5 +1,7 @@
 # Implementation contracts
 
+> **Historical implementation baseline.** Hosting, image, replica and lifecycle contracts below describe the earlier Container Apps code. The current [App Service specification](specification.md) and [D17-D19](../DECISIONS-ACCEPTED.md#d17-private-azure-app-service-across-three-zones) supersede those parts. API, transactional idempotency, measurement and private-context mechanisms are reusable subject to verification. App Service three-zone placement, private SCM publication and native application faults remain unimplemented/unqualified.
+
 This document pins the first implementation's API, persistence, measurement, and deployment contracts. It complements the [implementation specification](specification.md) and [accepted decisions](../DECISIONS-ACCEPTED.md).
 
 ## 1. Region and deployment boundary

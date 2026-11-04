@@ -1,4 +1,6 @@
-# Autonomous lab cycle method
+# Historical autonomous Container Apps lab cycle method
+
+> **Historical replay procedure; automatic lifecycle superseded.** The current [App Service specification](specification.md) requires deployment from the PC, explicit operator-started Chaos tests and manual resource-group deletion. Do not run the old unattended cycle, controller or automatic-cleanup commands as the new workflow. It retains a private App Service ingress endpoint, outbound VNet Integration, PostgreSQL HA and three observed application zones. The earlier command sequence below is preserved as troubleshooting history.
 
 ## Ownership and execution boundary
 
