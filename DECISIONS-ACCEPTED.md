@@ -1,12 +1,14 @@
 # Accepted design decisions
 
-**Current controlling amendment: [D17-D19](#d17-private-azure-app-service-across-three-zones).** The target is private Azure App Service across three observed zones, retained PostgreSQL HA, modern Chaos Studio and PC-driven deployment with manual deletion. The [current specification](docs/specification.md) defines its acceptance gates.
+**Current controlling amendment: [D17-D19](#d17-private-azure-app-service-across-three-zones).** The target is private Linux Azure App Service across three observed zones, retained PostgreSQL HA, modern Chaos Studio and PC-driven deployment with manual deletion. The [current specification](docs/specification.md) defines its acceptance gates.
 
 D01-D16 retain the previous design record. D17-D19 supersede their conflicting Container Apps, worker-capacity, replica-adapter, controller, automated lifecycle and regional-certification provisions. Historical execution results remain attached to their original platform. The source refactor and App Service deployment have not yet been performed.
 
 ## D17. Private Azure App Service across three zones
 
-The target application platform is Azure App Service, using a Web App and an App Service Plan. Use Windows for the initial native process-crash implementation, subject to the selected regional Action and runtime support.
+The target application platform is **Linux Azure App Service**, using a Web App and an App Service Plan. The operator selected Linux over the earlier Windows-first proposal. Verify the supported Linux runtime, private publication and native Action compatibility. A blocked fault does not authorize an automatic OS switch, classic-mode fallback or custom-runbook replacement.
+
+Document any evidenced Windows test-coverage advantage in the [OS comparison](docs/research.md#linux-baseline-and-windows-test-coverage). The documented Windows-only process-crash template is a specific limitation; the available evidence does not establish a general Windows-only restriction for every native App Service Action.
 
 The application must operate across three distinct observed physical availability zones. Require `properties.zoneRedundant = true` and `properties.maximumNumberOfZones >= 3` on the actual plan, together with the actual Web App instance inventory, health and traffic evidence from all three zones. A region's zone count and a configured worker count are insufficient. Preserve the earlier six-worker baseline, disable per-app scaling for this single-app lab and start with fixed capacity.
 
@@ -31,6 +33,8 @@ This decision supersedes the older automatic lifecycle, control-store, unattende
 Use Chaos Studio Workspaces, Scenarios and Actions, with the documented preview limitations and a validated pinned regional schema. Avoid Experiments classic. Do not silently fall back to classic when an Action is unavailable.
 
 Prioritize native App Service Kill process against exact instances or verified zone selectors, alongside native PostgreSQL forced failover. App Service process crashes are discrete effects. Replace the former Container Apps held-readiness adapter with an explicitly labeled process-crash test and at least five minutes of observation. Preserve the application-only success/latency/outage thresholds and report database recovery separately from full-phase availability.
+
+Qualify Linux support for each selected Action and selector. If unsupported, mark the affected test BLOCKED with its documented/provider reason, describe what Windows would add if evidenced, and keep the deployment Linux. A missing application or combined test prevents an overall complete-suite PASS.
 
 Require actual overlap before qualifying a combined fault. Zone-selected process loss has its own `HA-APP-ZONE-001` verdict. `HA-AZ-001` requires a supported correlated real-zone outage and independent affected-zone evidence across the relevant application path.
 

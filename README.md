@@ -1,12 +1,12 @@
 # Azure Chaos Studio resilience lab
 
-The current target is a **private Azure App Service application running across three observed availability zones**, backed by private Azure Database for PostgreSQL Flexible Server with zone-redundant HA.
+The current target is a **private Linux Azure App Service application running across three observed availability zones**, backed by private Azure Database for PostgreSQL Flexible Server with zone-redundant HA.
 
 **Implementation status:** the source still implements the earlier Container Apps laboratory. The App Service source refactor and fresh deployment have not started. Read the current specification before using the existing deployment scripts.
 
 ## Required architecture
 
-- Windows App Service Web App and compatible zone-redundant Premium plan, initially using six workers.
+- Linux App Service Web App and compatible zone-redundant Premium plan, initially using six workers.
 - Three-zone readiness requires the actual plan's `maximumNumberOfZones >= 3` and healthy application-instance/traffic evidence from three distinct observed `physicalZone` values.
 - Inbound App Service Private Endpoint and outbound regional VNet Integration, using separate subnets.
 - Private DNS for application, SCM/Kudu publication, PostgreSQL and required supporting services; public application/database data-plane access disabled.
@@ -18,6 +18,8 @@ The current target is a **private Azure App Service application running across t
 The refactor removes Container Apps, its Dedicated workload profile/image-pull path, Automation Account, two Hybrid Workers, lifecycle control storage and automatic suspension/deletion. The new design has no independent expiry enforcement when the PC disconnects.
 
 Zone-selected process crashes and a correlated infrastructure-zone outage require separate evidence and verdicts. The earlier database recovery measurement supplies no App Service or three-zone application qualification.
+
+Linux is the selected baseline. Qualify native Action support on Linux and record unsupported tests explicitly. The [OS compatibility comparison](docs/research.md#linux-baseline-and-windows-test-coverage) distinguishes a documented Windows-only template from unverified Linux Action eligibility. Do not switch to Windows automatically.
 
 ## Current documents
 

@@ -2,7 +2,7 @@
 
 Updated: 4 November 2026.
 
-**Current target: private Azure App Service deployed across three observed availability zones, with private PostgreSQL HA and operator-driven deployment.** The current source still implements the earlier Container Apps laboratory. This specification defines the required refactor; it supplies no App Service deployment or test verdict.
+**Current target: private Linux Azure App Service deployed across three observed availability zones, with private PostgreSQL HA and operator-driven deployment.** The current source still implements the earlier Container Apps laboratory. This specification defines the required refactor; it supplies no App Service deployment or test verdict.
 
 Apply [D17-D19](../DECISIONS-ACCEPTED.md#d17-private-azure-app-service-across-three-zones) over the superseded Container Apps and automatic-lifecycle decisions. The previous specification, implementation and diagrams are recoverable from Git tag `baseline-before-app-service-refactor`.
 
@@ -12,7 +12,7 @@ Use the native Chaos Studio experience to measure application availability, surv
 
 | ID | Requirement |
 | --- | --- |
-| R1 | Host the application on Azure App Service, using a Web App and an App Service Plan. Use Windows for the initial native process-crash implementation, subject to Action and runtime compatibility checks. |
+| R1 | Host the application on Linux Azure App Service, using a Web App and an App Service Plan. Qualify native Action/runtime support and document any evidenced Windows coverage advantage. Keep Linux unless the operator explicitly changes that decision. |
 | R2 | Retain Azure Database for PostgreSQL Flexible Server with managed zone-redundant HA and distinct primary/standby zones. |
 | R3 | Run the application across **three distinct observed physical availability zones** in one region. Verify the actual application's instance placement and health. A regional zone count, a plan capability or a configured worker count alone cannot close this requirement. |
 | R4 | Provide both App Service VNet Integration for outbound private dependency access and an App Service Private Endpoint for inbound private HTTPS. Disable public data-plane access to the application and database. |
@@ -30,14 +30,14 @@ Three application zones and PostgreSQL HA are separate placement contracts. Post
 
 ### Application and capacity
 
-Use one dedicated Windows App Service Plan and one stateless Web App. Select a Premium SKU and regional scale unit that support the required features.
+Use one dedicated Linux App Service Plan and one stateless Web App. Select a Premium SKU and regional scale unit that support the required features.
 
 | Resource/property | Required configuration or evidence |
 | --- | --- |
-| App Service Plan, `Microsoft.Web/serverfarms` | `properties.zoneRedundant = true`; `properties.perSiteScaling = false` for this single-app lab |
+| App Service Plan, `Microsoft.Web/serverfarms` | Linux plan (`kind = linux`, `properties.reserved = true`), `properties.zoneRedundant = true`, `properties.perSiteScaling = false` for this single-app lab |
 | Plan capacity, `sku.capacity` | Preserve the earlier six-worker baseline, now expressed as App Service workers; at least three must remain configured in every normal-operation scaling profile |
 | Plan capability, `properties.maximumNumberOfZones` | At least three on the actual created plan |
-| Web App, `Microsoft.Web/sites` | Runs on the intended plan, public network access Disabled, Always On enabled, client affinity disabled for the stateless workload |
+| Web App, `Microsoft.Web/sites` | Runs on the intended Linux plan with a qualified `siteConfig.linuxFxVersion`, public network access Disabled, Always On enabled, client affinity disabled for the stateless workload |
 | Application instance inventory | Six baseline application instances, each with a nonempty instance ID and `physicalZone`; exactly three distinct physical zones represented |
 | Application participation | Healthy application instances and observed workload responses or telemetry from all three zones before injection |
 | Steady-state scaling | Begin with fixed capacity six for deterministic tests. A later autoscale profile must preserve the three-zone requirement and requalify surviving capacity. |
@@ -106,7 +106,7 @@ Check the exact subscription/region's top-level `restricted: Disabled` and `zone
 
 ## 3. Demo application
 
-Reuse the ASP.NET Core order API, Npgsql, migrations and transactional idempotency. Validate the selected supported .NET runtime on Windows App Service before publication.
+Reuse the ASP.NET Core order API, Npgsql, migrations and transactional idempotency. Validate the selected supported .NET runtime on Linux App Service before publication.
 
 | Endpoint | Contract |
 | --- | --- |
@@ -137,7 +137,17 @@ Open the modern Azure Chaos Studio **Workspace**, review its discovery and **Sce
 
 The documented App Service Actions are `microsoft-appservice-killprocess/1.0` and `microsoft-appservice-restart/1.0`. Kill process exposes `ProcessName`, `InstanceIds` and `Zones`. It is a discrete process-crash operation. A restart of the entire app has a separate recovery-test scope.
 
-Validate the regional schema, canonical Action identifier, Windows/runtime support, selector semantics and permissions before deployment. The documented process-crash Scenario template supports Windows App Service. Resolve physical/logical zone identifiers using supported platform evidence; do not assume that an arbitrary `Zones = ["1"]` matches an observed physical-zone label.
+Validate the regional schema, canonical Action identifier, Linux/runtime support, selector semantics and permissions before deploying dependent resources. Where eligibility needs a real app, use an explicitly bounded owned-target qualification after basic readiness. Resolve physical/logical zone identifiers using supported platform evidence; do not assume that an arbitrary `Zones = ["1"]` matches an observed physical-zone label.
+
+### Linux compatibility and Windows comparison
+
+Linux is the selected deployment OS. The documented **Cache Stampede with Process Crash** template explicitly supports Windows App Service only. That template combines Redis, MySQL and an App Service process crash; its OS restriction does not by itself establish the support of a custom App Service/PostgreSQL Scenario or every individual App Service Action.
+
+The Action catalog lists Kill process, Restart and instance/zone selectors. The OS eligibility of the selected Linux Action/runtime/selector combination still requires evidence. Keep this distinction in the [compatibility matrix](research.md#linux-baseline-and-windows-test-coverage).
+
+For each application test, record the OS/runtime, Action/schema, selector, eligibility evidence, actual effect and verdict. If Linux is unsupported, report BLOCKED with the exact source/provider reason and document whether Windows has a supported equivalent. An absent Linux support statement alone establishes an unqualified capability; it does not prove a Windows-only Action.
+
+Keep the lab on Linux. Do not silently substitute Windows, classic Experiments, custom Automation runbooks or a manually simulated fault. Report supported-test results individually and state that the full suite remains incomplete if a required application or combined test is blocked.
 
 A zone-selected process crash exercises application failure effects on those instances. It does not establish a sustained infrastructure-zone outage. The former five-minute Container Apps readiness-withdrawal adapter is superseded; no custom runbook or new application fault-control route is required by this initial native-Action design.
 
@@ -224,7 +234,7 @@ The old Destroy, Suspend/Resume, automatic-cycle and controller contracts are su
 
 1. Complete documentation correction; distinguish current requirements from historical Container Apps evidence.
 2. Refactor source and regression tests without deploying the old architecture.
-3. Verify current App Service native Actions, Windows runtime support, plan/scale-unit three-zone capability, private SCM publication, VNet Integration and PostgreSQL HA eligibility.
+3. Verify current App Service native Actions, Linux runtime/selector support, plan/scale-unit three-zone capability, private SCM publication, VNet Integration and PostgreSQL HA eligibility. Document Windows alternatives without an automatic OS switch.
 4. Compile/validate Bicep and inspect exact-owned effective previews. Preserve governance guards and manual missing/expired-exemption guidance.
 5. Deploy only after the agreed implementation scope is ready. Require three-zone runtime evidence and both private network paths before readiness.
 6. Let the operator explicitly run each Chaos Scenario. Report every acceptance gate independently.

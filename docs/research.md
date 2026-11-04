@@ -13,10 +13,32 @@ Verified against official documentation on 4 November 2026. These findings gover
 - The Web App instance-list REST API, documented with version `2024-04-01`, exposes `physicalZone`. The portal displays this inventory under Web App > Health check > Instances. Preserve raw responses, correlate instance IDs with health and traffic, and refresh before faults and after recovery.
 - Placement is point-in-time evidence. Per-app scaling can allow an app to use fewer workers than its plan. Disable it for this lab and verify the actual application's participating instances.
 - Outbound regional VNet Integration and inbound Private Endpoint are complementary paths. Use a dedicated `Microsoft.Web/serverFarms` integration subnet, separate private-endpoint subnet and private DNS records for both application and SCM/Kudu.
-- Workspaces documents native App Service Kill process and Restart. Kill process exposes `InstanceIds` and `Zones` and is a discrete Action. The process-crash Scenario template is documented for Windows App Service only; validate the actual regional Action/runtime combination before provisioning.
+- Workspaces documents native App Service Kill process and Restart. Kill process exposes `InstanceIds` and `Zones` and is a discrete Action. The process-crash Scenario template is documented for Windows App Service only; qualify Linux eligibility for the actual regional Action/runtime/selector combination separately.
 - A zone-selected process crash and a correlated infrastructure-zone outage require separate verdicts. Do not transfer a component or earlier Container Apps PASS to the new App Service acceptance gates.
 
 Sources: [Configure zone redundancy and inspect physical zones](https://learn.microsoft.com/en-us/azure/app-service/configure-zone-redundancy), [App Service reliability](https://learn.microsoft.com/en-us/azure/reliability/reliability-app-service), [VNet Integration](https://learn.microsoft.com/en-us/azure/app-service/overview-vnet-integration), [Private Endpoint](https://learn.microsoft.com/en-us/azure/app-service/overview-private-endpoint), [Workspaces Actions](https://learn.microsoft.com/en-us/azure/chaos-studio/chaos-studio-workspaces-supported-resources), [Scenario template limitations](https://learn.microsoft.com/en-us/azure/chaos-studio/chaos-studio-scenarios).
+
+### Linux baseline and Windows test coverage
+
+The operator selected **Linux** on 4 November 2026. Preserve three-zone application placement, private ingress, VNet Integration and PostgreSQL HA. The ASP.NET Core application has no identified Windows-specific dependency.
+
+This table separates documented platform/template support from actual test qualification. No Linux-versus-Windows App Service fault execution or comparative recovery measurement has been performed.
+
+| Capability/test | Linux evidence and remaining gate | Windows evidence and possible advantage |
+| --- | --- | --- |
+| .NET app, zone redundancy and private paths | Supported platform features; verify the exact runtime, actual plan's three-zone capability, app placement and private SCM/dependency access | Same required placement/private-path checks; no measured HA advantage established |
+| Native App Service Restart | Listed for `Microsoft.Web/sites`; exact Linux/runtime behavior remains unqualified | Listed for the same resource type; catalog entry alone supplies no comparative result |
+| Native Kill process on an instance | Catalog exposes `InstanceIds`; Linux eligibility and actual instance effect remain unqualified | Process-crash usage is documented in the Windows-only template; still qualify the actual selected Action/runtime/target |
+| Native Kill process by zone | Catalog exposes `Zones`; qualify Linux eligibility, physical/logical selector mapping and observed effects | Zone selector is documented, but its actual three-zone application coverage has not been tested on Windows either |
+| Cache Stampede with Process Crash template | Official Scenario documentation explicitly excludes Linux App Service | Explicitly documented Windows support: a concrete template-coverage advantage |
+| Custom App Service/PostgreSQL combined test | Qualify both native Actions and independent overlap; the template above contains Redis/MySQL and does not establish this custom combination | The Windows-only template does not by itself prove the PostgreSQL combination or actual overlap |
+| Sustained real-zone loss, HA-AZ-001 | Requires supported correlated infrastructure-zone injection and independent evidence | No OS choice alone supplies that evidence; remains a separate qualification |
+
+**Current conclusion:** Windows has a documented advantage for the specific built-in process-crash template. A general claim that all required application Actions work better, recover faster or are Windows-only is unsupported by the collected evidence. Linux remains selected.
+
+Before attempting each Linux Action, inspect its current regional schema, OS/runtime prerequisites and selector semantics. Save exact documentation or provider eligibility errors. Use a short, bounded qualification on the owned app when execution evidence is required. Distinguish an unavailable Action from invalid parameters, missing permissions or a failed private path.
+
+If a Linux test is unsupported, mark it BLOCKED and explain the precise lost coverage and any evidenced Windows equivalent. If evidence is insufficient, report the eligibility as unqualified rather than asserting incompatibility. Do not claim a complete suite when required application/combined tests are missing. Windows deployment would require a new explicit operator decision; neither classic-mode fallback nor a custom-runbook substitution is authorized.
 
 ## Historical Container Apps investigation
 
