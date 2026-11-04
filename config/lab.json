@@ -1,6 +1,6 @@
 {
   "labId": "lab-dev01",
-  "projectDefaultRegion": "westeurope",
+  "projectDefaultRegion": "italynorth",
   "deploymentRegion": "swedencentral",
   "resourceGroupPrefixes": {
     "network": "rg-csl-net",
@@ -10,21 +10,20 @@
   "network": {
     "workloadAddressPrefix": "10.81.0.0/16",
     "operationsAddressPrefix": "10.82.0.0/16",
-    "containerAppsSubnetPrefix": "10.81.0.0/23",
+    "appServiceIntegrationSubnetPrefix": "10.81.0.0/24",
     "privateEndpointsSubnetPrefix": "10.81.10.0/24",
     "operationsSubnetPrefix": "10.82.1.0/24",
-    "operationsBastionSubnetPrefix": "10.82.2.0/26",
-    "operationsPrivateEndpointsSubnetPrefix": "10.82.10.0/24"
+    "operationsBastionSubnetPrefix": "10.82.2.0/26"
   },
   "workload": {
-    "containerAppsProfile": "D4",
-    "containerAppsMinimumNodes": 3,
-    "containerAppsMinimumReplicas": 6,
-    "containerAppsMaximumReplicas": 12,
+    "applicationPlatform": "LinuxAppService",
+    "appServiceSku": "P1v3",
+    "appServiceWorkers": 6,
+    "requiredPhysicalZones": 3,
+    "linuxFxVersion": "DOTNETCORE|10.0",
     "postgresqlSku": "Standard_D4ds_v5",
     "postgresqlStorageGiB": 128,
     "postgresqlHighAvailabilityMode": "ZoneRedundant",
-    "containerRegistrySku": "Premium",
     "availabilityZones": [
       "1",
       "2",
@@ -37,13 +36,13 @@
     "writePercentage": 20,
     "warmupMinutes": 5,
     "baselineMinutes": 10,
-    "replicaWithdrawalMinutes": 5,
+    "processCrashObservationMinutes": 5,
     "recoveryObservationMinutes": 10,
     "databaseRecoveryObjectiveSeconds": 180
   },
   "lifecycle": {
-    "suspendAfterHours": 24,
-    "destroyAfterTest": true,
+    "manualDeletionOnly": true,
+    "automaticFaultExecution": false,
     "localStateRoot": "../.local"
   },
   "tags": {

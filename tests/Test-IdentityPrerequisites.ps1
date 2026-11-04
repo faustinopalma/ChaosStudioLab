@@ -14,11 +14,12 @@ try {
     . (Join-Path $PSScriptRoot '..\scripts\Lab.Common.ps1')
     $boundedPlan = "**Status:** Validated`n**Validated build steps:** Prerequisites"
     Assert-LabBuildValidation 'Prerequisites' $boundedPlan
-    Assert-LabBuildValidation 'Infrastructure' '**Status:** Validated'
     foreach ($case in @(
         @{step = 'Infrastructure'; plan = $boundedPlan}
         @{step = 'Runner'; plan = $boundedPlan}
         @{step = 'Prerequisites'; plan = '**Status:** Ready for Validation'}
+        @{step = 'Infrastructure'; plan = '**Status:** Validated'}
+        @{step = 'Plan'; plan = "**Status:** Blocked`n**Validated build steps:** Scope"}
     )) {
         $rejected = $false
         try { Assert-LabBuildValidation $case.step $case.plan } catch { $rejected = $true }
@@ -30,7 +31,7 @@ try {
         Export-LabIdentityTemplate $path $output
         $actual = Get-Content -LiteralPath $output -Raw | ConvertFrom-Json -AsHashtable
         $expected = @($source.resources | Where-Object type -eq 'Microsoft.ManagedIdentity/userAssignedIdentities')
-        $count = if ($module -eq 'workload') { 3 } else { 2 }
+        $count = if ($module -eq 'workload') { 3 } else { 1 }
         if ($actual.resources.Count -ne $count -or
             (ConvertTo-Json -InputObject $actual.resources -Depth 50 -Compress) -ne
             (ConvertTo-Json -InputObject $expected -Depth 50 -Compress)) {
@@ -49,7 +50,7 @@ try {
     $instance = [Guid]::NewGuid().ToString('N')
     $script:identityRecords = @(
         foreach ($spec in @(
-            @{index = 1; name = 'id-csl-migrations'}, @{index = 2; name = 'id-csl-runner'}, @{index = 2; name = 'id-csl-control'}
+            @{index = 1; name = 'id-csl-migrations'}, @{index = 2; name = 'id-csl-runner'}
             @{index = 1; name = 'id-csl-chaos'}, @{index = 1; name = 'id-csl-runtime'}
         )) {
             @{
@@ -67,10 +68,10 @@ try {
         ConvertTo-Json -InputObject $script:invalidIdentitySource -Depth 50
     }
     $principals = Get-LabPrerequisitePrincipalIds $identityManifest
-    if ($principals.Count -ne 3 -or $principals.migration -ne $script:identityRecords[0].principalId) {
+    if ($principals.Count -ne 4 -or $principals.migration -ne $script:identityRecords[0].principalId) {
         throw 'Live prerequisite principals were not resolved from exact owned identities.'
     }
-    foreach ($index in 0..4) {
+    foreach ($index in 0..3) {
         foreach ($case in @('invalid-principal', 'foreign-owner', 'unrecorded-identity')) {
             $original = $script:identityRecords[$index].principalId
             if ($case -eq 'invalid-principal') { $script:identityRecords[$index].principalId = 'invalid' }
@@ -112,16 +113,16 @@ try {
     }
     $manifestPath = "$output.manifest.json"
     Write-LabJson $manifestPath @{
-        schemaVersion = 1; subscriptionId = $script:LabSubscription; tenantId = $script:LabTenant
+        schemaVersion = 1; architecture = 'linux-app-service'; subscriptionId = $script:LabSubscription; tenantId = $script:LabTenant
         labId = 'lab-dev01'; deploymentInstanceId = [Guid]::NewGuid().ToString('N'); resourceIds = @()
         groups = @($script:LabGroups | ForEach-Object {
             @{name = $_; id = "/subscriptions/$script:LabSubscription/resourceGroups/$_"}
         })
     }
     $before = Get-Content -LiteralPath $manifestPath -Raw
-    foreach ($entrypoint in @('Build-Lab.ps1', 'Invoke-LabCycle.ps1')) {
+    foreach ($entrypoint in @('Build-Lab.ps1')) {
         $blocked = $false
-        try { & (Join-Path $PSScriptRoot "..\scripts\$entrypoint") -ManifestPath $manifestPath }
+        try { & (Join-Path $PSScriptRoot "..\scripts\$entrypoint") -ManifestPath $manifestPath -Step Infrastructure }
         catch { $blocked = $_.Exception.Message -like '*not yet validated for the Infrastructure build step*' }
         if (-not $blocked -or $startup.writes -ne 0 -or
             (Get-Content -LiteralPath $manifestPath -Raw) -cne $before -or

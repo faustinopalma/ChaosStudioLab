@@ -25,7 +25,7 @@ Container Apps can create an Azure-managed infrastructure group as part of the s
 
 ### Fail-fast regional and identity prerequisites
 
-Before creating infrastructure, query the exact subscription's PostgreSQL location-capabilities endpoint. Require top-level `restricted: Disabled` and `zoneRedundantHaSupported: Enabled`. North Europe's original response advertised `ZoneRedundant` for the SKU while the top-level HA flag was Disabled; actual creation failed. D16 selects Sweden Central as a verified retry candidate. A supported catalog still requires a successful live create.
+Before creating infrastructure, query the exact subscription's PostgreSQL location-capabilities endpoint. Require top-level `restricted: Disabled` and `zoneRedundantHaSupported: Enabled`. An earlier, retired candidate advertised `ZoneRedundant` for the SKU while the top-level HA flag was Disabled; actual creation failed. Current policy follows D20: Italy North first, Sweden Central only when required services are unavailable in Italy North. A supported catalog still requires a successful live create.
 
 Full previews can report Unsupported ARM expressions for identity-dependent administrator/role IDs, including after the identities exist. Preserve the failed preview and keep the exact-ID guard. Validate the independent prerequisite templates, then run `Build-Lab.ps1 -Step Prerequisites -ManifestPath <owned-manifest>`. That stage exports only the five existing identity declarations from the compiled workload/operations modules, with their original location and ownership tags. It creates no app, role assignment or network resource. Verify all five live identities' exact IDs, manifest membership, ownership tags and valid principal GUIDs. Pass the migration, runner and controller principals through `infra/main.bicep`'s `prerequisitePrincipalIds` parameter. This makes administrator/role resource names independent of unresolved `reference()` expressions. Repeat full-stack validation; `Validated build steps` in the ignored plan restricts execution to the currently validated phase. The complete-cycle startup checks every required phase before entering automatic cleanup. Infrastructure creates prerequisites when their two recorded deployment results are absent. On continuation, it reuses all five verified identities, avoiding repeated identity deployments and their full inventory refreshes. An explicit Prerequisites command still redeploys them.
 
@@ -121,7 +121,7 @@ After recovery passes, re-read every unique write issued by that run through the
 
 Runner results are compressed before Bastion transfer and extracted locally into the existing evidence layout. Copying all uncompressed historical metrics on every phase caused multi-minute transfer delays. Compression preserves raw event/metric files and their contents. Failed-stage retrieval labels snapshots taken while files are still being written.
 
-The North Europe action catalog exposes `FailoverMode` as an integer enum: `0` is planned failover and `1` is forced failover. The Scenario key/value wire representation therefore supplies `"1"`, with `RestoreOnStop` and `SkipIneligibleServers` both `"false"`. The semantic test remains the approved forced failover.
+The verified regional action catalog exposes `FailoverMode` as an integer enum: `0` is planned failover and `1` is forced failover. The Scenario key/value wire representation therefore supplies `"1"`, with `RestoreOnStop` and `SkipIneligibleServers` both `"false"`. The semantic test remains the approved forced failover.
 
 ## Lifecycle control
 

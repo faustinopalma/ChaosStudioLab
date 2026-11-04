@@ -1,171 +1,136 @@
 [CmdletBinding()]
 param(
-    [ValidateSet('Prerequisites', 'Infrastructure', 'Runner', 'Application', 'Controller')]
-    [string] $Step = 'Infrastructure',
-    [string] $ManifestPath = (Join-Path $PSScriptRoot '..\.local\manifest.json'),
-    [int] $TunnelPort = 50222
+    [Parameter(Mandatory)][string] $ManifestPath,
+    [Parameter(Mandatory)]
+    [ValidateSet('Plan', 'Prerequisites', 'Infrastructure', 'Runner', 'Application')]
+    [string] $Step,
+    [ValidateRange(1, 65535)][int] $TunnelPort = 50222
 )
+if (-not $env:CSL_ENVIRONMENT_FILE) { throw 'Select the approved private environment explicitly.' }
 . (Join-Path $PSScriptRoot 'Lab.Common.ps1')
 Confirm-LabContext
-$startupManifest = if (Test-Path -LiteralPath $ManifestPath) { Read-LabManifest $ManifestPath } else { $null }
-Assert-LabPolicyExemptions $startupManifest
-if ($Step -in @('Prerequisites', 'Infrastructure')) { Assert-LabRegionalCapabilities }
-$plan = Get-Content (Join-Path $script:LabRoot '.azure\deployment-plan.md') -Raw
-Assert-LabBuildValidation $Step $plan
 $ManifestPath = [IO.Path]::GetFullPath($ManifestPath)
-New-Item -ItemType Directory -Path (Split-Path $ManifestPath -Parent) -Force | Out-Null
+$m = Read-LabManifest $ManifestPath
+if (-not $m.ContainsKey('architecture') -or $m.architecture -ne 'linux-app-service') {
+    throw 'A fresh Linux App Service ownership manifest is required; historical environments cannot be adopted.'
+}
+Assert-LabPolicyExemptions $m
+Assert-LabBuildValidation $Step (Get-Content (Join-Path $script:LabRoot '.azure\deployment-plan.md') -Raw)
+$root = Split-Path $ManifestPath -Parent
 $lock = [IO.File]::Open("$ManifestPath.lock", 'OpenOrCreate', 'ReadWrite', 'None')
+$started = [DateTimeOffset]::UtcNow
 try {
-    if (-not (Test-Path $ManifestPath)) {
-        if ($Step -notin @('Prerequisites', 'Infrastructure')) { throw 'Create the owned infrastructure manifest first.' }
-        foreach ($g in $script:LabGroups) {
-            if ((Invoke-LabAz @('group', 'exists', '-n', $g, '-o', 'tsv')) -ne 'false') {
-                throw "Refusing to adopt an existing group: $g"
+    if ($Step -eq 'Plan') {
+        $config = Get-Content (Join-Path $script:LabRoot 'config\lab.json') -Raw | ConvertFrom-Json
+        $m.outputs['csl-linux-plan'] = Invoke-LabDeployment $m $ManifestPath $script:LabGroups[1] 'csl-linux-plan' `
+            (Join-Path $script:LabRoot 'infra\modules\app-service-plan.bicep') @{
+                location = $script:LabLocation; deploymentInstanceId = $m.deploymentInstanceId
+                planSku = $config.workload.appServiceSku
             }
-        }
-        $baseline = Invoke-LabAz @('resource', 'list', '--subscription', $script:LabSubscription,
-            '--query', '[].{id:id,type:type,group:resourceGroup}', '-o', 'json') | ConvertFrom-Json -AsHashtable
-        Write-LabJson (Join-Path (Split-Path $ManifestPath -Parent) 'preexisting-resources.json') $baseline
-        $m = @{
-            schemaVersion = 1; subscriptionId = $script:LabSubscription; tenantId = $script:LabTenant
-            labId = 'lab-dev01'; deploymentInstanceId = [Guid]::NewGuid().ToString('N')
-            groups = @($script:LabGroups | ForEach-Object {
-                @{ name = $_; id = "/subscriptions/$script:LabSubscription/resourceGroups/$_" }
-            })
-            resourceIds = @(); outputs = @{}; status = 'BUILDING'
-            createdAtUtc = [DateTimeOffset]::UtcNow.ToString('O')
-        }
-        Write-LabJson $ManifestPath $m
-    } else { $m = Read-LabManifest $ManifestPath }
-    if ($m.status -like 'DESTROYED*') { throw 'Use a new manifest path for a new deployment instance.' }
-    $stateRoot = Split-Path $ManifestPath -Parent
-    if ($Step -in @('Prerequisites', 'Infrastructure')) {
-        foreach ($g in $m.groups) {
-            if ((Invoke-LabAz @('group', 'exists', '-n', $g.name, '-o', 'tsv')) -eq 'false') {
-                Invoke-LabAz @('group', 'create', '-n', $g.name, '-l', $script:LabLocation, '--tags',
-                    'project=ChaosStudioLab', 'labId=lab-dev01', "deploymentInstanceId=$($m.deploymentInstanceId)",
-                    'environment=nonproduction', 'owner=lab-operator', '-o', 'none') | Out-Null
-            }
-        }
-        if ($Step -eq 'Prerequisites' -or -not $m.outputs.ContainsKey('csl-workload-identities') -or
-            -not $m.outputs.ContainsKey('csl-operations-identities')) {
-            foreach ($scope in @(@{ index = 1; module = 'workload' }, @{ index = 2; module = 'operations' })) {
-                $identityTemplate = Join-Path $stateRoot "$($scope.module)-identities.template.json"
-                try {
-                    Export-LabIdentityTemplate (Join-Path $script:LabRoot "infra\modules\$($scope.module).bicep") $identityTemplate
-                    Invoke-LabDeployment $m $ManifestPath $script:LabGroups[$scope.index] "csl-$($scope.module)-identities" `
-                        $identityTemplate @{ location = $script:LabLocation; deploymentInstanceId = $m.deploymentInstanceId } | Out-Null
-                } finally {
-                    if (Test-Path -LiteralPath $identityTemplate) { Remove-Item -LiteralPath $identityTemplate }
+    }
+    $planId = "/subscriptions/$script:LabSubscription/resourceGroups/$($script:LabGroups[1])/providers/Microsoft.Web/serverfarms/asp-csl-linux-baseline"
+    $plan = Invoke-LabAz @('rest', '--method', 'get', '--url',
+        "https://management.azure.com${planId}?api-version=2025-03-01", '-o', 'json') | ConvertFrom-Json -AsHashtable
+    Write-LabJson (Join-Path $root "$Step-actual-plan.json") $plan
+    if ($planId -notin $m.resourceIds -or $plan.tags.deploymentInstanceId -ne $m.deploymentInstanceId) {
+        throw 'Missing or foreign owned Linux plan.'
+    }
+    Assert-LabAppServicePlan $plan
+    if ($Step -eq 'Plan') { $m.status = 'PLAN_THREE_ZONE_CAPABLE' }
+    elseif ($Step -eq 'Prerequisites') {
+        foreach ($scope in @(@{index=1;module='workload'}, @{index=2;module='operations'})) {
+            $template = Join-Path $root "$($scope.module)-identities.template.json"
+            Export-LabIdentityTemplate (Join-Path $script:LabRoot "infra\modules\$($scope.module).bicep") $template
+            $m.outputs["csl-$($scope.module)-identities"] = Invoke-LabDeployment $m $ManifestPath `
+                $script:LabGroups[$scope.index] "csl-$($scope.module)-identities" $template @{
+                    location=$script:LabLocation; deploymentInstanceId=$m.deploymentInstanceId
                 }
-            }
-        } else {
-            Get-LabPrerequisitePrincipalIds $m | Out-Null
-            Write-Information "[$([DateTimeOffset]::UtcNow.ToString('O'))] Reusing all five live, ownership-verified prerequisite identities." -InformationAction Continue
         }
-        if ($Step -eq 'Prerequisites') {
-            $m.status = 'PREREQUISITES_CREATED'
-            Write-LabJson $ManifestPath $m
-            return
-        }
-        $keyPath = Join-Path $stateRoot 'runner-key'
-        if (-not (Test-Path $keyPath)) {
-            & ssh-keygen -q -t rsa -b 4096 -f $keyPath -N ''
+        Get-LabPrerequisitePrincipalIds $m | Out-Null
+        $m.status = 'PREREQUISITES_CREATED'
+    } elseif ($Step -eq 'Infrastructure') {
+        Assert-LabRegionalCapabilities
+        $key = Join-Path $root 'runner-key'
+        if (-not (Test-Path -LiteralPath $key)) {
+            & ssh-keygen -q -t rsa -b 4096 -f $key -N ''
             if ($LASTEXITCODE -ne 0) { throw 'SSH key generation failed.' }
         }
-        $m.sshKeyPath = $keyPath
-        $parameters = @{
-            location = $script:LabLocation
-            labSubscriptionId = $script:LabSubscription
-            networkResourceGroupName = $script:LabGroups[0]
-            workloadResourceGroupName = $script:LabGroups[1]
-            operationsResourceGroupName = $script:LabGroups[2]
-            runnerSshPublicKey = (Get-Content "$keyPath.pub" -Raw).Trim()
-            postgresqlAdministratorPassword = [Convert]::ToHexString([Security.Cryptography.RandomNumberGenerator]::GetBytes(32)) + 'a!7'
-            deploymentInstanceId = $m.deploymentInstanceId
-            prerequisitePrincipalIds = Get-LabPrerequisitePrincipalIds $m
-        }
-        Invoke-LabDeployment $m $ManifestPath $script:LabGroups[0] 'csl-infrastructure' `
-            (Join-Path $script:LabRoot 'infra\main.bicep') $parameters | Out-Null
+        $m.sshKeyPath = $key
+        $revision = (& git -C $script:LabRoot rev-parse HEAD).Trim()
+        if ($LASTEXITCODE -ne 0) { throw 'Source revision lookup failed.' }
+        $m.sourceRevision = $revision
+        $m.outputs['csl-infrastructure'] = Invoke-LabDeployment $m $ManifestPath $script:LabGroups[0] 'csl-infrastructure' `
+            (Join-Path $script:LabRoot 'infra\main.bicep') @{
+                location=$script:LabLocation; labSubscriptionId=$script:LabSubscription
+                networkResourceGroupName=$script:LabGroups[0]; workloadResourceGroupName=$script:LabGroups[1]
+                operationsResourceGroupName=$script:LabGroups[2]; deploymentInstanceId=$m.deploymentInstanceId
+                prerequisitePrincipalIds=(Get-LabPrerequisitePrincipalIds $m)
+                runnerSshPublicKey=(Get-Content "$key.pub" -Raw).Trim()
+                postgresqlAdministratorPassword=([Convert]::ToHexString([Security.Cryptography.RandomNumberGenerator]::GetBytes(32))+'a!7')
+                sourceRevision=$revision
+            }
         $m.status = 'INFRASTRUCTURE_CREATED'
-    } else {
+    } elseif ($Step -eq 'Runner') {
+        Initialize-LabMachines -ManifestPath $ManifestPath -ManifestLock $lock
+        $m = Read-LabManifest $ManifestPath
+        $m.status = 'RUNNER_SOFTWARE_INSTALLED'
+    } elseif ($Step -eq 'Application') {
         $w = $m.outputs['csl-infrastructure'].workload.value
         $o = $m.outputs['csl-infrastructure'].operations.value
-        $sshOptions = @(Get-LabSshOptions $m $stateRoot)
-        $sshArgs = $sshOptions + @('-p', [string]$TunnelPort, 'csloperator@127.0.0.1')
-        if ($Step -eq 'Runner') {
-            $config = @{
-                SUBSCRIPTION_ID = $script:LabSubscription; DEPLOYMENT_ID = $m.deploymentInstanceId
-                RUNNER_CLIENT_ID = $o.runnerClientId; MIGRATION_CLIENT_ID = $w.migrationClientId
-                RUNTIME_PRINCIPAL_ID = $w.runtimePrincipalId; POSTGRES_HOST = $w.postgresHost
-                REGISTRY_NAME = $w.registryName; REGISTRY_LOGIN_SERVER = $w.registryLoginServer
-                VAULT_NAME = $w.vaultName; STORAGE_NAME = $o.storageName
-                LOG_ANALYTICS_WORKSPACE_ID = $w.logAnalyticsCustomerId
-            }
-            Write-LabJson (Join-Path $stateRoot 'runner-config.json') $config
-            $bundle = Join-Path $stateRoot 'source.zip'
-            if (Test-Path $bundle) { Remove-Item -LiteralPath $bundle }
-            $entries = @()
-            foreach ($folder in @('src\Demo.Api', 'tests\load', 'scripts\runner')) {
-                $entries += Get-ChildItem (Join-Path $script:LabRoot $folder) -Recurse -File |
-                    Where-Object { $_.FullName -notmatch '[\\/](bin|obj)[\\/]' }
-            }
-            $zip = [IO.Compression.ZipFile]::Open($bundle, [IO.Compression.ZipArchiveMode]::Create)
-            try {
-                foreach ($file in $entries) {
-                    $relative = [IO.Path]::GetRelativePath($script:LabRoot, $file.FullName).Replace('\', '/')
-                    if ($file.Extension -eq '.sh') {
-                        $writer = [IO.StreamWriter]::new($zip.CreateEntry($relative).Open(), [Text.UTF8Encoding]::new($false))
-                        try { $writer.Write([IO.File]::ReadAllText($file.FullName).Replace("`r`n", "`n")) }
-                        finally { $writer.Dispose() }
-                    } else {
-                        [IO.Compression.ZipFileExtensions]::CreateEntryFromFile($zip, $file.FullName, $relative) | Out-Null
-                    }
-                }
-                [IO.Compression.ZipFileExtensions]::CreateEntryFromFile($zip, (Join-Path $stateRoot 'runner-config.json'), 'runner-config.json') | Out-Null
-            } finally { $zip.Dispose() }
-            & scp @sshOptions -P $TunnelPort $bundle 'csloperator@127.0.0.1:source.zip'
-            if ($LASTEXITCODE -ne 0) { throw 'Private source transfer failed.' }
-            $bootstrapSucceeded = $false
-            for ($attempt = 1; $attempt -le 6; $attempt++) {
-                & ssh @sshArgs 'mkdir -p ~/csl && unzip -o source.zip -d ~/csl >/dev/null && cd ~/csl && bash scripts/runner/bootstrap.sh > bootstrap.log 2>&1'
-                if ($LASTEXITCODE -eq 0) { $bootstrapSucceeded = $true; break }
-                $bootstrapLog = & ssh @sshArgs 'tail -n 100 ~/csl/bootstrap.log'
-                if ($LASTEXITCODE -ne 0) { throw 'Private bootstrap and subsequent diagnostic-log retrieval failed.' }
-                $bootstrapLogPath = Join-Path $stateRoot "bootstrap-attempt-$attempt.log"
-                Set-Content -LiteralPath $bootstrapLogPath -Value $bootstrapLog -Encoding utf8
-                if (($bootstrapLog -join "`n") -notmatch 'Forbidden|AuthorizationFailed|AuthorizationPermissionMismatch|UNAUTHORIZED') {
-                    throw "Private bootstrap failed with a non-propagation error. Inspect $bootstrapLogPath before retrying."
-                }
-                Write-Warning "Private bootstrap attempt $attempt encountered an authorization error; bounded retry for newly assigned permissions. Evidence: $bootstrapLogPath"
-                if ($attempt -lt 6) { Start-Sleep 30 }
-            }
-            if (-not $bootstrapSucceeded) { throw 'Private bootstrap failed after bounded authorization retries; inspect the saved bootstrap-attempt logs.' }
-            $digest = (& ssh @sshArgs 'cat ~/csl/image-digest.txt' | Select-Object -Last 1).Trim()
-            if ($LASTEXITCODE -ne 0 -or $digest -notmatch '^sha256:[0-9a-f]{64}$') { throw 'Invalid image digest from the private runner.' }
-            $m.imageDigest = $digest
-            $m.status = 'PRIVATE_IMAGE_PUBLISHED'
-        } elseif ($Step -eq 'Application') {
-            $app = Invoke-LabDeployment $m $ManifestPath $script:LabGroups[1] 'csl-application' `
-                (Join-Path $script:LabRoot 'infra\workload-app.bicep') @{
-                    location = $script:LabLocation
-                    applicationRepository = 'demo-api'; applicationImageDigest = $m.imageDigest
-                    deploymentInstanceId = $m.deploymentInstanceId
-                }
-            $configPath = Join-Path $stateRoot 'runner-config.json'
-            $config = Get-Content $configPath -Raw | ConvertFrom-Json -AsHashtable
-            $config.API_FQDN = $app.applicationFqdn.value
-            Write-LabJson $configPath $config
-            & scp @sshOptions -P $TunnelPort $configPath 'csloperator@127.0.0.1:csl/runner-config.json'
-            if ($LASTEXITCODE -ne 0) { throw 'Private app configuration transfer failed.' }
-            & ssh @sshArgs 'cd ~/csl && pwsh -NoLogo -NoProfile -File scripts/runner/verify.ps1 > verification.log 2>&1'
-            if ($LASTEXITCODE -ne 0) { throw 'Private API identity, DNS, persistence, or idempotency verification failed.' }
-            $m.status = 'APPLICATION_CREATED'
-        } else {
-            & (Join-Path $PSScriptRoot 'Register-Controller.ps1') -ManifestPath $ManifestPath -TunnelPort $TunnelPort
-            $m = Read-LabManifest $ManifestPath
+        Wait-LabSsh $m $root $TunnelPort
+        $options = @(Get-LabSshOptions $m $root)
+        $sshArgs = $options + @('-p', [string]$TunnelPort, 'csloperator@127.0.0.1')
+        $publish = Join-Path $root "publish-$([Guid]::NewGuid().ToString('N'))"
+        & dotnet publish (Join-Path $script:LabRoot 'src\Demo.Api\Demo.Api.csproj') -c Release --no-restore -o $publish
+        if ($LASTEXITCODE -ne 0) { throw 'Versioned application publication build failed.' }
+        $package = "$publish.zip"
+        [IO.Compression.ZipFile]::CreateFromDirectory($publish, $package)
+        $m.applicationPackageSha256 = (Get-FileHash $package -Algorithm SHA256).Hash.ToLowerInvariant()
+        $config = @{
+            SUBSCRIPTION_ID=$script:LabSubscription; DEPLOYMENT_ID=$m.deploymentInstanceId
+            RUNNER_CLIENT_ID=$o.runnerClientId; MIGRATION_CLIENT_ID=$w.migrationClientId
+            RUNTIME_PRINCIPAL_ID=$w.runtimePrincipalId; POSTGRES_HOST=$w.postgresHost
+            VAULT_NAME=$w.vaultName; API_FQDN=$w.applicationFqdn; SCM_FQDN=$w.scmFqdn
+            APP_NAME=$w.applicationName; APP_RESOURCE_GROUP=$script:LabGroups[1]
+            LOG_ANALYTICS_WORKSPACE_ID=$w.logAnalyticsCustomerId
+            PACKAGE_SHA256=$m.applicationPackageSha256
         }
+        $configPath = Join-Path $root 'runner-config.json'
+        Write-LabJson $configPath $config
+        $bundle = Join-Path $root "runner-source-$([Guid]::NewGuid().ToString('N')).zip"
+        $entries = @(foreach ($folder in @('src\Demo.Api\Migrations', 'tests\load', 'scripts\runner')) {
+            Get-ChildItem (Join-Path $script:LabRoot $folder) -Recurse -File
+        })
+        $zip = [IO.Compression.ZipFile]::Open($bundle, [IO.Compression.ZipArchiveMode]::Create)
+        try {
+            foreach ($file in $entries) {
+                $relative = [IO.Path]::GetRelativePath($script:LabRoot, $file.FullName).Replace('\', '/')
+                if ($file.Extension -eq '.sh') {
+                    $writer = [IO.StreamWriter]::new($zip.CreateEntry($relative).Open(), [Text.UTF8Encoding]::new($false))
+                    try { $writer.Write([IO.File]::ReadAllText($file.FullName).Replace("`r`n", "`n")) }
+                    finally { $writer.Dispose() }
+                } else {
+                    [IO.Compression.ZipFileExtensions]::CreateEntryFromFile($zip, $file.FullName, $relative) | Out-Null
+                }
+            }
+            [IO.Compression.ZipFileExtensions]::CreateEntryFromFile($zip, $configPath, 'runner-config.json') | Out-Null
+            [IO.Compression.ZipFileExtensions]::CreateEntryFromFile($zip, $package, 'application.zip') | Out-Null
+        } finally { $zip.Dispose() }
+        & scp @options -P $TunnelPort $bundle 'csloperator@127.0.0.1:source.zip'
+        if ($LASTEXITCODE -ne 0) { throw 'Private source/package transfer failed.' }
+        Write-Information 'Private bootstrap/publication output is buffered in ~/csl/bootstrap.log; the guest stage has a 20-minute deadline.' -InformationAction Continue
+        & ssh @sshArgs 'mkdir -p ~/csl && unzip -o source.zip -d ~/csl >/dev/null && cd ~/csl && timeout 1200 bash scripts/runner/bootstrap.sh > bootstrap.log 2>&1'
+        if ($LASTEXITCODE -ne 0) { throw 'Private migration/SCM package publication failed. Inspect the buffered guest log; resources were preserved.' }
+        & ssh @sshArgs 'cd ~/csl && timeout 600 pwsh -NoLogo -NoProfile -File scripts/runner/verify.ps1 > verification.log 2>&1'
+        if ($LASTEXITCODE -ne 0) { throw 'Private API authentication/DNS/durability verification failed.' }
+        $m.status = 'PRIVATE_APPLICATION_PUBLISHED'
     }
     Write-LabJson $ManifestPath $m
-    Write-Output "Build stage $Step completed. Manifest: $ManifestPath"
-} finally { $lock.Dispose() }
+    Write-Information "Build stage $Step completed. Actual instance/health/traffic readiness and native tests require separate qualification." -InformationAction Continue
+} finally {
+    Write-LabJson (Join-Path $root "$Step-timing.json") @{
+        startedAtUtc=$started.ToString('O');finishedAtUtc=[DateTimeOffset]::UtcNow.ToString('O')
+        elapsedSeconds=([DateTimeOffset]::UtcNow-$started).TotalSeconds
+    }
+    $lock.Dispose()
+}

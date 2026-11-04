@@ -1,6 +1,5 @@
 targetScope = 'resourceGroup'
 
-param location string
 param deploymentInstanceId string
 param workloadVnetId string
 param operationsVnetId string
@@ -12,16 +11,14 @@ var labTags = {
 }
 
 var zoneNames = [
-  'privatelink.${location}.azurecontainerapps.io'
+  'privatelink.azurewebsites.net'
   'privatelink.postgres.database.azure.com'
-  'privatelink.azurecr.io'
   'privatelink.vaultcore.azure.net'
   'privatelink.blob.${environment().suffixes.storage}'
   'privatelink.monitor.azure.com'
   'privatelink.oms.opinsights.azure.com'
   'privatelink.ods.opinsights.azure.com'
   'privatelink.agentsvc.azure-automation.net'
-  'privatelink.azure-automation.net'
 ]
 
 resource zones 'Microsoft.Network/privateDnsZones@2024-06-01' existing = [for zoneName in zoneNames: {

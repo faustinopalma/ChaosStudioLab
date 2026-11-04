@@ -6,9 +6,9 @@ This document pins the first implementation's API, persistence, measurement, and
 
 ## 1. Region and deployment boundary
 
-- The project default remains `westeurope` as recorded in D05.
-- Deployment defaults select `swedencentral` under D16. The inherited policy denies West Europe. North Europe's SKU catalog advertises the required HA mode, but its subscription-level `zoneRedundantHaSupported` is `Disabled` and actual creation was rejected. Require top-level `restricted: Disabled` and `zoneRedundantHaSupported: Enabled` before provisioning.
-- Sweden Central passes those flags and lists the required SKU/zones and Chaos failover Action. Actual healthy cross-zone server creation remains a separate live gate. The North Europe adapter is retained for contexts where eligibility passes. D05's historical project default remains subject to current capability checks.
+- D20 sets `italynorth` as the preferred project region and `swedencentral` as the sole fallback for unavailable required services.
+- Current provider evidence excludes Italy North from the modern Chaos Workspaces/Actions locations, so deployment defaults retain Sweden Central. Italy North PostgreSQL HA eligibility is enabled; the fallback is justified by the required Chaos service.
+- Require top-level PostgreSQL `restricted: Disabled` and `zoneRedundantHaSupported: Enabled`, the native Action catalog and compatible quota in the exact approved region. Actual healthy cross-zone database creation and three-zone application participation remain independent live gates. No other regional adapter is retained.
 - The lab uses three new resource groups for networking, workload, and operations. Every deployment target, generated resource, role assignment, and deletion must be recorded in the per-run ownership manifest. No resource outside those new groups is in scope for mutation or deletion.
 - Subscription and tenant-wide policy assignments, role assignments, provider registrations, and existing resources are outside the lab's mutation scope. Required providers were already registered during preflight.
 

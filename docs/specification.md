@@ -2,9 +2,11 @@
 
 Updated: 4 November 2026.
 
-**Current target: private Linux Azure App Service deployed across three observed availability zones, with private PostgreSQL HA and operator-driven deployment.** The current source still implements the earlier Container Apps laboratory. This specification defines the required refactor; it supplies no App Service deployment or test verdict.
+**Current target: private Linux Azure App Service deployed across three observed availability zones, with private PostgreSQL HA and operator-driven deployment.** The candidate private App Service source topology compiles; live workload deployment and native test qualification remain blocked. This specification supplies no App Service deployment or test verdict.
 
 Apply [D17-D19](../DECISIONS-ACCEPTED.md#d17-private-azure-app-service-across-three-zones) over the superseded Container Apps and automatic-lifecycle decisions. The previous specification, implementation and diagrams are recoverable from Git tag `baseline-before-app-service-refactor`.
+
+[D20](../DECISIONS-ACCEPTED.md#d20-italy-north-first-sweden-central-only-fallback) limits deployment to **Italy North**, preferred, or **Sweden Central**, the sole fallback when required services are unavailable in Italy North. Current foreground provider evidence excludes Italy North from the required modern Chaos Workspaces/Actions locations, so the approved live scope remains in Sweden Central. No other region is permitted.
 
 ## 1. Objective and requirements
 

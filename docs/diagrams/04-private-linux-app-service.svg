@@ -1,0 +1,78 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape" width="1600" height="1080" viewBox="0 0 1600 1080">
+  <title>Private Linux App Service resilience lab - target architecture</title>
+  <desc>Six required workers across three observed physical zones, separate outbound Integration and inbound Private Endpoint subnets, private PostgreSQL HA, one private runner and explicit PC orchestration. Workload provisioning is quota-blocked; placement is illustrative.</desc>
+  <defs>
+    <marker id="arrow-blue" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth"><path d="M0,0 L0,6 L9,3 z" fill="#0078d4"/></marker>
+    <marker id="arrow-green" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth"><path d="M0,0 L0,6 L9,3 z" fill="#107c10"/></marker>
+    <marker id="arrow-purple" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth"><path d="M0,0 L0,6 L9,3 z" fill="#5c2d91"/></marker>
+    <style>text { font-family: Segoe UI, sans-serif; fill: #000; font-size: 19px } .title { font-size: 32px; font-weight: 600 } .heading { font-size: 23px; font-weight: 600 } .small { font-size: 17px } .boundary { fill: none; stroke: #0078d4; stroke-width: 2 } .node { fill: #cfe4fa; stroke: #0078d4; stroke-width: 2 } .data { fill: #dff6dd; stroke: #107c10; stroke-width: 2 }</style>
+  </defs>
+  <g id="background" inkscape:groupmode="layer" inkscape:label="Background"><rect width="1600" height="1080" fill="#fff"/></g>
+  <g id="boundaries" inkscape:groupmode="layer" inkscape:label="Boundaries">
+    <rect x="470" y="130" width="1080" height="330" rx="12" class="boundary"/>
+    <rect x="50" y="520" width="350" height="260" rx="12" class="boundary"/>
+    <rect x="470" y="520" width="1080" height="260" rx="12" class="boundary"/>
+    <rect x="470" y="860" width="1080" height="150" rx="12" fill="none" stroke="#107c10" stroke-width="2"/>
+  </g>
+  <g id="connectors" inkscape:groupmode="layer" inkscape:label="Connectors" fill="none" stroke-width="3">
+    <path d="M50 180 H25 V650 H75" stroke="#0078d4" marker-end="url(#arrow-blue)"/>
+    <path d="M400 650 H435 V800 H1260 V720" stroke="#0078d4" marker-end="url(#arrow-blue)"/>
+    <path d="M1260 590 V460" stroke="#0078d4" marker-end="url(#arrow-blue)"/>
+    <path d="M720 460 V590" stroke="#107c10" marker-end="url(#arrow-green)"/>
+    <path d="M960 660 H1000" stroke="#107c10" marker-end="url(#arrow-green)"/>
+    <path d="M1450 720 V860" stroke="#107c10" marker-end="url(#arrow-green)"/>
+    <path d="M390 350 H470" stroke="#5c2d91" stroke-dasharray="8 6" marker-end="url(#arrow-purple)"/>
+    <path d="M390 390 H420 V935 H470" stroke="#5c2d91" stroke-dasharray="8 6" marker-end="url(#arrow-purple)"/>
+    <path d="M980 945 H1050" stroke="#107c10" marker-end="url(#arrow-green)"/>
+  </g>
+  <g id="components" inkscape:groupmode="layer" inkscape:label="Components">
+    <rect x="50" y="130" width="340" height="100" rx="8" class="node"/>
+    <rect x="50" y="290" width="340" height="150" rx="8" fill="#e8daef" stroke="#5c2d91" stroke-width="2"/>
+    <rect x="75" y="590" width="300" height="130" rx="8" class="node"/>
+    <rect x="500" y="210" width="320" height="155" rx="8" fill="none" stroke="#0078d4"/>
+    <rect x="850" y="210" width="320" height="155" rx="8" fill="none" stroke="#0078d4"/>
+    <rect x="1200" y="210" width="320" height="155" rx="8" fill="none" stroke="#0078d4"/>
+    <rect x="520" y="275" width="125" height="60" rx="5" class="node"/>
+    <rect x="675" y="275" width="125" height="60" rx="5" class="node"/>
+    <rect x="870" y="275" width="125" height="60" rx="5" class="node"/>
+    <rect x="1025" y="275" width="125" height="60" rx="5" class="node"/>
+    <rect x="1220" y="275" width="125" height="60" rx="5" class="node"/>
+    <rect x="1375" y="275" width="125" height="60" rx="5" class="node"/>
+    <rect x="500" y="590" width="460" height="130" rx="8" class="data"/>
+    <rect x="1000" y="590" width="520" height="130" rx="8" class="node"/>
+    <rect x="500" y="915" width="480" height="65" rx="8" class="data"/>
+    <rect x="1050" y="915" width="470" height="65" rx="8" class="data"/>
+    <rect x="50" y="25" width="1500" height="80" rx="8" fill="#fff4ce" stroke="#f7630c"/>
+  </g>
+  <g id="labels" inkscape:groupmode="layer" inkscape:label="Labels">
+    <text x="75" y="60" class="title">Private Linux App Service resilience lab</text>
+    <text x="75" y="88" class="small">Candidate source topology | live workload provisioning blocked by SKU-specific AZ quota | actual placement remains unqualified</text>
+    <text x="75" y="165" class="heading">Operator PC</text>
+    <text x="75" y="195">Approved CLI / explicit stages</text>
+    <text x="75" y="220" class="small">Visible logs; manual group deletion</text>
+    <text x="75" y="325" class="heading">Modern Chaos Studio</text>
+    <text x="75" y="355">Workspace / Scenario / Action</text>
+    <text x="75" y="385" class="small">Native process crash + DB failover</text>
+    <text x="75" y="415" class="small">Exact owned targets; explicit starts</text>
+    <text x="500" y="170" class="heading">Managed Linux Web App / Premium plan - six fixed workers</text>
+    <text x="500" y="195" class="small">Actual plan: reserved=true, zoneRedundant=true, maximumNumberOfZones &gt;= 3, perSiteScaling=false</text>
+    <text x="520" y="245">Observed physical zone A</text><text x="870" y="245">Observed physical zone B</text><text x="1220" y="245">Observed physical zone C</text>
+    <text x="540" y="312">worker 1</text><text x="695" y="312">worker 2</text><text x="890" y="312">worker 3</text><text x="1045" y="312">worker 4</text><text x="1240" y="312">worker 5</text><text x="1395" y="312">worker 6</text>
+    <text x="500" y="400" class="small">Illustrative distribution: capture actual six instance IDs, physicalZone, health and successful business traffic.</text>
+    <text x="500" y="430" class="small">Private application + SCM; public access disabled; .NET 10; versioned, checksummed package.</text>
+    <text x="75" y="560" class="heading">Operations VNet</text>
+    <text x="95" y="625" class="heading">One private runner</text><text x="95" y="655">Bastion SSH + NAT egress</text><text x="95" y="685" class="small">Bounded load / private publication</text>
+    <text x="500" y="560" class="heading">Workload VNet - dedicated, separate subnets</text>
+    <text x="525" y="625" class="heading">Outbound VNet Integration</text>
+    <text x="525" y="655">Microsoft.Web/serverFarms delegation</text>
+    <text x="525" y="685" class="small">Private database / vault / monitoring access</text>
+    <text x="1025" y="625" class="heading">Inbound Private Endpoints</text>
+    <text x="1025" y="655">Application + SCM: sites group</text>
+    <text x="1025" y="685" class="small">PostgreSQL / Key Vault / Azure Monitor</text>
+    <text x="500" y="755" class="small">Private DNS linked to both VNets; direct bidirectional peering; platform DNS.</text>
+    <text x="500" y="830" class="small">Blue: private ingress / SCM     Green: application data path     Purple dashed: native control-plane fault targeting</text>
+    <text x="500" y="895" class="heading">Private PostgreSQL Flexible Server - public data plane disabled</text>
+    <text x="525" y="955">Primary - one availability zone</text><text x="1075" y="955">HA standby - different zone</text>
+    <text x="50" y="1045" class="small">All required measurements remain BLOCKED. No Automation Account, Hybrid Workers, lifecycle storage, image registry or automatic teardown.</text>
+  </g>
+</svg>

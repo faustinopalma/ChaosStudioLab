@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1500" height="960" viewBox="0 0 1500 960">
+  <title>Deterministic native Chaos suite - required evidence and verdicts</title>
+  <desc>Independent verdicts for baseline, exact-instance process crash, zone-selected process crash, PostgreSQL failover, combined overlapping effects and genuine infrastructure-zone loss. Every acknowledged write must be reconciled. The current run is quota-blocked.</desc>
+  <defs>
+    <style>text { font-family: Segoe UI, sans-serif; fill: #000; font-size: 20px } .title { font-size: 32px; font-weight: 600 } .heading { font-size: 23px; font-weight: 600 } .small { font-size: 18px }</style>
+  </defs>
+  <rect width="1500" height="960" fill="#fff"/>
+  <rect x="40" y="25" width="1420" height="95" rx="10" fill="#fff4ce" stroke="#f7630c" stroke-width="2"/>
+  <text x="65" y="65" class="title">Deterministic native Chaos suite - evidence contract</text>
+  <text x="65" y="100">Current run: all six verdicts BLOCKED. No workload, private SCM, instance placement or native effect is qualified.</text>
+  <rect x="40" y="145" width="1420" height="110" rx="10" fill="#cfe4fa" stroke="#0078d4" stroke-width="2"/>
+  <text x="65" y="180" class="heading">Mandatory readiness gate before every fault</text>
+  <text x="65" y="210">Actual six Linux workers / three physical zones / all-instance health and business traffic / private app and SCM</text>
+  <text x="65" y="238" class="small">Owned native targets; healthy private PostgreSQL HA; failover cooldown &gt;= 20 min; one bounded, attributable load.</text>
+  <g stroke="#0078d4" stroke-width="2" fill="none">
+    <rect x="40" y="280" width="1420" height="345" rx="10"/>
+    <path d="M40 345 H1460 M40 415 H1460 M40 485 H1460 M40 555 H1460 M355 280 V625"/>
+  </g>
+  <text x="65" y="320" class="heading">BASE-001</text><text x="380" y="310">5 min warmup + 10 min baseline; success &gt;= 99.9%; p95 &lt;= 1 s.</text><text x="380" y="335" class="small">Capture health/traffic identity, every issued operation, canary and acknowledged-write reconciliation.</text>
+  <text x="65" y="390" class="heading">HA-APP-001</text><text x="380" y="380">Native Kill process; exact nonempty InstanceIds selection; prove actual PID/start-time change.</text><text x="380" y="405" class="small">Observe &gt;= 5 min after effect; success &gt;= 99%; p95 &lt;= 2 s; complete-unavailability gap &lt;= 5 s.</text>
+  <text x="65" y="460" class="heading">HA-APP-ZONE-001</text><text x="380" y="450">Native Kill process with verified Zones selection and actual physical/logical mapping.</text><text x="380" y="475" class="small">Evidence covers selected-zone instance effects and unaffected zones; apply app-only thresholds.</text>
+  <text x="65" y="530" class="heading">HA-DB-001</text><text x="380" y="520">Native ForcedFailover=1; independently observe DB disruption and primary/standby role swap.</text><text x="380" y="545" class="small">Observe &gt;= 10 min; recovery &lt;= 180 s to start of qualifying 60 s stable window.</text>
+  <text x="65" y="600" class="heading">HA-COMBINED-001</text><text x="380" y="590">Independently evidenced DB-disruption and application-effect overlap.</text><text x="380" y="615" class="small">Concurrent submissions alone provide no overlap evidence; apply DB/combined recovery requirements.</text>
+  <rect x="40" y="650" width="1420" height="105" rx="10" fill="#dff6dd" stroke="#107c10" stroke-width="2"/>
+  <text x="65" y="685" class="heading">For each phase: availability + recovery + durability remain separate verdicts</text>
+  <text x="65" y="718">Errors / drops / latency / recovery; resolve every issued write; zero lost acknowledgements, duplicates or checksum mismatches.</text>
+  <text x="65" y="745" class="small">Preserve raw clocks, instance/PID evidence, Action state, DB state and complete post-recovery observations.</text>
+  <rect x="40" y="780" width="1420" height="100" rx="10" fill="#fde7e9" stroke="#d13438" stroke-width="2"/>
+  <text x="65" y="818" class="heading">HA-AZ-001: BLOCKED without qualifying correlated infrastructure-zone outage evidence</text>
+  <text x="65" y="852">Discrete process crashes establish process-fault behavior. A sustained real-zone outage needs its own injection and observation.</text>
+  <text x="40" y="920" class="small">Modern Workspaces / Scenarios / native Actions. Linux stays selected. Preserve resources; the operator manually deletes the groups.</text>
+</svg>

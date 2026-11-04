@@ -40,7 +40,7 @@ Start with the two VNet boxes and the supporting-services panel. A virtual netwo
 | Operations VNet | `10.82.0.0/16` | Private build/load runner, lifecycle Hybrid Workers, NAT Gateway and Bastion |
 | Private DNS zones | Network resource group | Azure-provided DNS resolves private zones linked directly to both VNets |
 
-The historical project default is `westeurope`, subject to regional preflight. D16 selects Sweden Central for deployment defaults after North Europe failed subscription-level PostgreSQL HA eligibility. Address ranges are parameterized and must pass overlap checks before provisioning.
+Current regional policy follows D20: Italy North is preferred; Sweden Central is the sole fallback when required services are unavailable in Italy North. The modern Chaos API excludes Italy North in the current provider catalog, so the approved deployment scope remains in Sweden Central. Address ranges are parameterized and must pass overlap checks before provisioning.
 
 The operations NAT Gateway and Bastion use Standard static IPv4 addresses allocated from Azure's address pool, following [D13/D14](../DECISIONS-ACCEPTED.md#d14-focused-chaosha-laboratory-networking). BYOIP, customer-supplied public addresses, IP prefixes, and public-IP `ipTags` are excluded. Azure Firewall, its hub and inspection rules have been removed to focus the lab on service HA and Chaos tests. Removing Firewall does not eliminate the NAT/Bastion public-IP policy gate.
 

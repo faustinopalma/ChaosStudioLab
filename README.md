@@ -2,9 +2,13 @@
 
 The current target is a **private Linux Azure App Service application running across three observed availability zones**, backed by private Azure Database for PostgreSQL Flexible Server with zone-redundant HA.
 
-**Implementation status:** the source still implements the earlier Container Apps laboratory. The App Service source refactor and fresh deployment have not started. Read the current specification before using the existing deployment scripts.
+**Region policy:** Italy North is preferred; Sweden Central is the only allowed fallback when required services are unavailable in Italy North. The live provider catalog currently excludes Italy North from modern Chaos Workspaces/Actions, so the approved three-group scope is in Sweden Central. [D20](DECISIONS-ACCEPTED.md#d20-italy-north-first-sweden-central-only-fallback) records the verified reason. No other region is permitted by the active adapters.
 
-The [foreground App Service preflight](scripts/Test-AppServicePreflight.ps1) is available for read-only qualification. Supply the approved `CSL_ENVIRONMENT_FILE`, a fresh `-StateDirectory` under ignored `.local` and `-PreviousManifestPath`. It preserves raw evidence and a new ownership manifest, enforces per-command deadlines and reports every requested test separately. It never deploys, executes faults or cleans up. The current qualification is blocked by a missing required policy exemption; actual private SCM and three-zone readiness remain unqualified. See [current research](docs/research.md#fresh-foreground-catalog-qualification).
+**Implementation status:** the private Linux App Service/single-runner source topology compiles and its targeted local regressions pass. The three dedicated groups and narrowly scoped, finite public-IP policy exemption were created after operator approval. Workload provisioning is blocked: the provider reports zero AZ-worker quota for all four checked Premium SKU candidates, with six required. Private SCM, actual three-zone placement and native fault execution remain unqualified.
+
+The [foreground App Service preflight](scripts/Test-AppServicePreflight.ps1) is available for a new run's read-only qualification. Supply the approved `CSL_ENVIRONMENT_FILE`, a fresh `-StateDirectory` under ignored `.local` and `-PreviousManifestPath`. It preserves raw evidence and a new ownership manifest, enforces per-command deadlines and reports every requested test separately. It never deploys, executes faults or cleans up. Resume an existing live run with its current manifest; do not generate another ownership GUID or recreate its groups. See [current research](docs/research.md#fresh-foreground-catalog-qualification).
+
+[Build-Lab.ps1](scripts/Build-Lab.ps1) stages the early plan before identities/dependencies, a single foreground runner and checksummed package publication through private SCM. Its stage-specific validation guard currently prevents further provisioning. The previous unattended cycle, controller, Suspend/Resume and Destroy entrypoints fail immediately. [Test-Lab.ps1](scripts/Test-Lab.ps1) also fails explicitly until the native execution/effect evaluator is implemented and qualified; none of the six requested tests has passed in the App Service run.
 
 ## Required architecture
 
@@ -31,7 +35,7 @@ Linux is the selected baseline. Qualify native Action support on Linux and recor
 - [Platform research](docs/research.md#current-app-service-facts-three-zone-and-native-fault-gates): official App Service placement and modern Chaos references.
 - [Historical execution results](docs/first-cycle-results.md): measured Container Apps/PostgreSQL results, incomplete application test coverage, troubleshooting and cleanup limitations.
 
-The [earlier architecture guide](docs/architecture-guide.md), [diagrams](docs/diagrams/README.md), [implementation contracts](docs/implementation-contracts.md) and [autonomous cycle method](docs/lab-cycle-method.md) are explicitly marked as historical. Their Container Apps/Automation drawings and commands must be replaced or retired during refactoring.
+The [earlier architecture guide](docs/architecture-guide.md), [implementation contracts](docs/implementation-contracts.md) and [autonomous cycle method](docs/lab-cycle-method.md) remain historical. The [diagram index](docs/diagrams/README.md) separates the current target/evidence diagrams from the historical Container Apps/Automation drawings.
 
 ## Git and private context
 
@@ -47,4 +51,4 @@ pwsh .\tests\Test-Publication.ps1
 
 Git ignore rules do not protect full-folder archives or erase already-committed data. No remote publication is implied by a local commit.
 
-The earlier groups' final deletion was handed to the operator. This repository records no independently certified final cleanup or purge result for that handoff.
+Read-only preflight verified that the previous dedicated groups and exact old Container Apps managed group were absent before the new scope was created. Unrelated resources were preserved. A recoverable vault remains under its retention policy; no purge was performed. The new groups remain deployed for operator-managed deletion, and group absence does not certify backup/audit-retention cleanup.

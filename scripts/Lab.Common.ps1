@@ -1,9 +1,10 @@
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
 $script:LabRoot = Split-Path $PSScriptRoot -Parent
-$environmentPath = if ($env:CSL_ENVIRONMENT_FILE) {
-    $env:CSL_ENVIRONMENT_FILE
-} else { Join-Path $script:LabRoot '.local\environment.json' }
+if ([string]::IsNullOrWhiteSpace($env:CSL_ENVIRONMENT_FILE)) {
+    throw 'Explicitly select the approved private environment with CSL_ENVIRONMENT_FILE; no implicit regional/profile fallback is permitted.'
+}
+$environmentPath = $env:CSL_ENVIRONMENT_FILE
 if (-not (Test-Path -LiteralPath $environmentPath -PathType Leaf)) {
     throw 'Missing local environment configuration. Copy config\environment.example.json to .local\environment.json and supply the approved context.'
 }
@@ -23,8 +24,8 @@ foreach ($key in @('subscriptionId', 'tenantId')) {
 $script:LabSubscription = $script:LabEnvironment.subscriptionId
 $script:LabTenant = $script:LabEnvironment.tenantId
 $script:LabLocation = $script:LabEnvironment.deploymentRegion
-if ($script:LabLocation -notin @('northeurope', 'swedencentral')) {
-    throw 'The current infrastructure adapters support northeurope and swedencentral. Validate regional DNS, service tags and APIs before selecting another deployment region.'
+if ($script:LabLocation -notin @('italynorth', 'swedencentral')) {
+    throw 'Only italynorth (preferred) and swedencentral (fallback for unavailable required services) are authorized. Verify regional capabilities and use the explicitly approved environment.'
 }
 $script:LabGroups = @(
     foreach ($role in @('network', 'workload', 'operations')) {
@@ -71,19 +72,8 @@ function Get-LabSshOptions {
         '-o', 'StrictHostKeyChecking=accept-new', '-o', "UserKnownHostsFile=$(Join-Path $StateRoot 'known-hosts')")
 }
 
-function New-LabLifecycleParameters {
-    param([hashtable] $Operations, [ValidateSet('Reconcile', 'Suspend', 'Resume')][string] $Intent)
-    $context = [ordered]@{
-        schemaVersion = 1; StorageName = $Operations.storageName; ControlClientId = $Operations.controlClientId
-        SubscriptionId = $script:LabSubscription; NetworkResourceGroupName = $script:LabGroups[0]
-        WorkloadResourceGroupName = $script:LabGroups[1]; OperationsResourceGroupName = $script:LabGroups[2]
-        Intent = $Intent
-    } | ConvertTo-Json -Compress
-    @{ ContextBase64 = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($context)) }
-}
-
 function Save-LabRunnerEvidence {
-    param([string] $ManifestPath, [ValidateSet('warmup', 'baseline', 'failover', 'resume')][string] $Phase,
+    param([string] $ManifestPath, [ValidateSet('warmup', 'baseline', 'app-instance', 'app-zone', 'failover', 'combined')][string] $Phase,
         [int] $TunnelPort, [switch] $Partial)
     $manifest = Read-LabManifest $ManifestPath
     $stateRoot = Split-Path $ManifestPath -Parent
@@ -106,7 +96,8 @@ function Save-LabRunnerEvidence {
 }
 
 function Test-LabDurability {
-    param([string] $ManifestPath, [string] $RunId, [int] $TunnelPort, [ValidateSet('failover', 'resume')][string] $Phase)
+    param([string] $ManifestPath, [string] $RunId, [int] $TunnelPort,
+        [ValidateSet('baseline', 'app-instance', 'app-zone', 'failover', 'combined')][string] $Phase)
     if ($RunId -notmatch '^[0-9a-f]{32}$') { throw 'Invalid durability run ID.' }
     $manifest = Read-LabManifest $ManifestPath
     $root = Split-Path $ManifestPath -Parent
@@ -183,7 +174,7 @@ function Assert-LabBuildValidation {
     if ($Plan -notmatch 'Status:\*\* (Validated|Deployed)\b') {
         throw 'The deployment plan must be Validated by azure-validate before cloud provisioning.'
     }
-    if ($Plan -match '\*\*Validated build steps:\*\* (?<steps>[^\r\n]+)' -and
+    if ($Plan -notmatch '\*\*Validated build steps:\*\* (?<steps>[^\r\n]+)' -or
         $Step -notin @($Matches.steps.Split(',').Trim())) {
         throw "The deployment plan is not yet validated for the $Step build step."
     }
@@ -220,9 +211,8 @@ function Get-LabPrerequisitePrincipalIds {
     foreach ($entry in @(
         @{key = 'migration'; index = 1; name = 'id-csl-migrations'}
         @{key = 'runner'; index = 2; name = 'id-csl-runner'}
-        @{key = 'control'; index = 2; name = 'id-csl-control'}
-        @{key = $null; index = 1; name = 'id-csl-chaos'}
-        @{key = $null; index = 1; name = 'id-csl-runtime'}
+        @{key = 'chaos'; index = 1; name = 'id-csl-chaos'}
+        @{key = 'runtime'; index = 1; name = 'id-csl-runtime'}
     )) {
         $id = "/subscriptions/$script:LabSubscription/resourceGroups/$($script:LabGroups[$entry.index])/providers/Microsoft.ManagedIdentity/userAssignedIdentities/$($entry.name)"
         $matches = @($identities | Where-Object id -IEQ $id)
@@ -246,6 +236,47 @@ function Assert-LabRegionalCapabilities {
     if ($entries.Count -ne 1 -or $entries[0]['restricted'] -ne 'Disabled' -or
         $entries[0]['zoneRedundantHaSupported'] -ne 'Enabled') {
         throw "BLOCKED: PostgreSQL subscription-level zoneRedundantHaSupported is not Enabled in $script:LabLocation. Per-SKU supportedHaMode alone is insufficient. Select a verified compatible lab region or request eligibility through Azure portal > Help + support > Service and subscription limits before creating resources."
+    }
+}
+
+function Assert-LabAppServicePlan {
+    param([hashtable] $Plan)
+    if ('linux' -notin @($Plan.kind -split ',') -or
+        $Plan.properties.reserved -ne $true -or
+        $Plan.properties.zoneRedundant -ne $true -or
+        $Plan.properties.perSiteScaling -ne $false -or
+        $Plan.sku.capacity -ne 6 -or
+        -not $Plan.properties.ContainsKey('maximumNumberOfZones') -or
+        $Plan.properties.maximumNumberOfZones -lt 3) {
+        throw 'BLOCKED: the actual plan must be Linux, zoneRedundant=true, maximumNumberOfZones>=3, capacity=6 and perSiteScaling=false. No two-zone or Windows fallback is authorized.'
+    }
+}
+
+function Assert-LabAppServicePlacement {
+    param([hashtable] $Plan, [object[]] $Instances, [object[]] $Observations)
+    Assert-LabAppServicePlan $Plan
+    if ($Instances.Count -ne 6 -or @($Instances.name | Sort-Object -Unique).Count -ne 6) {
+        throw 'BLOCKED: exactly six distinct actual application instances are required.'
+    }
+    $zones = @()
+    foreach ($instance in $Instances) {
+        if ([string]::IsNullOrWhiteSpace($instance.name) -or
+            [string]::IsNullOrWhiteSpace($instance.properties.physicalZone)) {
+            throw 'BLOCKED: every actual application instance needs an ID and physicalZone.'
+        }
+        $zones += $instance.properties.physicalZone
+        $health = @($Observations | Where-Object {
+            $_.instanceId -eq $instance.name -and $_.status -eq 'live'
+        })
+        $traffic = @($Observations | Where-Object {
+            $_.instanceId -eq $instance.name -and $_.businessSuccess -eq $true
+        })
+        if ($health.Count -eq 0 -or $traffic.Count -eq 0) {
+            throw "BLOCKED: missing actual health/business participation for instance $($instance.name)."
+        }
+    }
+    if (@($zones | Sort-Object -Unique).Count -ne 3) {
+        throw 'BLOCKED: healthy application traffic must represent exactly three distinct observed physicalZone values.'
     }
 }
 
@@ -459,58 +490,38 @@ function Assert-LabPublicIpChanges {
 }
 
 function Initialize-LabMachines {
-    param([string] $ManifestPath)
+    param([string] $ManifestPath, [IO.FileStream] $ManifestLock)
     Confirm-LabContext
     Assert-LabPolicyExemptions (Read-LabManifest $ManifestPath)
     Assert-LabBuildValidation 'Runner' (Get-Content (Join-Path $script:LabRoot '.azure\deployment-plan.md') -Raw)
-    $lock = [IO.File]::Open("$ManifestPath.lock", 'OpenOrCreate', 'ReadWrite', 'None')
-    $jobs = @()
-    $manifest = $null
+    if ($null -eq $ManifestLock -or -not $ManifestLock.CanWrite -or
+        $ManifestLock.Name -ine [IO.Path]::GetFullPath("$ManifestPath.lock")) {
+        throw 'Runner initialization requires the caller-held exclusive manifest lock.'
+    }
+    $manifest = Read-LabManifest $ManifestPath
     try {
-        $manifest = Read-LabManifest $ManifestPath
-        Write-Information "[$([DateTimeOffset]::UtcNow.ToString('O'))] Installing software on the three owned VMs in parallel." -InformationAction Continue
-        foreach ($vm in @('vm-csl-runner', 'vm-csl-worker-1', 'vm-csl-worker-2')) {
-            $jobs += Start-Job -ScriptBlock {
-                param($CommonPath, $EnvironmentPath, $ManifestPath, $VmName)
-                $env:CSL_ENVIRONMENT_FILE = $EnvironmentPath
-                . $CommonPath
-                Confirm-LabContext
-                $m = Read-LabManifest $ManifestPath
-                $vm = Invoke-LabAz @('vm', 'show', '-g', $script:LabGroups[2], '-n', $VmName, '-o', 'json') |
-                    ConvertFrom-Json -AsHashtable
-                Assert-LabResourceId $vm.id
-                if ($vm.id -notin $m.resourceIds -or $vm.tags.deploymentInstanceId -ne $m.deploymentInstanceId -or
-                    $vm.tags.labId -ne $m.labId) { throw "Missing or foreign installation target: $VmName" }
-                $installStarted = [DateTimeOffset]::UtcNow
-                $install = Invoke-LabAz @('vm', 'run-command', 'invoke', '-g', $script:LabGroups[2], '-n', $VmName,
-                    '--command-id', 'RunShellScript', '--scripts', "@$(Join-Path $script:LabRoot 'scripts\runner\install.sh')", '-o', 'json') |
-                    ConvertFrom-Json -AsHashtable
-                $install.startedAtUtc = $installStarted.ToString('O')
-                $install.completedAtUtc = [DateTimeOffset]::UtcNow.ToString('O')
-                Write-LabJson (Join-Path (Split-Path $ManifestPath -Parent) "$VmName-install.json") $install
-                if (($install.value.message -join "`n") -notmatch '(?m)^CSL_INSTALL_COMPLETED\r?$') {
-                    throw "Software installation did not reach its final success marker on $VmName. Inspect its install JSON beside the manifest."
-                }
-                Write-Output "Software installation completed on $VmName."
-            } -ArgumentList (Join-Path $PSScriptRoot 'Lab.Common.ps1'), $script:LabEnvironmentPath, $ManifestPath, $vm
+        Write-Information "[$([DateTimeOffset]::UtcNow.ToString('O'))] Installing the single owned runner in the foreground; guest deadline 20 minutes." -InformationAction Continue
+        $vm = Invoke-LabAz @('vm', 'show', '-g', $script:LabGroups[2], '-n', 'vm-csl-runner', '-o', 'json') |
+            ConvertFrom-Json -AsHashtable
+        Assert-LabResourceId $vm.id
+        if ($vm.id -notin $manifest.resourceIds -or $vm.tags.deploymentInstanceId -ne $manifest.deploymentInstanceId -or
+            $vm.tags.labId -ne $manifest.labId) { throw 'Missing or foreign installation target: vm-csl-runner' }
+        $installStarted = [DateTimeOffset]::UtcNow
+        $source = [IO.File]::ReadAllText((Join-Path $script:LabRoot 'scripts\runner\install.sh')).Replace("`r`n", "`n")
+        $encoded = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($source))
+        $install = Invoke-LabAz @('vm', 'run-command', 'invoke', '-g', $script:LabGroups[2], '-n', 'vm-csl-runner',
+            '--command-id', 'RunShellScript', '--scripts',
+            "printf '%s' '$encoded' | base64 -d > /tmp/csl-install.sh && timeout 1200 bash /tmp/csl-install.sh", '-o', 'json') |
+            ConvertFrom-Json -AsHashtable
+        $install.startedAtUtc = $installStarted.ToString('O')
+        $install.completedAtUtc = [DateTimeOffset]::UtcNow.ToString('O')
+        Write-LabJson (Join-Path (Split-Path $ManifestPath -Parent) 'vm-csl-runner-install.json') $install
+        if (($install.value.message -join "`n") -notmatch '(?m)^CSL_INSTALL_COMPLETED\r?$') {
+            throw 'Runner software installation did not reach its final success marker. Inspect the saved install JSON before retrying.'
         }
-        $completed = @($jobs | Wait-Job -Timeout 1200)
-        if ($completed.Count -ne $jobs.Count) {
-            throw 'Machine installation exceeded 20 minutes. Azure Run Command can continue after a client timeout; inspect the owned VM execution state before retrying.'
-        }
-        $jobs | Receive-Job -ErrorAction Stop
-        foreach ($job in $jobs) {
-            if ($job.State -ne 'Completed') { throw "Machine installation job failed: $($job.Id)" }
-        }
-        Write-Information "[$([DateTimeOffset]::UtcNow.ToString('O'))] All VM software checks passed; refreshing the ownership inventory." -InformationAction Continue
+        Write-Information 'Single-runner software checks passed.' -InformationAction Continue
     } finally {
-        try {
-            foreach ($job in $jobs) {
-                Stop-Job -Job $job
-                Remove-Job -Job $job
-            }
-            if ($null -ne $manifest) { Save-LabInventory $manifest $ManifestPath }
-        } finally { $lock.Dispose() }
+        Save-LabInventory $manifest $ManifestPath
     }
 }
 

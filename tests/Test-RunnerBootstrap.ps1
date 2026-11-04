@@ -34,16 +34,10 @@ if ($LASTEXITCODE -or ($repeated -join "`n").Trim() -cne ($expected -join "`n"))
 if (@([regex]::Matches($installer, 'apt-get -o APT::Update::Error-Mode=any update')).Count -ne 2) {
     throw 'Both package-index updates must fail explicitly on any repository error.'
 }
-if ($installer -notmatch "awk '(?<selection>[^']+)'") { throw 'PowerShell package-selection expression was not found.' }
-$selection = "awk '$($Matches.selection)'"
-$package = @(
-    'powershell-lts | 7.6.1-1.deb | https://example.invalid'
-    'powershell-lts | 7.4.13-1.deb | https://example.invalid'
-    'powershell-lts | 7.4.12-1.deb | https://example.invalid'
-) | & $bash -c $selection
-if ($LASTEXITCODE -or $package.Trim() -ne '7.4.13-1.deb') { throw 'The installer selected a different PowerShell runtime.' }
-$unsupported = 'powershell-lts | 7.6.1-1.deb | https://example.invalid' | & $bash -c $selection
-if ($LASTEXITCODE -or -not [string]::IsNullOrWhiteSpace($unsupported)) { throw 'Unsupported PowerShell versions must not be selected.' }
+if ($installer -match 'docker|Automation|powershell_7_4' -or
+    -not $installer.Contains('apt-get install -y azure-cli powershell-lts')) {
+    throw 'Runner installation retains a retired container/Automation dependency.'
+}
 $marker = '(?m)^CSL_INSTALL_COMPLETED\r?$'
 if (-not $installer.TrimEnd().EndsWith("printf '\nCSL_INSTALL_COMPLETED\n'") -or
     -not (Get-Content (Join-Path $root 'scripts\Lab.Common.ps1') -Raw).Contains($marker) -or
@@ -93,52 +87,17 @@ try {
             }
         } finally { $bytes.Dispose() }
     } finally { $zip.Dispose() }
-    $retryLoops = @($buildAst.FindAll({
-        param($node)
-        $node -is [Management.Automation.Language.ForStatementAst] -and
-            $node.Condition.Extent.Text -eq '$attempt -le 6'
-    }, $true))
-    $failureGuards = @($buildAst.FindAll({
-        param($node)
-        $node -is [Management.Automation.Language.IfStatementAst] -and
-            $node.Clauses[0].Item1.Extent.Text -eq '-not $bootstrapSucceeded'
-    }, $true))
-    if ($retryLoops.Count -ne 1 -or $failureGuards.Count -ne 1) { throw 'Expected one bounded bootstrap loop and explicit success guard.' }
-    $retryCode = [scriptblock]::Create($retryLoops[0].Extent.Text + "`n" + $failureGuards[0].Extent.Text)
-    & {
-        $WarningPreference = 'SilentlyContinue'
-        $stateRoot = $fixture
-        $sshArgs = @()
-        function ssh {
-            param([Parameter(ValueFromRemainingArguments)][string[]] $Arguments)
-            if ($Arguments[-1] -eq 'tail -n 100 ~/csl/bootstrap.log') {
-                $global:LASTEXITCODE = 0
-                return $script:bootstrapCase.log
-            }
-            $script:bootstrapCalls++
-            $global:LASTEXITCODE = if ($script:bootstrapCalls -le $script:bootstrapCase.failures) { 1 } else { 0 }
-        }
-        function Start-Sleep([int] $Seconds) { $script:bootstrapSleeps++ }
-        foreach ($script:bootstrapCase in @(
-            @{failures = 0; log = ''; calls = 1; sleeps = 0; rejected = $false}
-            @{failures = 1; log = 'Forbidden: role is propagating'; calls = 2; sleeps = 1; rejected = $false}
-            @{failures = 6; log = 'Forbidden'; calls = 6; sleeps = 5; rejected = $true}
-            @{failures = 6; log = 'set: pipefail: invalid option name'; calls = 1; sleeps = 0; rejected = $true}
-        )) {
-            $script:bootstrapCalls = 0
-            $script:bootstrapSleeps = 0
-            $bootstrapSucceeded = $false
-            $rejected = $false
-            try { . $retryCode } catch { $rejected = $true }
-            if ($rejected -ne $script:bootstrapCase.rejected -or
-                $script:bootstrapCalls -ne $script:bootstrapCase.calls -or
-                $script:bootstrapSleeps -ne $script:bootstrapCase.sleeps) {
-                throw 'Actual bootstrap retry behavior differs from the authorization-only bounded contract.'
-            }
-        }
+    $build = $buildAst.Extent.Text
+    if (-not $build.Contains('timeout 1200 bash scripts/runner/bootstrap.sh') -or
+        -not $build.Contains('if ($LASTEXITCODE -ne 0)') -or
+        -not $bootstrap.Contains('az webapp deploy') -or
+        -not $bootstrap.Contains('sha256sum --check') -or
+        -not $bootstrap.Contains('"$API_FQDN" "$SCM_FQDN"') -or
+        $bootstrap -match 'docker|az acr') {
+        throw 'Bounded private SCM/checksummed package publication contract drifted.'
     }
 } finally {
     $script:LabRoot = $root
     Remove-Item -LiteralPath $fixture -Recurse
 }
-'Actual archive LF normalization, bounded authorization retries, sed/awk, supported runtime, strict TLS and final marker checks passed.'
+'Actual archive LF normalization, private SCM package publication, bounded bootstrap, HTTPS package sources, strict TLS and final marker checks passed.'

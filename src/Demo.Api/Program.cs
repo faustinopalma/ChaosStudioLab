@@ -69,31 +69,35 @@ builder.Services.AddSingleton<NpgsqlDataSource>(services =>
 builder.Services.AddSingleton<IOrderRepository, NpgsqlOrderRepository>();
 builder.Services.AddSingleton<OrderService>();
 builder.Services.AddSingleton<DatabaseHealthProbe>();
-builder.Services.AddSingleton<ReadinessFaultStore>();
 
 var app = builder.Build();
+var processStartedAtUtc = new DateTimeOffset(
+    System.Diagnostics.Process.GetCurrentProcess().StartTime.ToUniversalTime()).ToString("O");
+app.Use(async (context, next) =>
+{
+    context.Response.Headers["X-Lab-Instance-Id"] = ReplicaId();
+    context.Response.Headers["X-Lab-Process-Id"] = Environment.ProcessId.ToString();
+    context.Response.Headers["X-Lab-Process-Start-Utc"] = processStartedAtUtc;
+    System.Diagnostics.Activity.Current?.SetTag("app.instance.id", ReplicaId());
+    await next(context);
+});
 app.UseAuthentication();
 app.UseAuthorization();
 
-app.MapGet("/health/live", () => Results.Ok(new { status = "live" }));
+app.MapGet("/health/live", () => Results.Ok(new
+{
+    status = "live",
+    instanceId = ReplicaId(),
+    replicaId = ReplicaId(),
+    processId = Environment.ProcessId,
+    processStartedAtUtc,
+    revision = Revision()
+}));
 
 app.MapGet("/health/ready", async (
     DatabaseHealthProbe database,
-    ReadinessFaultStore faults,
     HttpContext context) =>
 {
-    var fault = faults.GetState();
-    if (fault.Status != ReadinessFaultStatus.None)
-    {
-        var response = new ReadinessResponse(
-            "not-ready",
-            fault.Reason,
-            ReplicaId(),
-            Revision(),
-            TraceId(context));
-        return Results.Json(response, statusCode: StatusCodes.Status503ServiceUnavailable);
-    }
-
     var db = await database.CheckAsync(context.RequestAborted);
     var readyResponse = new ReadinessResponse(
         db.Healthy ? "ready" : "not-ready",
@@ -264,10 +268,10 @@ static OrderResponse ToResponse(
         TraceId(context));
 
 static string ReplicaId() =>
-    Environment.GetEnvironmentVariable("CONTAINER_APP_REPLICA_NAME") ?? "local";
+    Environment.GetEnvironmentVariable("WEBSITE_INSTANCE_ID") ?? "local";
 
 static string Revision() =>
-    Environment.GetEnvironmentVariable("CONTAINER_APP_REVISION") ?? "local";
+    Environment.GetEnvironmentVariable("LAB_SOURCE_REVISION") ?? "local";
 
 static string TraceId(HttpContext context) =>
     System.Diagnostics.Activity.Current?.TraceId.ToString()

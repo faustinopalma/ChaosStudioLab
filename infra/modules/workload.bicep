@@ -3,7 +3,7 @@ targetScope = 'resourceGroup'
 param location string
 param privateDnsZoneIds array
 param workloadAddressPrefix string
-param containerAppsSubnetPrefix string
+param appServiceIntegrationSubnetPrefix string
 param privateEndpointsSubnetPrefix string
 param deploymentInstanceId string
 param migrationPrincipalId string
@@ -18,19 +18,17 @@ var labTags = {
   deploymentInstanceId: deploymentInstanceId
 }
 
-var suffix = uniqueString(resourceGroup().id)
-var registryName = take('csl${suffix}', 50)
+var suffix = uniqueString(resourceGroup().id, deploymentInstanceId)
 var vaultName = take('csl-kv-${suffix}', 24)
 var databaseName = take('csl-pg-${suffix}', 63)
 var postgresZoneId = privateDnsZoneIds[1]
-var registryZoneId = privateDnsZoneIds[2]
-var vaultZoneId = privateDnsZoneIds[3]
+var vaultZoneId = privateDnsZoneIds[2]
 var monitorZoneIds = [
+  privateDnsZoneIds[3]
   privateDnsZoneIds[4]
   privateDnsZoneIds[5]
   privateDnsZoneIds[6]
   privateDnsZoneIds[7]
-  privateDnsZoneIds[8]
 ]
 
 resource workloadVnet 'Microsoft.Network/virtualNetworks@2024-05-01' = {
@@ -45,14 +43,14 @@ resource workloadVnet 'Microsoft.Network/virtualNetworks@2024-05-01' = {
     }
     subnets: [
       {
-        name: 'container-apps'
+        name: 'app-service-integration'
         properties: {
-          addressPrefix: containerAppsSubnetPrefix
+          addressPrefix: appServiceIntegrationSubnetPrefix
           delegations: [
             {
-              name: 'container-apps'
+              name: 'app-service'
               properties: {
-                serviceName: 'Microsoft.App/environments'
+                serviceName: 'Microsoft.Web/serverFarms'
               }
             }
           ]
@@ -66,21 +64,6 @@ resource workloadVnet 'Microsoft.Network/virtualNetworks@2024-05-01' = {
         }
       }
     ]
-  }
-}
-
-resource registry 'Microsoft.ContainerRegistry/registries@2023-07-01' = {
-  name: registryName
-  location: location
-  tags: labTags
-  sku: {
-    name: 'Premium'
-  }
-  properties: {
-    adminUserEnabled: false
-    publicNetworkAccess: 'Disabled'
-    networkRuleBypassOptions: 'None'
-    zoneRedundancy: 'Enabled'
   }
 }
 
@@ -231,7 +214,7 @@ resource postgresFailoverScenario 'Microsoft.Chaos/workspaces/scenarios@2026-08-
   parent: chaosWorkspace
   name: 'postgres-forced-failover'
   properties: {
-    description: 'Forces a PostgreSQL Flexible Server failover; execute only through the approved guarded test controller.'
+    description: 'Native forced PostgreSQL failover; execute explicitly from the PC after private baseline and cooldown gates.'
     parameters: []
     actions: [
       {
@@ -347,43 +330,6 @@ resource postgresPrivateDnsGroup 'Microsoft.Network/privateEndpoints/privateDnsZ
   }
 }
 
-resource registryPrivateEndpoint 'Microsoft.Network/privateEndpoints@2024-05-01' = {
-  name: 'pe-csl-acr'
-  location: location
-  tags: labTags
-  properties: {
-    subnet: {
-      id: privateEndpointsSubnet.id
-    }
-    privateLinkServiceConnections: [
-      {
-        name: 'registry'
-        properties: {
-          privateLinkServiceId: registry.id
-          groupIds: [
-            'registry'
-          ]
-        }
-      }
-    ]
-  }
-}
-
-resource registryPrivateDnsGroup 'Microsoft.Network/privateEndpoints/privateDnsZoneGroups@2024-05-01' = {
-  parent: registryPrivateEndpoint
-  name: 'default'
-  properties: {
-    privateDnsZoneConfigs: [
-      {
-        name: 'registry'
-        properties: {
-          privateDnsZoneId: registryZoneId
-        }
-      }
-    ]
-  }
-}
-
 resource vaultPrivateEndpoint 'Microsoft.Network/privateEndpoints@2024-05-01' = {
   name: 'pe-csl-key-vault'
   location: location
@@ -460,98 +406,6 @@ resource monitorPrivateDnsGroup 'Microsoft.Network/privateEndpoints/privateDnsZo
   }
 }
 
-resource containerEnvironment 'Microsoft.App/managedEnvironments@2026-07-01' = {
-  name: 'cae-csl-workload'
-  location: location
-  tags: labTags
-  properties: {
-    appLogsConfiguration: {
-      destination: 'azure-monitor'
-    }
-    workloadProfiles: [
-      {
-        name: 'D4'
-        workloadProfileType: 'D4'
-        minimumCount: 3
-        maximumCount: 3
-      }
-    ]
-    zoneRedundant: true
-    publicNetworkAccess: 'Disabled'
-    vnetConfiguration: {
-      infrastructureSubnetId: '${workloadVnet.id}/subnets/container-apps'
-      internal: true
-    }
-  }
-}
-
-resource containerEnvironmentPrivateEndpoint 'Microsoft.Network/privateEndpoints@2024-05-01' = {
-  name: 'pe-csl-container-apps'
-  location: location
-  tags: labTags
-  properties: {
-    subnet: {
-      id: privateEndpointsSubnet.id
-    }
-    privateLinkServiceConnections: [
-      {
-        name: 'container-apps-environment'
-        properties: {
-          privateLinkServiceId: containerEnvironment.id
-          groupIds: [
-            'managedEnvironments'
-          ]
-        }
-      }
-    ]
-  }
-}
-
-resource containerEnvironmentPrivateDnsGroup 'Microsoft.Network/privateEndpoints/privateDnsZoneGroups@2024-05-01' = {
-  parent: containerEnvironmentPrivateEndpoint
-  name: 'default'
-  properties: {
-    privateDnsZoneConfigs: [
-      {
-        name: 'container-apps'
-        properties: {
-          privateDnsZoneId: privateDnsZoneIds[0]
-        }
-      }
-    ]
-  }
-}
-
-resource registryPullRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  name: guid(registry.id, runtimeIdentity.id, '7f951dda-4ed3-4680-a7ca-43fe172d538d')
-  scope: registry
-  properties: {
-    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '7f951dda-4ed3-4680-a7ca-43fe172d538d')
-    principalId: runtimeIdentity.properties.principalId
-    principalType: 'ServicePrincipal'
-  }
-}
-
-resource environmentDiagnostics 'Microsoft.Insights/diagnosticSettings@2021-05-01-preview' = {
-  name: 'csl-environment-logs'
-  scope: containerEnvironment
-  properties: {
-    workspaceId: logAnalytics.id
-    logs: [
-      {
-        categoryGroup: 'allLogs'
-        enabled: true
-      }
-    ]
-    metrics: [
-      {
-        category: 'AllMetrics'
-        enabled: true
-      }
-    ]
-  }
-}
-
 resource postgresDiagnostics 'Microsoft.Insights/diagnosticSettings@2021-05-01-preview' = {
   name: 'csl-postgres-logs'
   scope: postgres
@@ -585,10 +439,7 @@ resource keyVaultSecretsUserRoleAssignment 'Microsoft.Authorization/roleAssignme
 output vnetId string = workloadVnet.id
 output vnetName string = workloadVnet.name
 output postgresId string = postgres.id
-output registryId string = registry.id
 output keyVaultId string = vault.id
-output registryName string = registry.name
-output registryLoginServer string = registry.properties.loginServer
 output postgresName string = postgres.name
 output postgresHost string = postgres.properties.fullyQualifiedDomainName
 output vaultName string = vault.name

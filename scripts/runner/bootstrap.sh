@@ -36,9 +36,17 @@ psql -v ON_ERROR_STOP=1 -c \
 unset PGPASSWORD
 az login --identity --client-id "$RUNNER_CLIENT_ID" --allow-no-subscriptions --output none
 az account set --subscription "$SUBSCRIPTION_ID"
-az acr login --name "$REGISTRY_NAME" --output none
-docker build -t "$REGISTRY_LOGIN_SERVER/demo-api:$DEPLOYMENT_ID" src/Demo.Api
-docker push "$REGISTRY_LOGIN_SERVER/demo-api:$DEPLOYMENT_ID"
-docker inspect "$REGISTRY_LOGIN_SERVER/demo-api:$DEPLOYMENT_ID" \
-  --format '{{index .RepoDigests 0}}' | sed 's/^.*@//' > image-digest.txt
-echo 'Private database migration and immutable image publication completed.'
+printf '%s  application.zip\n' "$PACKAGE_SHA256" | sha256sum --check
+for host in "$API_FQDN" "$SCM_FQDN"; do
+  addresses="$(getent ahostsv4 "$host" | awk '{print $1}' | sort -u)"
+  if [[ -z "$addresses" ]] || grep -qv '^10\.81\.10\.' <<< "$addresses"; then
+    echo "Private application/SCM DNS qualification failed for $host." >&2
+    exit 1
+  fi
+done
+az webapp deploy --resource-group "$APP_RESOURCE_GROUP" --name "$APP_NAME" \
+  --src-path application.zip --type zip --timeout 600000 --async false --track-status true --output none
+az rest --method post \
+  --url "https://management.azure.com/subscriptions/$SUBSCRIPTION_ID/resourceGroups/$APP_RESOURCE_GROUP/providers/Microsoft.Web/sites/$APP_NAME/config/configreferences/appsettings/refresh?api-version=2022-03-01" \
+  --output none
+echo 'Private database migration and checksummed Linux SCM package publication completed.'

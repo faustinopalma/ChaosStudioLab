@@ -2,7 +2,7 @@ targetScope = 'resourceGroup'
 
 @description('Validated deployment location; subscription-level PostgreSQL zone-redundant HA eligibility is required.')
 @allowed([
-  'northeurope'
+  'italynorth'
   'swedencentral'
 ])
 param location string = 'swedencentral'
@@ -17,6 +17,7 @@ param deploymentInstanceId string
 
 @description('Live principal IDs of the manifest-owned prerequisite identities, resolved before ARM what-if.')
 param prerequisitePrincipalIds object
+param sourceRevision string
 
 @description('Exact lab-owned networking resource group. This template must be deployed to it.')
 param networkResourceGroupName string
@@ -31,7 +32,7 @@ param operationsResourceGroupName string
 @description('Bootstrap administrator password required by the PostgreSQL create API. Password authentication is disabled on the server.')
 param postgresqlAdministratorPassword string
 
-@description('SSH public key installed on the private runner and workers.')
+@description('SSH public key installed on the single private runner.')
 param runnerSshPublicKey string
 
 @description('Bastion subnet within the operations VNet.')
@@ -43,17 +44,14 @@ param workloadAddressPrefix string = '10.81.0.0/16'
 @description('Operations VNet address range from config/lab.json.')
 param operationsAddressPrefix string = '10.82.0.0/16'
 
-@description('Container Apps delegated subnet.')
-param containerAppsSubnetPrefix string = '10.81.0.0/23'
+@description('Dedicated App Service regional VNet Integration subnet.')
+param appServiceIntegrationSubnetPrefix string = '10.81.0.0/24'
 
 @description('Workload private-endpoint subnet.')
 param workloadPrivateEndpointsSubnetPrefix string = '10.81.10.0/24'
 
 @description('Operations management subnet.')
 param operationsSubnetPrefix string = '10.82.1.0/24'
-
-@description('Operations private-endpoint subnet.')
-param operationsPrivateEndpointsSubnetPrefix string = '10.82.10.0/24'
 
 module networkDeployment 'modules/network-core.bicep' = {
   name: 'csl-network-core'
@@ -72,7 +70,7 @@ module workloadDeployment 'modules/workload.bicep' = {
     deploymentInstanceId: deploymentInstanceId
     privateDnsZoneIds: networkDeployment.outputs.privateDnsZoneIds
     workloadAddressPrefix: workloadAddressPrefix
-    containerAppsSubnetPrefix: containerAppsSubnetPrefix
+    appServiceIntegrationSubnetPrefix: appServiceIntegrationSubnetPrefix
     privateEndpointsSubnetPrefix: workloadPrivateEndpointsSubnetPrefix
     postgresqlAdministratorPassword: postgresqlAdministratorPassword
     migrationPrincipalId: prerequisitePrincipalIds.migration
@@ -85,11 +83,8 @@ module operationsDeployment 'modules/operations.bicep' = {
   params: {
     location: location
     deploymentInstanceId: deploymentInstanceId
-    privateDnsZoneIds: networkDeployment.outputs.privateDnsZoneIds
-    automationPrivateDnsZoneId: networkDeployment.outputs.automationPrivateDnsZoneId
     operationsAddressPrefix: operationsAddressPrefix
     operationsSubnetPrefix: operationsSubnetPrefix
-    privateEndpointsSubnetPrefix: operationsPrivateEndpointsSubnetPrefix
     bastionSubnetPrefix: operationsBastionSubnetPrefix
     natPublicIpId: networkDeployment.outputs.natPublicIpId
     bastionPublicIpId: networkDeployment.outputs.bastionPublicIpId
@@ -102,7 +97,6 @@ module dnsLinks 'modules/dns-links.bicep' = {
   name: 'csl-private-dns-links'
   scope: resourceGroup(labSubscriptionId, networkResourceGroupName)
   params: {
-    location: location
     deploymentInstanceId: deploymentInstanceId
     workloadVnetId: workloadDeployment.outputs.vnetId
     operationsVnetId: operationsDeployment.outputs.vnetId
@@ -134,49 +128,33 @@ module runnerWorkloadAccess 'runner-access.bicep' = {
   scope: resourceGroup(labSubscriptionId, workloadResourceGroupName)
   params: {
     runnerPrincipalId: prerequisitePrincipalIds.runner
-    registryName: workloadDeployment.outputs.registryName
+    applicationName: application.outputs.applicationName
     vaultName: workloadDeployment.outputs.vaultName
     logAnalyticsName: last(split(workloadDeployment.outputs.logAnalyticsId, '/'))
   }
 }
 
-module controlNetworkContributor 'modules/role-assignment.bicep' = {
-  name: 'csl-control-contributor-network'
-  scope: resourceGroup(labSubscriptionId, networkResourceGroupName)
-  params: {
-    principalId: prerequisitePrincipalIds.control
-  }
-}
-
-module controlWorkloadContributor 'modules/role-assignment.bicep' = {
-  name: 'csl-control-contributor-workload'
+module application 'workload-app.bicep' = {
+  name: 'csl-application'
   scope: resourceGroup(labSubscriptionId, workloadResourceGroupName)
   params: {
-    principalId: prerequisitePrincipalIds.control
-  }
-}
-
-module controlOperationsContributor 'modules/role-assignment.bicep' = {
-  name: 'csl-control-contributor-operations'
-  scope: resourceGroup(labSubscriptionId, operationsResourceGroupName)
-  params: {
-    principalId: prerequisitePrincipalIds.control
+    location: location
+    deploymentInstanceId: deploymentInstanceId
+    vnetId: workloadDeployment.outputs.vnetId
+    applicationPrivateDnsZoneId: networkDeployment.outputs.privateDnsZoneIds[0]
+    sourceRevision: sourceRevision
   }
 }
 
 output network object = {
   privateDnsZoneIds: networkDeployment.outputs.privateDnsZoneIds
-  automationPrivateDnsZoneId: networkDeployment.outputs.automationPrivateDnsZoneId
 }
 
 output workload object = {
   vnetId: workloadDeployment.outputs.vnetId
   vnetName: workloadDeployment.outputs.vnetName
   postgresId: workloadDeployment.outputs.postgresId
-  registryId: workloadDeployment.outputs.registryId
   keyVaultId: workloadDeployment.outputs.keyVaultId
-  registryName: workloadDeployment.outputs.registryName
-  registryLoginServer: workloadDeployment.outputs.registryLoginServer
   postgresName: workloadDeployment.outputs.postgresName
   postgresHost: workloadDeployment.outputs.postgresHost
   vaultName: workloadDeployment.outputs.vaultName
@@ -190,6 +168,10 @@ output workload object = {
   chaosConfigurationId: workloadDeployment.outputs.chaosConfigurationId
   logAnalyticsId: workloadDeployment.outputs.logAnalyticsId
   logAnalyticsCustomerId: workloadDeployment.outputs.logAnalyticsCustomerId
+  applicationId: application.outputs.applicationId
+  applicationName: application.outputs.applicationName
+  applicationFqdn: application.outputs.applicationFqdn
+  scmFqdn: application.outputs.scmFqdn
 }
 
 output operations object = {
@@ -198,26 +180,9 @@ output operations object = {
   outboundNatId: operationsDeployment.outputs.outboundNatId
   vnetId: operationsDeployment.outputs.vnetId
   vnetName: operationsDeployment.outputs.vnetName
-  storageName: operationsDeployment.outputs.storageName
-  controlStorageId: operationsDeployment.outputs.controlStorageId
-  controlIdentityId: operationsDeployment.outputs.controlIdentityId
-  controlClientId: operationsDeployment.outputs.controlClientId
-  controlPrincipalId: operationsDeployment.outputs.controlPrincipalId
-  automationName: operationsDeployment.outputs.automationName
-  automationHybridServiceUrl: operationsDeployment.outputs.automationHybridServiceUrl
-  automationPrivateEndpointId: operationsDeployment.outputs.automationPrivateEndpointId
-  workerGroupName: operationsDeployment.outputs.workerGroupName
   runnerId: operationsDeployment.outputs.runnerId
   runnerName: operationsDeployment.outputs.runnerName
   runnerIdentityId: operationsDeployment.outputs.runnerIdentityId
   runnerClientId: operationsDeployment.outputs.runnerClientId
   runnerPrincipalId: operationsDeployment.outputs.runnerPrincipalId
-  worker1Id: operationsDeployment.outputs.worker1Id
-  worker1Name: operationsDeployment.outputs.worker1Name
-  worker2Id: operationsDeployment.outputs.worker2Id
-  worker2Name: operationsDeployment.outputs.worker2Name
-  workerIds: [
-    operationsDeployment.outputs.worker1Id
-    operationsDeployment.outputs.worker2Id
-  ]
 }

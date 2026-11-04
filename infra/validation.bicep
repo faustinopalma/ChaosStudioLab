@@ -5,6 +5,8 @@ param postgresqlAdministratorPassword string
 param runnerSshPublicKey string
 param deploymentInstanceId string
 param prerequisitePrincipalIds object
+param sourceRevision string
+@allowed(['italynorth', 'swedencentral'])
 param location string = 'swedencentral'
 param networkResourceGroupName string
 param workloadResourceGroupName string
@@ -41,6 +43,7 @@ module infrastructure 'main.bicep' = {
     runnerSshPublicKey: runnerSshPublicKey
     deploymentInstanceId: deploymentInstanceId
     prerequisitePrincipalIds: prerequisitePrincipalIds
+    sourceRevision: sourceRevision
   }
   dependsOn: [
     groups

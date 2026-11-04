@@ -1,8 +1,8 @@
 # Accepted design decisions
 
-**Current controlling amendment: [D17-D19](#d17-private-azure-app-service-across-three-zones).** The target is private Linux Azure App Service across three observed zones, retained PostgreSQL HA, modern Chaos Studio and PC-driven deployment with manual deletion. The [current specification](docs/specification.md) defines its acceptance gates.
+**Current controlling amendments: [D17-D19](#d17-private-azure-app-service-across-three-zones) and [D20](#d20-italy-north-first-sweden-central-only-fallback).** The target is private Linux Azure App Service across three observed zones, retained PostgreSQL HA, modern Chaos Studio and PC-driven deployment with manual deletion. The [current specification](docs/specification.md) defines its acceptance gates.
 
-D01-D16 retain the previous design record. D17-D19 supersede their conflicting Container Apps, worker-capacity, replica-adapter, controller, automated lifecycle and regional-certification provisions. Historical execution results remain attached to their original platform. The source refactor and App Service deployment have not yet been performed.
+D01-D16 retain the previous design record. D17-D20 supersede their conflicting Container Apps, worker-capacity, replica-adapter, controller, automated lifecycle and regional provisions. Historical execution results remain attached to their original platform. The private App Service source topology now compiles; its workload deployment and native test execution remain blocked.
 
 ## D17. Private Azure App Service across three zones
 
@@ -38,6 +38,14 @@ Qualify Linux support for each selected Action and selector. If unsupported, mar
 
 Require actual overlap before qualifying a combined fault. Zone-selected process loss has its own `HA-APP-ZONE-001` verdict. `HA-AZ-001` requires a supported correlated real-zone outage and independent affected-zone evidence across the relevant application path.
 
+## D20. Italy North first; Sweden Central only fallback
+
+The operator authorized only `italynorth` and `swedencentral`. Prefer Italy North; use Sweden Central when a required service is unavailable in Italy North. Remove other regional defaults/adapters from active source and documentation. Require explicit selection of the approved private environment and preserve existing ownership/state when resuming.
+
+The 4 November foreground check found Italy North PostgreSQL zone-redundant HA enabled for the approved subscription. The required modern Chaos `locations/actions` API returned `NoRegisteredProviderFound` for Italy North, and the provider's `workspaces` location catalog omitted Italy North. Sweden Central exposes those required native APIs, so it remains the justified current deployment fallback. The three actual lab groups were verified in Sweden Central. No relocation or additional regional deployment was performed.
+
+Service availability, SKU allocation quota, actual plan zone capability and observed application placement remain separate gates. The Sweden Central AZ-worker quota blocker authorizes no third-region fallback or requirement downgrade. Keep raw historical geography/provider responses unchanged in ignored evidence.
+
 ## Previous decision record and retained requirements
 
 ## D01. Application availability objective
@@ -64,7 +72,7 @@ Authorization does not remove target allowlists, lifecycle guards, private-acces
 
 Use the provided subscription with Owner access. Create the complete lab from scratch, including its workload and operations VNets, private DNS, endpoints, and private runners. Use the simplified networking in D14. Delete all lab-owned resources during destruction.
 
-Use `westeurope` as the default region, subject to mandatory regional preflight. Default VNet ranges are workload `10.81.0.0/16` and operations `10.82.0.0/16`; validate overlap before deployment and parameterize them.
+D20 sets Italy North as the preferred region and Sweden Central as the sole service-availability fallback, subject to mandatory regional preflight. Default VNet ranges are workload `10.81.0.0/16` and operations `10.82.0.0/16`; validate overlap before deployment and parameterize them.
 
 Do not depend on an existing Azure network or runner pool. Subscription and tenant are deployment prerequisites; unrelated resources remain outside the lab ownership scope.
 
@@ -164,9 +172,9 @@ At every later start, read the live exemption using the persistent ignored envir
 
 ## D16. Subscription-level HA eligibility and targeted regional retry
 
-The 4 November autonomous troubleshooting request authorizes an isolated Sweden Central retry with the same private topology and cross-zone HA requirements. The earlier North Europe attempt returned `MultiAzHaIsOfferRestricted`. Its regional capability response advertises `ZoneRedundant` for the selected SKU while the subscription-level `zoneRedundantHaSupported` is `Disabled`. Require top-level `restricted: Disabled` and `zoneRedundantHaSupported: Enabled` before infrastructure creation. Fail before resources or cleanup on an incompatible startup.
+The 4 November autonomous troubleshooting request authorized an isolated Sweden Central retry with the same private topology and cross-zone HA requirements. An earlier, retired regional attempt returned `MultiAzHaIsOfferRestricted`. Its regional capability response advertised `ZoneRedundant` for the selected SKU while the subscription-level `zoneRedundantHaSupported` was `Disabled`. Require top-level `restricted: Disabled` and `zoneRedundantHaSupported: Enabled` before infrastructure creation. Fail before resources or cleanup on an incompatible startup.
 
-Sweden Central reports both required flags and exposes the selected SKU, zones, and PostgreSQL failover Action. The deployment defaults now select Sweden Central; D05's historical project default remains subject to these live checks. Propagate the selected location consistently through resource groups, Container Apps private DNS, storage service tags, application/controller resources, and vault purge. Region support still requires actual provisioning evidence.
+Sweden Central reported both required flags and exposed the selected SKU, zones, and PostgreSQL failover Action. Current regional selection follows D20. Propagate the selected location consistently through resource groups, private DNS and storage service tags. Region support still requires actual provisioning evidence.
 
 Use new dedicated groups, ownership GUID, evidence and a finite D15-shaped waiver under the existing authorization to troubleshoot and retry. Preserve the previous manifest for its already-running cleanup. If that cleanup overlaps preparation, retain a full live snapshot and exclude only its exact inventoried, already-scheduled-for-deletion resource IDs from the new comparison baseline. Preserve every other current resource and perform final combined verification after both cleanups.
 Use an internal Container Apps environment (`vnetConfiguration.internal: true`) while retaining zone redundancy, public network access Disabled and the environment private endpoint. Keep app ingress `external: true` so the private runner can reach the app from its peered VNet; environment type constrains that ingress to private network access. This removes the external application load-balancer endpoint from the retry. Azure can still require service-owned management/outbound public IPs, so this configuration is a tested alternative and provides no assumed exemption from governance checks. Preserve the previous manifest for its already-running cleanup. If that cleanup overlaps preparation, retain a full live snapshot and exclude only its exact inventoried, already-scheduled-for-deletion resource IDs from the new comparison baseline. Preserve every other current resource and perform final combined verification after both cleanups.

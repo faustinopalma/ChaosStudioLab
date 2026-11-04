@@ -1,12 +1,12 @@
 targetScope = 'resourceGroup'
 
 param runnerPrincipalId string
-param registryName string
+param applicationName string
 param vaultName string
 param logAnalyticsName string
 
-resource registry 'Microsoft.ContainerRegistry/registries@2023-07-01' existing = {
-  name: registryName
+resource app 'Microsoft.Web/sites@2025-03-01' existing = {
+  name: applicationName
 }
 
 resource vault 'Microsoft.KeyVault/vaults@2023-07-01' existing = {
@@ -17,13 +17,13 @@ resource workspace 'Microsoft.OperationalInsights/workspaces@2023-09-01' existin
   name: logAnalyticsName
 }
 
-resource push 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  name: guid(registry.id, runnerPrincipalId, '8311e382-0749-4cb8-b61a-304f252e45ec')
-  scope: registry
+resource publish 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+  name: guid(app.id, runnerPrincipalId, 'de139f84-1756-47ae-9be6-808fbbe84772')
+  scope: app
   properties: {
     principalId: runnerPrincipalId
     principalType: 'ServicePrincipal'
-    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '8311e382-0749-4cb8-b61a-304f252e45ec')
+    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'de139f84-1756-47ae-9be6-808fbbe84772')
   }
 }
 

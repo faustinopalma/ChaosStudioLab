@@ -27,9 +27,9 @@ function Set-Content {
     process { $fixture.report = $Value | ConvertFrom-Json }
 }
 foreach ($case in @(
-    @{rows = @(@('AppRequests', 3), @('ContainerAppSystemLogs', 2), @('ContainerAppConsoleLogs', 7)); rejected = $false}
+    @{rows = @(@('AppRequests', 3), @('AppServicePlatformLogs', 2), @('AppServiceConsoleLogs', 7)); rejected = $false}
     @{rows = @(@('AppRequests', 3), @('Normal', 127), @('Warning', 18)); rejected = $true}
-    @{rows = @(@('ContainerAppSystemLogs', 2), @('ContainerAppConsoleLogs', 7)); rejected = $true}
+    @{rows = @(@('AppServicePlatformLogs', 2), @('AppServiceConsoleLogs', 7)); rejected = $true}
 )) {
     $fixture.rows = $case.rows
     $fixture.report = $null

@@ -1,21 +1,12 @@
 targetScope = 'resourceGroup'
 
 param location string
-@description('Repository path inside the lab-owned private ACR.')
-@minLength(1)
-param applicationRepository string
-
-@description('Immutable sha256 digest of an image already pushed to the lab-owned ACR.')
-@minLength(71)
-@maxLength(71)
-param applicationImageDigest string
 param deploymentInstanceId string
+param vnetId string
+param applicationPrivateDnsZoneId string
+param sourceRevision string
 
-var suffix = uniqueString(resourceGroup().id)
-var registryName = take('csl${suffix}', 50)
-var runtimeIdentityName = 'id-csl-runtime'
-var environmentName = 'cae-csl-workload'
-var applicationInsightsName = 'appi-csl-${suffix}'
+var suffix = uniqueString(resourceGroup().id, deploymentInstanceId)
 var labTags = {
   project: 'ChaosStudioLab'
   labId: 'lab-dev01'
@@ -24,138 +15,122 @@ var labTags = {
   deploymentInstanceId: deploymentInstanceId
 }
 
-resource registry 'Microsoft.ContainerRegistry/registries@2023-07-01' existing = {
-  name: registryName
+resource plan 'Microsoft.Web/serverfarms@2025-03-01' existing = {
+  name: 'asp-csl-linux-baseline'
 }
-
-resource containerEnvironment 'Microsoft.App/managedEnvironments@2026-07-01' existing = {
-  name: environmentName
+resource runtime 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' existing = {
+  name: 'id-csl-runtime'
 }
-
-resource runtimeIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' existing = {
-  name: runtimeIdentityName
+resource chaos 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' existing = {
+  name: 'id-csl-chaos'
 }
-
-resource applicationInsights 'Microsoft.Insights/components@2020-02-02' existing = {
-  name: applicationInsightsName
-}
-
 resource vault 'Microsoft.KeyVault/vaults@2023-07-01' existing = {
   name: take('csl-kv-${suffix}', 24)
 }
-
 resource postgres 'Microsoft.DBforPostgreSQL/flexibleServers@2024-08-01' existing = {
   name: take('csl-pg-${suffix}', 63)
 }
+resource insights 'Microsoft.Insights/components@2020-02-02' existing = {
+  name: 'appi-csl-${suffix}'
+}
+resource logs 'Microsoft.OperationalInsights/workspaces@2023-09-01' existing = {
+  name: 'law-csl-${suffix}'
+}
 
-resource application 'Microsoft.App/containerApps@2024-03-01' = {
-  name: 'ca-csl-api'
+resource app 'Microsoft.Web/sites@2025-03-01' = {
+  name: 'csl-api-${suffix}'
   location: location
+  kind: 'app,linux'
   tags: labTags
   identity: {
     type: 'UserAssigned'
-    userAssignedIdentities: {
-      '${runtimeIdentity.id}': {}
-    }
+    userAssignedIdentities: { '${runtime.id}': {} }
   }
   properties: {
-    managedEnvironmentId: containerEnvironment.id
-    workloadProfileName: 'D4'
-    configuration: {
-      activeRevisionsMode: 'Single'
-      secrets: [
-        {
-          name: 'diagnostics-token'
-          keyVaultUrl: '${vault.properties.vaultUri}secrets/diagnostics-token'
-          identity: runtimeIdentity.id
-        }
+    serverFarmId: plan.id
+    reserved: true
+    httpsOnly: true
+    publicNetworkAccess: 'Disabled'
+    clientAffinityEnabled: false
+    virtualNetworkSubnetId: '${vnetId}/subnets/app-service-integration'
+    keyVaultReferenceIdentity: runtime.id
+    siteConfig: {
+      linuxFxVersion: 'DOTNETCORE|10.0'
+      alwaysOn: true
+      appCommandLine: 'dotnet Demo.Api.dll'
+      healthCheckPath: '/health/live'
+      minTlsVersion: '1.2'
+      scmMinTlsVersion: '1.2'
+      ftpsState: 'Disabled'
+      vnetRouteAllEnabled: true
+      appSettings: [
+        { name: 'AZURE_CLIENT_ID', value: runtime.properties.clientId }
+        { name: 'ConnectionStrings__Postgres', value: 'Host=${postgres.properties.fullyQualifiedDomainName};Database=csl;Username=id-csl-runtime;SSL Mode=VerifyFull' }
+        { name: 'Diagnostics__Token', value: '@Microsoft.KeyVault(VaultName=${vault.name};SecretName=diagnostics-token)' }
+        { name: 'APPLICATIONINSIGHTS_CONNECTION_STRING', value: insights.properties.ConnectionString }
+        { name: 'LAB_SOURCE_REVISION', value: sourceRevision }
+        { name: 'WEBSITE_RUN_FROM_PACKAGE', value: '1' }
+        { name: 'SCM_DO_BUILD_DURING_DEPLOYMENT', value: 'false' }
       ]
-      ingress: {
-        external: true
-        targetPort: 8080
-        transport: 'auto'
-        allowInsecure: false
-        traffic: [
-          {
-            latestRevision: true
-            weight: 100
-          }
-        ]
-      }
-      registries: [
-        {
-          server: registry.properties.loginServer
-          identity: runtimeIdentity.id
-        }
-      ]
-    }
-    template: {
-      containers: [
-        {
-          name: 'api'
-          image: '${registry.properties.loginServer}/${applicationRepository}@${applicationImageDigest}'
-          resources: {
-            cpu: 1
-            memory: '2Gi'
-          }
-          env: [
-            {
-              name: 'AZURE_CLIENT_ID'
-              value: runtimeIdentity.properties.clientId
-            }
-            {
-              name: 'ConnectionStrings__Postgres'
-              value: 'Host=${postgres.properties.fullyQualifiedDomainName};Database=csl;Username=id-csl-runtime;SSL Mode=VerifyFull'
-            }
-            {
-              name: 'Diagnostics__Token'
-              secretRef: 'diagnostics-token'
-            }
-            {
-              name: 'APPLICATIONINSIGHTS_CONNECTION_STRING'
-              value: applicationInsights.properties.ConnectionString
-            }
-          ]
-          probes: [
-            {
-              type: 'Startup'
-              httpGet: {
-                path: '/health/live'
-                port: 8080
-              }
-              periodSeconds: 5
-              failureThreshold: 30
-            }
-            {
-              type: 'Liveness'
-              httpGet: {
-                path: '/health/live'
-                port: 8080
-              }
-              periodSeconds: 10
-              failureThreshold: 3
-            }
-            {
-              type: 'Readiness'
-              httpGet: {
-                path: '/health/ready'
-                port: 8080
-              }
-              periodSeconds: 5
-              failureThreshold: 2
-              successThreshold: 1
-              timeoutSeconds: 4
-            }
-          ]
-        }
-      ]
-      scale: {
-        minReplicas: 6
-        maxReplicas: 12
-      }
     }
   }
 }
 
-output applicationId string = application.id
-output applicationFqdn string = application.properties.configuration.ingress.fqdn
+resource scmBasicAuth 'Microsoft.Web/sites/basicPublishingCredentialsPolicies@2025-03-01' = {
+  parent: app
+  name: 'scm'
+  properties: { allow: false }
+}
+resource ftpBasicAuth 'Microsoft.Web/sites/basicPublishingCredentialsPolicies@2025-03-01' = {
+  parent: app
+  name: 'ftp'
+  properties: { allow: false }
+}
+resource endpoint 'Microsoft.Network/privateEndpoints@2024-05-01' = {
+  name: 'pe-csl-app-service'
+  location: location
+  tags: labTags
+  properties: {
+    subnet: { id: '${vnetId}/subnets/private-endpoints' }
+    privateLinkServiceConnections: [{
+      name: 'app-service'
+      properties: {
+        privateLinkServiceId: app.id
+        groupIds: ['sites']
+      }
+    }]
+  }
+}
+resource dns 'Microsoft.Network/privateEndpoints/privateDnsZoneGroups@2024-05-01' = {
+  parent: endpoint
+  name: 'default'
+  properties: {
+    privateDnsZoneConfigs: [{
+      name: 'application-and-scm'
+      properties: { privateDnsZoneId: applicationPrivateDnsZoneId }
+    }]
+  }
+}
+resource chaosAppRole 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+  name: guid(app.id, chaos.id, 'de139f84-1756-47ae-9be6-808fbbe84772')
+  scope: app
+  properties: {
+    principalId: chaos.properties.principalId
+    principalType: 'ServicePrincipal'
+    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'de139f84-1756-47ae-9be6-808fbbe84772')
+  }
+}
+resource diagnostics 'Microsoft.Insights/diagnosticSettings@2021-05-01-preview' = {
+  name: 'csl-app-service-logs'
+  scope: app
+  properties: {
+    workspaceId: logs.id
+    logs: [{ categoryGroup: 'allLogs', enabled: true }]
+    metrics: [{ category: 'AllMetrics', enabled: true }]
+  }
+}
+
+output applicationId string = app.id
+output applicationName string = app.name
+output applicationFqdn string = app.properties.defaultHostName
+output scmFqdn string = filter(app.properties.enabledHostNames, host => contains(host, '.scm.'))[0]

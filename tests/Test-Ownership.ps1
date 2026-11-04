@@ -5,7 +5,7 @@ $fixturePath = Join-Path ([IO.Path]::GetTempPath()) "csl-test-environment-$([Gui
 @{
     subscriptionId = [Guid]::NewGuid().ToString(); tenantId = [Guid]::NewGuid().ToString()
     expectedAccount = 'test-operator@example.invalid'; azureConfigDirectory = [IO.Path]::GetTempPath()
-    deploymentRegion = 'northeurope'
+    deploymentRegion = 'swedencentral'
     resourceGroups = @{network = 'rg-test-network'; workload = 'rg-test-workload'; operations = 'rg-test-operations'}
 } | ConvertTo-Json | Set-Content -LiteralPath $fixturePath
 $env:CSL_ENVIRONMENT_FILE = $fixturePath

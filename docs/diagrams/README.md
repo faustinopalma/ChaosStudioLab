@@ -1,6 +1,15 @@
 # Architecture and flow diagrams
 
-> **Historical diagrams pending refactor.** All three drawings currently depict Container Apps and the previous Automation lifecycle. They are retained as editable historical artifacts. The [current specification](../specification.md) requires private Azure App Service across three observed zones, retained PostgreSQL HA and PC-driven deployment/manual deletion. Do not infer the new service topology or acceptance from these drawings.
+## Current target and evidence contract
+
+- [Private Linux App Service target architecture](04-private-linux-app-service.svg): managed six-worker plan, required three-zone participation, separate outbound Integration/inbound PE subnets, private application/SCM/database paths and one runner.
+- [Deterministic native suite evidence contract](05-native-chaos-evidence.svg): independent baseline, exact-instance, zone-selected, database, combined and real-zone verdicts, including effect overlap and all-write durability.
+
+These are editable SVG sources with generic labeled components. Placement is illustrative. The live workload is blocked by AZ-worker quota, and no runtime/fault acceptance is implied. Open the sources in Inkscape; export a PNG only when a preview is needed.
+
+## Historical drawings
+
+The three drawings below depict Container Apps and the previous Automation lifecycle. They remain historical artifacts. The [current specification](../specification.md) and current target/evidence diagrams above supersede their conflicting topology, fault and lifecycle content.
 
 The SVG files are the editable sources. Open them directly in Inkscape. The PNG files provide previews for Markdown readers and sharing.
 

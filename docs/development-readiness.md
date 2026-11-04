@@ -4,7 +4,7 @@ Assessment updated: 4 November 2026.
 
 ## Current App Service readiness
 
-The [current specification](specification.md) and [D17-D19](../DECISIONS-ACCEPTED.md#d17-private-azure-app-service-across-three-zones) define the corrected architecture. The existing source and historical qualification below concern Container Apps.
+The [current specification](specification.md) and [D17-D19](../DECISIONS-ACCEPTED.md#d17-private-azure-app-service-across-three-zones) define the corrected architecture. The source now stages the private Linux App Service topology; the historical assessment below retains the earlier Container Apps results.
 
 | Gate | Current status |
 | --- | --- |
@@ -12,14 +12,16 @@ The [current specification](specification.md) and [D17-D19](../DECISIONS-ACCEPTE
 | Three-zone acceptance | Defined: actual plan `maximumNumberOfZones >= 3`, zone redundancy, six baseline app instances and health/traffic evidence from three distinct observed `physicalZone` values |
 | Orchestration | Defined: PC-driven deployment, one private runner, explicit test execution and manual deletion; remove Automation/Hybrid Workers and automatic lifecycle |
 | Modern Chaos | Fresh regional schema explicitly describes Linux process workers and instance/zone selectors; CLI lists active Linux .NET 10. Actual instance effects, zone mapping and private SCM remain unqualified. The documented process-crash template is Windows-only; see the OS comparison. |
-| Source refactor and regressions | Pending; current Bicep/configuration/scripts still target the previous architecture |
-| Fresh App Service deployment and qualification | Not performed; historical Container Apps evidence supplies no App Service acceptance result |
+| Source refactor and regressions | Private Web App/SCM DNS, Integration/PE subnet separation, retained private PostgreSQL HA, single runner and early fixed-six-worker Linux plan compile; local topology/ownership/identity/policy/publication/API/load-accounting checks pass. Container/image/lifecycle resources are removed from active templates. Native execution/effect orchestration remains pending and fails closed. |
+| Fresh App Service deployment and qualification | Dedicated groups and exact finite exemption created; P1v3 creation failed with zero AZ-worker quota. P1v4, P1v2 and P2v3 ARM validation also reports zero, with six required. No plan, app, runner or database was provisioned in this run. |
 
 No downgrade to two zones is approved. A compatible region alone does not establish a three-zone App Service scale unit or actual application placement. Resolve the platform prerequisites before expensive bootstrap, and stop readiness explicitly when evidence is missing.
 
 Use [Test-AppServicePreflight.ps1](../scripts/Test-AppServicePreflight.ps1) with the explicitly selected private environment, a new ignored state directory and the prior manifest path. It checks the approved CLI identity, exact old-group absence, a fresh resource baseline, PostgreSQL HA eligibility, native Action schemas, Linux runtime and required exemptions. It preserves old evidence and stops explicitly on unmet gates. A preflight PASS covers these read-only prerequisites; deployment readiness additionally requires the source refactor, local/ARM validation, exact-owned previews and actual private three-zone application evidence.
 
-The fresh qualification reached a demonstrated missing-exemption blocker after old group deletion. No deployment or test result was produced. Every requested test remains BLOCKED; the application and combined tests retain their own required verdicts.
+The missing exemption was resolved through explicit operator authorization. Its finite expiry and original narrow contract remain enforced. The current authorization/capacity blocker is SKU-specific App Service AZ-worker quota. Request at least six `P1v3 AZ VMs` for the approved subscription and Sweden Central through **Azure Portal > Help + support > Create a support request > Service and subscription limits (quotas) > App Service**. Generic regional quota is marked `isQuotaApplicable=false` and supplies no SKU-specific allocation authority.
+
+BASE-001, HA-APP-001, HA-APP-ZONE-001, HA-DB-001 and HA-COMBINED-001 each remain BLOCKED by the absent workload and qualification. HA-AZ-001 additionally requires genuine correlated infrastructure-zone evidence. No availability, latency, recovery or acknowledged-write-retention measurement exists for this run. The old measurement retains only its historical scope.
 
 Linux remains the deployment baseline. The [OS comparison](research.md#linux-baseline-and-windows-test-coverage) records documented Windows advantages and unresolved Linux Action support. Blocked application/combined coverage prevents a complete-suite PASS; it does not authorize a Windows switch.
 

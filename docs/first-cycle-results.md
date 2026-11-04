@@ -41,7 +41,7 @@ Subsequent specification revision: [D13](../DECISIONS-ACCEPTED.md#d13-azure-allo
 ## Original attempt: boundary and configuration
 
 - Subscription, tenant and approved operator: recorded only in ignored local configuration; active subscription Owner verified.
-- Region: North Europe, the documented deployment-only fallback. Accepted project default D05 remains West Europe.
+- Region: an earlier, retired regional candidate. Original geography remains in ignored raw evidence; current deployment policy follows D20.
 - Deployment instance and exact network/workload/operations group names: recorded in the ignored local ownership manifest.
 - Direct resource mutations were restricted to those three groups. No PIM, feature registration, policy modification, quota increase, or price/budget checks were performed during this execution.
 
@@ -80,7 +80,7 @@ These results describe the original attempt. Later regional retries supply the l
 6. Retried equivalent Standard IP definitions using API `2023-09-01` after the original `2024-05-01` definitions. The same feature error persisted.
 7. Corrected child-resource inventory: the successful firewall policy rule collection was absent from the top-level resource list. Recorded deployment roots now drive recursive successful-operation inventory.
 8. Preserved deployment-operation evidence, deleted the dedicated workload/network/operations groups, and verified their absence.
-9. Compared the subscription inventory and exported the mutation audit. All baseline IDs remained; the automatic North Europe Network Watcher was the additional resource.
+9. Compared the subscription inventory and exported the mutation audit. All baseline IDs remained; the automatic regional Network Watcher was the additional resource.
 10. Removed the temporary SSH private/public key files. No tunnel, private test process, Chaos execution, or controller job had been started.
 
 The manifest began at `2026-11-03T23:56:50Z`. Final scoped isolation verification completed at `2026-11-04T00:21:57Z`.
@@ -331,7 +331,7 @@ The final verifier confirmed all six unrelated exemptions unchanged and the orig
 
 ### Corrected PostgreSQL eligibility check
 
-The North Europe location-capabilities response had `restricted: Disabled` but **`zoneRedundantHaSupported: Disabled`**. Its selected SKU still listed `ZoneRedundant`; that SKU-level value was insufficient to establish this subscription's eligibility. The startup guard now checks the top-level flags before infrastructure creation.
+The retired regional candidate's location-capabilities response had `restricted: Disabled` but **`zoneRedundantHaSupported: Disabled`**. Its selected SKU still listed `ZoneRedundant`; that SKU-level value was insufficient to establish this subscription's eligibility. The startup guard now checks the top-level flags before infrastructure creation. This historical finding does not describe the current Italy North capability response.
 
 Sweden Central, UK South and Switzerland North reported HA Enabled. Sweden Central also listed the exact required SKU/zones and PostgreSQL failover Action, so the autonomous retry uses new dedicated Sweden Central groups with the same private topology and HA requirements. No HA downgrade, quota/support request, public access or feature registration was used.
 

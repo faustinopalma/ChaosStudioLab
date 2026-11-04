@@ -8,7 +8,7 @@ $expected = @{id = $id; assignmentId = '/providers/test/assignment'; referenceId
 @{
     subscriptionId = $subscription; tenantId = [Guid]::NewGuid().ToString()
     expectedAccount = 'test@example.invalid'; azureConfigDirectory = [IO.Path]::GetTempPath()
-    deploymentRegion = 'northeurope'; requiredPolicyExemptions = @($expected)
+    deploymentRegion = 'swedencentral'; requiredPolicyExemptions = @($expected)
     resourceGroups = @{network = 'rg-test-network'; workload = 'rg-test-workload'; operations = 'rg-test-operations'}
 } | ConvertTo-Json -Depth 10 | Set-Content -LiteralPath $fixture
 try {
@@ -84,7 +84,7 @@ try {
     }
     $manifestPath = "$fixture.manifest.json"
     Write-LabJson $manifestPath @{
-        schemaVersion = 1; subscriptionId = $subscription; tenantId = $script:LabTenant
+        schemaVersion = 1; architecture = 'linux-app-service'; subscriptionId = $subscription; tenantId = $script:LabTenant
         labId = 'lab-dev01'; deploymentInstanceId = [Guid]::NewGuid().ToString('N')
         resourceIds = @(); policyExemptions = @($expected)
         groups = @($script:LabGroups | ForEach-Object {
@@ -92,11 +92,11 @@ try {
         })
     }
     $before = Get-Content -LiteralPath $manifestPath -Raw
-    foreach ($entrypoint in @('Build-Lab.ps1', 'Invoke-LabCycle.ps1', 'Set-LabLifecycle.ps1', 'Initialize-LabMachines')) {
+    foreach ($entrypoint in @('Build-Lab.ps1', 'Initialize-LabMachines')) {
         $blocked = $false
         try {
             $arguments = @{ManifestPath = $manifestPath}
-            if ($entrypoint -eq 'Set-LabLifecycle.ps1') { $arguments.Intent = 'Resume' }
+            if ($entrypoint -eq 'Build-Lab.ps1') { $arguments.Step = 'Plan' }
             if ($entrypoint -eq 'Initialize-LabMachines') {
                 . (Join-Path $PSScriptRoot '..\scripts\Lab.Common.ps1')
                 Initialize-LabMachines @arguments

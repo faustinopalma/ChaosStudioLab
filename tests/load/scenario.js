@@ -112,6 +112,9 @@ function readOrder(operationId, expectedChecksum, phase, trackWorkload = true) {
     durationMs: elapsedMs,
     expectedChecksum,
     responseChecksum: body && body.payloadSha256,
+    instanceId: response.headers['X-Lab-Instance-Id'] || null,
+    processId: response.headers['X-Lab-Process-Id'] || null,
+    processStartedAtUtc: response.headers['X-Lab-Process-Start-Utc'] || null,
     success: response.status === 200 && valid,
     parseError: Boolean(response.body && !body),
   });
@@ -208,6 +211,9 @@ function writeOrder(operationId, payload, phase, trackWorkload = true) {
       durationMs: elapsedMs,
       expectedChecksum,
       responseChecksum,
+      instanceId: response.headers['X-Lab-Instance-Id'] || null,
+      processId: response.headers['X-Lab-Process-Id'] || null,
+      processStartedAtUtc: response.headers['X-Lab-Process-Start-Utc'] || null,
       success: Boolean(success),
       parseError: Boolean(response.body && !responseBody),
     });
