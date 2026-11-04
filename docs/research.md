@@ -26,10 +26,10 @@ This table separates documented platform/template support from actual test quali
 
 | Capability/test | Linux evidence and remaining gate | Windows evidence and possible advantage |
 | --- | --- | --- |
-| .NET app, zone redundancy and private paths | Supported platform features; verify the exact runtime, actual plan's three-zone capability, app placement and private SCM/dependency access | Same required placement/private-path checks; no measured HA advantage established |
+| .NET app, zone redundancy and private paths | CLI runtime catalog lists active Linux `DOTNETCORE|10.0`; actual publication, private SCM and three-zone placement remain unqualified | Same required placement/private-path checks; no measured HA advantage established |
 | Native App Service Restart | Listed for `Microsoft.Web/sites`; exact Linux/runtime behavior remains unqualified | Listed for the same resource type; catalog entry alone supplies no comparative result |
-| Native Kill process on an instance | Catalog exposes `InstanceIds`; Linux eligibility and actual instance effect remain unqualified | Process-crash usage is documented in the Windows-only template; still qualify the actual selected Action/runtime/target |
-| Native Kill process by zone | Catalog exposes `Zones`; qualify Linux eligibility, physical/logical selector mapping and observed effects | Zone selector is documented, but its actual three-zone application coverage has not been tested on Windows either |
+| Native Kill process on an instance | Live regional schema explicitly describes Linux `dotnet/node` workers and exposes `InstanceIds`; actual private Linux instance effect remains unqualified | Process-crash usage is documented in the Windows-only template; still qualify the actual selected Action/runtime/target |
+| Native Kill process by zone | Live regional schema exposes a string-array `Zones` selector requiring a zone-redundant plan; physical/logical selector mapping and Linux effects remain unqualified | Zone selector is documented, but its actual three-zone application coverage has not been tested on Windows either |
 | Cache Stampede with Process Crash template | Official Scenario documentation explicitly excludes Linux App Service | Explicitly documented Windows support: a concrete template-coverage advantage |
 | Custom App Service/PostgreSQL combined test | Qualify both native Actions and independent overlap; the template above contains Redis/MySQL and does not establish this custom combination | The Windows-only template does not by itself prove the PostgreSQL combination or actual overlap |
 | Sustained real-zone loss, HA-AZ-001 | Requires supported correlated infrastructure-zone injection and independent evidence | No OS choice alone supplies that evidence; remains a separate qualification |
@@ -39,6 +39,22 @@ This table separates documented platform/template support from actual test quali
 Before attempting each Linux Action, inspect its current regional schema, OS/runtime prerequisites and selector semantics. Save exact documentation or provider eligibility errors. Use a short, bounded qualification on the owned app when execution evidence is required. Distinguish an unavailable Action from invalid parameters, missing permissions or a failed private path.
 
 If a Linux test is unsupported, mark it BLOCKED and explain the precise lost coverage and any evidenced Windows equivalent. If evidence is insufficient, report the eligibility as unqualified rather than asserting incompatibility. Do not claim a complete suite when required application/combined tests are missing. Windows deployment would require a new explicit operator decision; neither classic-mode fallback nor a custom-runbook substitution is authorized.
+
+### Fresh foreground catalog qualification
+
+A read-only qualification on 4 November 2026 confirmed the following provider contracts. Actual context and responses belong in ignored run evidence.
+
+- `GET /subscriptions/{subscriptionId}/providers/Microsoft.Chaos/locations/{location}/actions?api-version=2026-08-01-preview` returns the canonical process-crash ID `urn:csci:microsoft:appservice:killprocess/1.0.0`, type `Discrete`, target `Microsoft.Web/sites`.
+- `ProcessName.description` says: "Leave empty to kill the main worker process (w3wp for Windows, dotnet/node for Linux)." This supplies explicit Linux catalog evidence. Successful execution against the actual Linux runtime/private configuration remains a separate gate.
+- `InstanceIds` and `Zones` accept arrays of strings or null. Their descriptions allow all selected instances and all instances in selected zones. An empty selection can choose a random instance; deterministic tests must supply an exact nonempty selection. The schema does not establish how physical-zone labels map to zone-selector strings.
+- Required process permissions are `Microsoft.Web/sites/read`, `Microsoft.Web/sites/instances/read`, `Microsoft.Web/sites/instances/processes/read` and `Microsoft.Web/sites/instances/processes/delete`.
+- PostgreSQL retains canonical ID `urn:csci:microsoft:azurepostgresql:failover/1.0.0`. The regional schema defines `ForcedFailover` as enum value `1`; `RestoreOnStop` and `SkipIneligibleServers` are booleans. Scenario parameter serialization still requires source-derived ARM validation.
+- `az webapp list-runtimes --os linux` returns object entries in the current CLI. The .NET 10 entry has `config = DOTNETCORE|10.0`, `os = Linux`, `support = Active`. A JMESPath expression assuming string-only entries fails and must not be used as evidence of runtime unavailability.
+- App Service [Private Endpoint documentation](https://learn.microsoft.com/en-us/azure/app-service/overview-private-endpoint) supports Linux and Windows and requires separate integration/endpoint subnets. A private DNS zone group creates both application and SCM records under `privatelink.azurewebsites.net`. Private package publication, authentication and public-denial probes still require the actual deployment.
+
+The repeatable [foreground preflight](../scripts/Test-AppServicePreflight.ps1) creates a fresh ignored manifest, captures raw catalog/runtime/HA/baseline evidence, checks exact old-group absence and reuses the existing policy-exemption guard. Each CLI child process has a hard deadline; stage output identifies buffering. It performs no Azure writes or fault execution and records all six test verdicts separately.
+
+An absent required exemption blocks provisioning. Retain the configured assignment, single policy reference, public-IP resource selector and finite expiry; obtain explicit operator approval before creating or extending an exemption. With provisioning blocked, actual plan capability, three-zone participation, private SCM and native effects remain unqualified.
 
 ## Historical Container Apps investigation
 

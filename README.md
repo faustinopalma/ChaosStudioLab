@@ -4,6 +4,8 @@ The current target is a **private Linux Azure App Service application running ac
 
 **Implementation status:** the source still implements the earlier Container Apps laboratory. The App Service source refactor and fresh deployment have not started. Read the current specification before using the existing deployment scripts.
 
+The [foreground App Service preflight](scripts/Test-AppServicePreflight.ps1) is available for read-only qualification. Supply the approved `CSL_ENVIRONMENT_FILE`, a fresh `-StateDirectory` under ignored `.local` and `-PreviousManifestPath`. It preserves raw evidence and a new ownership manifest, enforces per-command deadlines and reports every requested test separately. It never deploys, executes faults or cleans up. The current qualification is blocked by a missing required policy exemption; actual private SCM and three-zone readiness remain unqualified. See [current research](docs/research.md#fresh-foreground-catalog-qualification).
+
 ## Required architecture
 
 - Linux App Service Web App and compatible zone-redundant Premium plan, initially using six workers.

@@ -11,11 +11,15 @@ The [current specification](specification.md) and [D17-D19](../DECISIONS-ACCEPTE
 | Application platform and privacy | Defined: Linux App Service, inbound Private Endpoint, outbound VNet Integration, private DNS/SCM and retained private PostgreSQL HA |
 | Three-zone acceptance | Defined: actual plan `maximumNumberOfZones >= 3`, zone redundancy, six baseline app instances and health/traffic evidence from three distinct observed `physicalZone` values |
 | Orchestration | Defined: PC-driven deployment, one private runner, explicit test execution and manual deletion; remove Automation/Hybrid Workers and automatic lifecycle |
-| Modern Chaos | Native Workspaces/Scenarios/Actions selected; Linux runtime/Action/instance/zone eligibility and actual effects require qualification. The documented process-crash template is Windows-only; see the OS comparison. |
+| Modern Chaos | Fresh regional schema explicitly describes Linux process workers and instance/zone selectors; CLI lists active Linux .NET 10. Actual instance effects, zone mapping and private SCM remain unqualified. The documented process-crash template is Windows-only; see the OS comparison. |
 | Source refactor and regressions | Pending; current Bicep/configuration/scripts still target the previous architecture |
 | Fresh App Service deployment and qualification | Not performed; historical Container Apps evidence supplies no App Service acceptance result |
 
 No downgrade to two zones is approved. A compatible region alone does not establish a three-zone App Service scale unit or actual application placement. Resolve the platform prerequisites before expensive bootstrap, and stop readiness explicitly when evidence is missing.
+
+Use [Test-AppServicePreflight.ps1](../scripts/Test-AppServicePreflight.ps1) with the explicitly selected private environment, a new ignored state directory and the prior manifest path. It checks the approved CLI identity, exact old-group absence, a fresh resource baseline, PostgreSQL HA eligibility, native Action schemas, Linux runtime and required exemptions. It preserves old evidence and stops explicitly on unmet gates. A preflight PASS covers these read-only prerequisites; deployment readiness additionally requires the source refactor, local/ARM validation, exact-owned previews and actual private three-zone application evidence.
+
+The fresh qualification reached a demonstrated missing-exemption blocker after old group deletion. No deployment or test result was produced. Every requested test remains BLOCKED; the application and combined tests retain their own required verdicts.
 
 Linux remains the deployment baseline. The [OS comparison](research.md#linux-baseline-and-windows-test-coverage) records documented Windows advantages and unresolved Linux Action support. Blocked application/combined coverage prevents a complete-suite PASS; it does not authorize a Windows switch.
 
