@@ -33,6 +33,8 @@ The [earlier architecture guide](docs/architecture-guide.md), [diagrams](docs/di
 
 Git tag `baseline-before-app-service-refactor` preserves the earlier source and documents. Keep real accounts, tenant/subscription IDs, group names, authentication paths, policy records, manifests, keys and raw evidence in ignored `.local\` and `.azure\` paths. The public environment template is [environment.example.json](config/environment.example.json).
 
+Keep session-to-session handoffs and operational progress journals under ignored `.local\handoff\`. Publish architectural requirements and sanitized results separately; operational session state has no public root-level status file.
+
 Run the existing publication guard before committing or sharing:
 
 ```powershell
