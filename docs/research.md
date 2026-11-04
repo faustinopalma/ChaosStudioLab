@@ -1,0 +1,218 @@
+# Research and technical constraints
+
+Recheck preview APIs, service limits, and regional availability before implementation.
+
+The [implementation specification](specification.md) defines the requirements and proposed acceptance thresholds. This document explains the platform behavior behind those choices.
+
+## 1. Container Apps and availability zones
+
+Zone redundancy is configured on the Container Apps environment at creation. Azure distributes the underlying infrastructure and schedules app replicas across availability zones. Customers control replica counts, compute profiles, and scaling; Azure controls individual replica placement.
+
+Microsoft recommends at least two minimum replicas for multi-zone distribution. A larger minimum can preserve capacity during detection and replacement. The lab proposes six replicas, then measures whether the surviving capacity can sustain the workload.
+
+During a zone failure, ingress redirects traffic to healthy replicas and new replicas can be scheduled in healthy zones. Existing replicas can remain in their current zones after recovery; rebalancing happens gradually.
+
+The documentation recommends application-layer disruption tests, including deliberately failing health endpoints. These tests validate traffic withdrawal and remaining capacity. A replica identifier or a reduced replica count alone supplies no verified zone identity.
+
+Sources: [Container Apps reliability](https://learn.microsoft.com/en-us/azure/reliability/reliability-container-apps), [Create a zone-redundant container app](https://learn.microsoft.com/en-us/azure/container-apps/how-to-zone-redundancy).
+
+## 2. PostgreSQL HA topology and recovery
+
+Zone-redundant PostgreSQL HA uses a primary and standby in different availability zones. The service synchronously preserves committed data and automatically promotes the standby when required.
+
+Current documentation also describes a WAL replica in a separate zone for commit quorum. The WAL replica supports durability; promotion is limited to the standby. The customer-facing placement controls remain primary and standby zone selection. This distinction matters when specifying an explicitly controlled three-zone database topology.
+
+Burstable compute does not support zone-redundant HA. Select a supported tier and verify actual primary/standby placement after deployment. Reject a same-zone fallback for this lab.
+
+Microsoft documents typical zone-failure recovery of 60-120 seconds. Client reconnection, DNS behavior, token handling, retries, and connection-pool recovery affect application recovery. Measure that recovery at the business API.
+
+A stable server hostname survives failover. Existing database connections can break. A forced failover immediately takes the primary down and tests unplanned-failure behavior; a planned failover prepares the standby first.
+
+Wait at least 15-20 minutes between failovers so that the new standby can be established. The specification uses a minimum 20-minute guard plus an explicit healthy-standby check.
+
+Zero lost acknowledged writes is the data-integrity target. A timeout can leave the client uncertain whether its write committed. Idempotent operation IDs and reconciliation resolve that uncertainty.
+
+Sources: [PostgreSQL HA concepts](https://learn.microsoft.com/en-us/azure/postgresql/high-availability/concepts-high-availability), [Configure HA and initiate failover](https://learn.microsoft.com/en-us/azure/postgresql/high-availability/how-to-configure-high-availability).
+
+## 3. Current Chaos Studio model
+
+Microsoft currently recommends Chaos Studio Workspaces for new resilience tests. Workspaces discover resources in a defined scope and execute Scenarios composed of Actions. Workspaces and Scenarios are in public preview.
+
+Custom Scenarios can be expressed in Bicep as `Microsoft.Chaos/workspaces/scenarios`. The current supported-resource catalog includes PostgreSQL Flexible Server failover and Azure Automation runbooks.
+
+The PostgreSQL action supports `PlannedFailover` and `ForcedFailover`. Its optional `RestoreOnStop` setting can initiate a planned return to the original primary. The lab disables automatic restoration to avoid an unobserved second failover and premature back-to-back operations.
+
+The older Experiments (classic) fault library has a separate resource model. Its entries do not establish Action availability in Workspaces. During implementation, discover the regional Action catalog and validate the selected Bicep API and parameters.
+
+Sources: [Workspaces overview](https://learn.microsoft.com/en-us/azure/chaos-studio/chaos-studio-workspaces-overview), [Supported resources and Actions](https://learn.microsoft.com/en-us/azure/chaos-studio/chaos-studio-workspaces-supported-resources), [Scenario catalog and Bicep authoring](https://learn.microsoft.com/en-us/azure/chaos-studio/chaos-studio-scenarios).
+
+## 4. What a zone-down Scenario can establish
+
+The current **Compute Zone Down + PostgreSQL Failover** template combines VM/VMSS shutdown actions with PostgreSQL failover. Its compute actions target customer-visible virtual machines and scale sets.
+
+The current Workspaces catalog has no direct `Microsoft.App/containerApps` or `Microsoft.App/managedEnvironments` fault action. Container Apps' underlying managed compute must remain outside any assumed VMSS shutdown scope.
+
+A PostgreSQL failover Scenario can establish that the database role changed and the application recovered. A replica-withdrawal adapter can establish that ingress and surviving application capacity behaved correctly. Running them together provides evidence for correlated failure effects.
+
+The complete zone-outage claim requires evidence that a specific real availability zone was affected across the relevant application dependencies. Require this evidence before claiming full-zone validation.
+
+The PostgreSQL tutorial also warns about resource-group discovery: non-HA servers and read replicas can cause failover actions to fail. The lab must use an exact target inventory, resource filters, and fail-closed eligibility checks.
+
+Sources: [Scenario templates](https://learn.microsoft.com/en-us/azure/chaos-studio/chaos-studio-scenarios), [PostgreSQL zone-down tutorial](https://learn.microsoft.com/en-us/azure/chaos-studio/chaos-studio-tutorial-postgresql-failover), [Supported Actions](https://learn.microsoft.com/en-us/azure/chaos-studio/chaos-studio-workspaces-supported-resources).
+
+## 5. Private ingress and VNet integration
+
+Container Apps supports environment private endpoints in workload profiles environments for both Consumption and Dedicated profiles. The environment can also integrate with a customer VNet.
+
+These features provide two connectivity paths:
+
+- The environment private endpoint provides private inbound client access.
+- The environment infrastructure subnet provides VNet-integrated outbound access to private dependencies and controlled egress.
+
+Disable public network access on the environment when using the private endpoint. Configure its private DNS zone as `privatelink.<region>.azurecontainerapps.io`.
+
+Microsoft's Private Link example uses app-level external ingress. Here, external ingress means clients outside the Container Apps environment can reach the app through the environment ingress path. Environment-level network restrictions determine whether Internet access is permitted.
+
+Sources: [Container Apps private endpoints and DNS](https://learn.microsoft.com/en-us/azure/container-apps/private-endpoints-with-dns), [Private endpoint deployment example](https://learn.microsoft.com/en-us/azure/container-apps/how-to-use-private-endpoint).
+
+## 6. PostgreSQL networking choice
+
+PostgreSQL Flexible Server supports delegated-subnet VNet integration and Private Link-compatible networking as distinct deployment choices.
+
+The current Private Link documentation requires the server's networking model to use public-access mode rather than delegated-subnet integration. Public network access can then be disabled, leaving connectivity through approved private endpoints.
+
+For this lab, choose that Private Link-compatible model, disable public access, and resolve the server FQDN through private DNS. PostgreSQL HA and Microsoft Entra authentication are supported with Private Link.
+
+Creating a private endpoint does not itself close a service's public access. Verify the service-level setting and perform an Internet negative-connectivity check.
+
+Sources: [PostgreSQL Private Link](https://learn.microsoft.com/en-us/azure/postgresql/network/concepts-networking-private-link), [Enable or disable PostgreSQL public access](https://learn.microsoft.com/en-us/azure/postgresql/network/how-to-networking-servers-deployed-public-access-enable-disable-public-access).
+
+## 7. Focused lab egress, DNS, and operations
+
+Container Apps workload profiles environments support custom egress through UDRs or NAT. D14 uses managed outbound connectivity and direct private routing, with no custom UDR or Azure Firewall. Operations VMs use a subnet NAT Gateway for explicit Internet egress.
+
+Preserve required platform, identity, registry, package-source and monitoring connectivity. DNS resolution for required Container Apps and underlying platform dependencies must remain available. Arbitrary Internet denial without these dependencies can prevent startup, scaling, image pulls, or identity operations. The simplified lab accepts HTTPS egress without FQDN inspection; operations NSGs deny other unneeded outbound traffic.
+
+Private runners need working routes, DNS, and authorization for the application, database, registry, and evidence store. A public CI runner cannot access those private data planes solely because it can deploy resources through Azure Resource Manager.
+
+ACR private connectivity requires Premium. Plan DNS records for both registry and data endpoints. Verify image pulls from a newly created replica, so that a cached image cannot hide a networking problem.
+
+Azure-provided DNS and private-zone links remove the need for a DNS VM or appliance. The Standard operations NAT Gateway remains a single-zone management egress dependency outside the application request path; two zonal worker VMs alone do not prove management connectivity through zone loss.
+
+Sources: [Container Apps networking](https://learn.microsoft.com/en-us/azure/container-apps/networking), [NAT Gateway overview and Standard zonal scope](https://learn.microsoft.com/en-us/azure/nat-gateway/nat-overview), [ACR private endpoints](https://learn.microsoft.com/en-us/azure/container-registry/container-registry-private-endpoints).
+
+### 7.1 Azure-allocated public IPs and the observed inherited policy
+
+Standard static public IPv4 addresses can be allocated from Azure's address pool. BYOIP uses an externally owned address range provisioned as a custom IP prefix. [D13](../DECISIONS-ACCEPTED.md#d13-azure-allocated-public-ips-without-byoip) selects Azure allocation and excludes BYOIP-related inputs and public-IP `ipTags`.
+
+Read-only inspection on 4 November 2026 identified an inherited policy in the current tenant:
+
+- Management-group scope, assignment, initiative reference and definition: exact identifiers retained only in ignored local policy evidence.
+- Condition: resource type is `Microsoft.Network/publicIPAddresses` and the count of IP tags matching `FirstPartyUsage=/Unprivileged` is less than one.
+- Effect: `append` adds that exact entry to `Microsoft.Network/publicIPAddresses/ipTags[*]`.
+
+The first attempt's saved effective what-if contains that appended tag on both public IPs. The Bicep source supplied no such tag or prefix. Both actual writes failed with `SubscriptionNotRegisteredForFeature` naming `AllowBringYourOwnPublicIpAddress`. This establishes a policy-induced payload difference associated with the failure; the Network provider's internal feature-check implementation has not been independently observed.
+
+Changing the public-IP API version did not resolve the failure. An empty `ipTags` array also satisfies the append condition. Treat this as a governance-compatibility gate and inspect the effective payload; feature registration is excluded by the current design.
+
+Sources: [Azure public IP addresses](https://learn.microsoft.com/en-us/azure/virtual-network/ip-services/public-ip-addresses), [Custom IP address prefix (BYOIP)](https://learn.microsoft.com/en-us/azure/virtual-network/ip-services/custom-ip-address-prefix), read-only ARM GET of the exact management-group policy definition, and the saved first-cycle what-if described in the [execution report](first-cycle-results.md).
+
+## 8. Identity and private observability
+
+Use application managed identity for PostgreSQL authentication and an identity-aware Npgsql token provider. Token renewal must continue after connection failures and pool replacement. Bootstrap database principals and grants with a separate privileged migration path.
+
+Azure Monitor uses an Azure Monitor Private Link Scope to group supported monitoring resources behind private endpoints. Shared monitoring endpoints affect DNS behavior across resources, so coordinate the scope and DNS configuration with the enterprise platform team.
+
+Application telemetry and service-managed diagnostic delivery follow different paths. Validate both under the final access restrictions before injecting faults. Export raw client measurements independently so that a telemetry outage cannot produce a false pass.
+
+Sources: [PostgreSQL authentication library for .NET](https://learn.microsoft.com/en-us/dotnet/api/overview/azure/microsoft.azure.postgresql.auth-readme?view=azure-dotnet), [Azure Monitor Private Link](https://learn.microsoft.com/en-us/azure/azure-monitor/fundamentals/private-link-security), [Container Apps log options](https://learn.microsoft.com/en-us/azure/container-apps/log-options).
+
+## 9. Controlled replica faults
+
+The documented Container Apps replica CLI provides listing and inspection. The console/exec interface can select a revision, replica, and container.
+
+A lab-specific local fault helper is a candidate adapter for that interface. Its automated execution, permissions, TTL, and cleanup require a prototype. It must not depend on PostgreSQL remaining available during the combined test.
+
+Failing readiness exercises traffic withdrawal and capacity loss. A process crash additionally exercises restart behavior. Track these as separate fault types and preserve their boundaries in reports.
+
+Sources: [Container Apps replica commands](https://learn.microsoft.com/en-us/cli/azure/containerapp/replica?view=azure-cli-latest), [Container console and replica selection](https://learn.microsoft.com/en-us/azure/container-apps/container-console).
+
+## 10. Reliable conclusions from chaos tests
+
+Chaos action success confirms execution of an action. Application success requires independent assertions about requests, writes, recovery, and cleanup.
+
+Measure raw HTTP attempts, eventual completion of idempotent writes, and acknowledged-write durability separately. Report failures and timeouts alongside successful-request latency. Preserve inconclusive results when evidence is missing.
+
+Use seeded random selection only after deterministic tests establish the expected behavior. Bound the blast radius, execution window, fault duration, and campaign size. Persist the realized plan because a seed alone cannot reproduce changed resource discovery.
+
+HA covers infrastructure failure. Accidental data deletion, invalid migrations, and logical corruption require backup and restore procedures. Keep those procedures outside the first zone-resilience experiment.
+
+## 11. Shutdown and restart
+
+### PostgreSQL
+
+PostgreSQL Flexible Server provides server stop and start operations. Azure automatically starts a stopped server after seven days. Scheduled maintenance can also briefly start a stopped server before returning it to the stopped state.
+
+Stopping compute preserves the server and its data. Validate the exact HA configuration and wait for observed state transitions; a request accepted by Azure does not prove that the server is stopped.
+
+The lifecycle controller reconciles desired suspended state hourly. If Azure starts PostgreSQL while the lab is suspended, the controller stops it again after checking that no authorized resume or conflicting management operation is in progress.
+
+Source: [Stop PostgreSQL compute](https://learn.microsoft.com/en-us/azure/postgresql/configure-maintain/how-to-stop-server).
+
+### Container Apps
+
+Deactivating a revision stops its running replicas. Preserve the active revision list and traffic configuration before deactivation so that resume restores the intended version.
+
+Verify actual Dedicated node allocation after reducing minimum capacity. Deactivating app replicas alone does not establish that profile nodes were released.
+
+Preserve the environment, image, private connectivity, and prior scaling configuration so that resume restores the HA baseline.
+
+Sources: [Revision deactivation](https://learn.microsoft.com/en-us/azure/container-apps/revisions-manage#revision-deactivate), [Workload profile scaling](https://learn.microsoft.com/en-us/azure/container-apps/workload-profiles-manage-cli).
+
+### Network and supporting services
+
+The simplified lab retains its Standard NAT Gateway, Bastion, direct peering, Azure DNS/private-zone links and private endpoints while runtime compute is suspended. NAT provides outbound connectivity for private management VMs and permits no unsolicited Internet inbound connections.
+
+Runtime VM compute must reach a deallocated state. Preserve the management workers, required networking, private endpoints, state storage, and monitoring. Inventory every retained resource and its operational reason.
+
+Source: [NAT Gateway overview](https://learn.microsoft.com/en-us/azure/nat-gateway/nat-overview).
+
+## 12. Full teardown and mandatory Azure retention
+
+Deleting the lab resource groups is the primary teardown operation. Verify lab-owned objects created at subscription, tenant, shared-network, or service-managed scope as well.
+
+For this disposable lab, omit `enablePurgeProtection` when creating Key Vault, then verify protection remains unenabled. The API rejects an explicit `false` value even on initial creation; the 4 November live attempt reproduced this and verified creation after omission. Mandatory soft delete remains enabled. Purge the vault after deletion with the appropriate authorization and verify that no recoverable vault remains.
+
+Purge protection, once enabled, cannot be disabled or bypassed. Fail preflight if policy forces an incompatible configuration. Do not silently deploy a vault that prevents the required lab cleanup.
+
+Some retention is service-managed. Azure Activity Log entries cannot be changed or deleted and remain for 90 days. PostgreSQL documents retention of a deleted server's backup for five days. Disabling vault purge protection does not change those rules.
+
+Delete customer-controlled resources and purgeable objects, remove temporary local data, and export evidence only on explicit request. Report mandatory Azure-managed remnants without claiming universal erasure.
+
+Sources: [Key Vault soft delete and purge protection](https://learn.microsoft.com/en-us/azure/key-vault/general/key-vault-recovery#what-are-soft-delete-and-purge-protection), [Azure Activity Log](https://learn.microsoft.com/en-us/azure/azure-monitor/essentials/activity-log), [Restore a deleted PostgreSQL server](https://learn.microsoft.com/en-us/azure/postgresql/backup-restore/how-to-restore-dropped-server).
+
+## 13. Owner access and directory permissions
+
+Subscription Owner can manage Azure resources and assign Azure RBAC roles. Microsoft Entra directory roles use a separate authorization system.
+
+Check registration creation and deletion permissions before provisioning the lab. If tenant policy denies creation, obtain tenant authorization or have an administrator create a new lab-owned registration and establish its cleanup permissions. Subscription Owner alone cannot establish that this directory step will succeed.
+
+Source: [Azure roles and Microsoft Entra roles](https://learn.microsoft.com/en-us/azure/role-based-access-control/rbac-and-directory-admin-roles).
+
+## 14. Independent automatic suspension
+
+Azure Automation supports one-time and recurring schedules. Arm a one-time run for 24 hours after successful build or resume, and maintain an hourly reconciliation schedule while the lab is suspended.
+
+Automation cloud jobs cannot directly access services secured by private endpoints. Execute lifecycle runbooks on an extension-based Hybrid Runbook Worker group in the private management network. Use two workers in different zones and preserve their required identity, DNS, NAT, Automation private endpoint, and control-store connectivity.
+
+Keep this management group outside the runtime suspension and chaos scope. Include it in destruction, after runtime cleanup and verification. Validate schedule timing, worker failover, operator disconnection, and recovery from missed runs.
+
+Sources: [Automation schedules](https://learn.microsoft.com/en-us/azure/automation/shared-resources/schedules), [Automation Private Link limitations](https://learn.microsoft.com/en-us/azure/automation/how-to/private-link-security#limitations), [Extension-based Hybrid Runbook Workers](https://learn.microsoft.com/en-us/azure/automation/extension-based-hybrid-runbook-worker-install).
+
+## 15. Preview test evidence
+
+The lab authorizes relevant advanced and preview capabilities. Maintain an explicit feature inventory and document the preview classification and pinned version of each selected feature.
+
+Execute schema, deployment, actual Scenario execution, cancellation, scope-isolation, telemetry, and cleanup tests. Record results with API versions and resource IDs. Approval to use a preview feature must not be reported as a successful test.
+
+Source: [Chaos Studio Workspaces](https://learn.microsoft.com/en-us/azure/chaos-studio/chaos-studio-workspaces-overview).

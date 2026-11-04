@@ -1,0 +1,134 @@
+# Accepted design decisions
+
+These decisions define the lab configuration. D01, D02, and D04 use the recommendations explicitly selected by the user. Other defaults apply the additional requirements and delegated design choices. Dates and implementation progress are kept outside this document.
+
+## D01. Application availability objective
+
+Automatic application recovery within 180 seconds, with zero lost acknowledged writes. Use the workload, latency, success-rate, and observation-window values in [specification section 5](docs/specification.md#5-workload-procedure-and-measurements).
+
+## D02. Three-zone architecture
+
+Use managed PostgreSQL zone-redundant HA with primary and standby in distinct zones, within a three-zone application architecture. Azure manages the additional WAL replica. Explicit placement of three full database nodes is outside this topology.
+
+## D03. Test progression
+
+Implement database failover, replica withdrawal, and combined scenarios first. Keep HA-AZ-001 dependent on qualifying real-zone injection and evidence. Component-test success cannot establish complete zone-outage resilience.
+
+## D04. Advanced features and previews
+
+Advanced features relevant to this non-production lab are authorized, including combined chaos scenarios and selected preview capabilities. Use Chaos Studio Workspaces and Scenarios, document their preview status, pin APIs, and execute the preview validation suite.
+
+Authorization does not remove target allowlists, lifecycle guards, private-access requirements, or evidence checks. It does not expand testing to production or unrelated services.
+
+## D05. Deployment target and network ownership
+
+Use the provided subscription with Owner access. Create the complete lab from scratch, including its workload and operations VNets, private DNS, endpoints, and private runners. Use the simplified networking in D14. Delete all lab-owned resources during destruction.
+
+Use `westeurope` as the default region, subject to mandatory regional preflight. Default VNet ranges are workload `10.81.0.0/16` and operations `10.82.0.0/16`; validate overlap before deployment and parameterize them.
+
+Do not depend on an existing Azure network or runner pool. Subscription and tenant are deployment prerequisites; unrelated resources remain outside the lab ownership scope.
+
+## D06. Capacity
+
+Use six minimum and twelve maximum app replicas, a Dedicated D4 profile with three minimum nodes, and the 20-operation-per-second test load.
+
+For PostgreSQL, start with General Purpose `Standard_D4ds_v5`, four vCores, 128 GiB storage, and zone-redundant HA. Verify regional availability and capacity before provisioning; fail preflight rather than silently weakening HA or changing the approved region.
+
+Retain surviving-capacity validation. Use ASP.NET Core on the supported .NET LTS, Npgsql, OpenTelemetry, k6, and PowerShell for the reference implementation.
+
+No spending cap or budget resource is required. Ordinary resilience sessions last a few hours; the automatic 24-hour suspension remains a safeguard. The real 24-hour soak test is separate lifecycle validation.
+
+## D07. Identity and private bootstrap
+
+Use Owner access for initial Azure provisioning and role assignments. Use separate least-privilege managed identities for runtime, migrations, tests, chaos, and lifecycle automation. Use federated credentials for CI.
+
+Bootstrap a lab-owned private runner automatically. Validate Microsoft Entra directory permissions separately from Azure RBAC. If tenant policy prevents automated registration creation, require tenant authorization or an administrator-created new lab-owned registration, recorded in the cleanup manifest.
+
+## D08. Lab-owned deletion
+
+Create Key Vault with purge protection disabled. Preserve mandatory soft delete and explicitly purge the deleted vault during teardown. Do not enable immutable storage, deletion locks, or optional retention controls that prevent lab cleanup.
+
+Destroy deletes lab-owned resources, purgeable recoverable objects, application registrations where created and authorized, and temporary local state. Evidence export is opt-in. Mandatory Azure-managed retention follows [D12](#d12-scope-of-complete-deletion).
+
+This is an isolated-lab exception; retain the other enterprise security controls.
+
+## D09. Automatic suspension
+
+Start suspension automatically 24 hours after successful build or resume. Use an Azure Automation runbook and persisted UTC deadline, independent of the operator machine and runtime VMs.
+
+The persisted deadline is exact. Azure Automation's minute-precision start time is the first full UTC minute at or after that deadline, with a verified offset below 60 seconds. Dispatch and resource-stop latency are separate observations. A schedule must never round down before the deadline.
+
+Execute lifecycle runbooks on a private extension-based Hybrid Runbook Worker group with two management VMs in different zones. Keep these workers and their required NAT, DNS, private endpoints, and control storage available while suspended. Cloud runbooks cannot directly reach the private control store.
+
+Reconcile desired suspended state hourly and stop PostgreSQL again if Azure automatically starts it after seven days. Destroy removes the controller and schedules last.
+
+Traffic, test execution, and idempotent reruns do not extend the deadline.
+
+## D10. Lifecycle state and evidence
+
+Keep working state in a lab-owned control store and an access-controlled local per-lab directory. The control store remains outside the runtime resources suspended by the controller and is deleted during destruction.
+
+After successful customer-controlled cleanup, remove temporary local state. Export reports to an operator-selected destination only when explicitly requested. Do not create a separately retained Azure artifact store by default.
+
+## D11. Random-chaos policy
+
+Allow campaigns throughout the active UTC lab lease. Default to at most ten events and sixty minutes per campaign, with a recorded seed and five-to-fifteen-minute randomized spacing subject to fault cooldowns.
+
+Allow one active scenario at a time; a combined scenario is an explicitly defined group of concurrent effects. Limit replica withdrawal to two of six ready replicas for five minutes and preserve the minimum twenty-minute database failover cooldown plus healthy-standby checks.
+
+Keep scheduling disabled until deterministic and preview tests pass. Subsequent execution of configured lab-only campaigns needs no additional feature approval. Automatic suspension overrides campaign execution.
+
+## D12. Scope of complete deletion
+
+Accept residual information retained by Azure under mandatory service rules. Delete every lab-owned active resource, purge customer-purgeable recoverable objects, and remove temporary local lifecycle state. Create no external evidence copy by default.
+
+Keep avoidable purge protection and immutable retention disabled. Mandatory Azure retention does not prevent successful customer-controlled cleanup, but the result must disclose those remnants and avoid claiming universal erasure.
+
+Azure Activity Log events remain for 90 days and cannot be changed or deleted by the customer. PostgreSQL documents five-day retention of deleted-server backups.
+
+Sources: [Azure Activity Log](https://learn.microsoft.com/en-us/azure/azure-monitor/essentials/activity-log), [Restore a deleted PostgreSQL server](https://learn.microsoft.com/en-us/azure/postgresql/backup-restore/how-to-restore-dropped-server).
+
+## D13. Azure-allocated public IPs without BYOIP
+
+Use Azure-allocated Standard static IPv4 addresses for the operations NAT Gateway and Bastion selected by D14. Application, database, registry, secrets, telemetry, control storage, and runner access remain private.
+
+Exclude BYOIP and any dependency on `Microsoft.Network/AllowBringYourOwnPublicIpAddress`. Create no custom IP prefixes or public IP prefix resources; supply no literal public IP address, prefix reference, or public-IP `properties.ipTags`. Ordinary lab ownership `tags` remain required.
+
+Remove feature-registration state from deployment prerequisites. Validate the effective policy-adjusted public-IP payload before resource deployment, regardless of feature registration state. If inherited policy adds `FirstPartyUsage` or another IP tag, stop with an explicit policy-compatibility failure. Do not register the feature, override the policy's required value, change inherited policy definitions or assignments, or silently weaken network controls. A separately authorized exemption must follow D15.
+
+The current subscription's inherited append policy requires a public-IP tag absent from this approved configuration. D15 records the separately authorized, temporary lab-only exemption. An alternative deployment target requires separate approval and compatible effective policy.
+
+## D14. Focused Chaos/HA laboratory networking
+
+Deploy the networking needed to test Container Apps and PostgreSQL HA: two directly peered VNets, private endpoints, Azure-provided DNS with private-zone links to both VNets, and NSGs. Remove Azure Firewall, its policy/rules/public IP/subnet, the separate hub VNet, custom DNS proxy, and firewall-directed route tables.
+
+Container Apps uses its managed outbound connectivity. Private operations VMs use one explicit Standard NAT Gateway on their subnet for software installation and management HTTPS access. The subnet disables default outbound access. An NSG permits required platform traffic, private HTTPS/PostgreSQL and outbound Internet HTTPS; deny other outbound traffic. The lab accepts the loss of FQDN-based egress inspection/filtering. Private service access, TLS, managed identities, and public data-plane denial remain required.
+
+Keep Bastion in `10.82.2.0/26` within the operations VNet for SSH/source transfer into the private runner. Bastion and the NAT Gateway each reference one ordinary Azure-allocated public IP in the dedicated network group; VMs receive none. Declaring these addresses alongside DNS keeps their policy-adjusted payloads visible before dependent workload/operations modules can be evaluated. No VPN, shared hub, pre-existing runner, or network appliance is required.
+
+A Standard NAT Gateway provides management-plane egress from one zone. Two zonal worker VMs alone do not prove zone-resilient management connectivity. Record this limitation and exclude the management NAT from claims about the application data path. Revisit management egress availability before claiming survival of a correlated real-zone outage.
+
+Use an RG-tag policy exclusion only if the applicable live policy actually defines its key/value and condition. The inspected rule and assignment defined no RG-tag exclusion; exact governance identifiers remain in ignored local evidence. Apply no invented tag and register no BYOIP feature. D15 governs the separately approved temporary exemption. The effective public-IP contract remains a deployment gate.
+
+## D15. Temporary lab-only public-IP policy exemption
+
+On 4 November 2026, the operator explicitly authorized an exception for the blocking policy. Create one `Waiver` at the dedicated lab network resource-group scope, where both public IPs are declared. Set `policyDefinitionReferenceIds` to the single proven incompatible public-IP append member and add a `resourceType` selector containing only `Microsoft.Network/publicIPAddresses`. Retain `assignmentScopeValidation: Default`.
+
+Each separately authorized waiver has a finite 24-hour lifetime; its exact live expiry remains in ignored local configuration and evidence. Preserve all other initiative members, location restrictions, policy definitions, assignments and unrelated exemptions. Do not broaden or renew the waiver automatically. Expiry ends its effect; Azure retains the exemption record until deletion.
+
+Record the scope, reference, ownership GUID, category, expiry and GET response in the ignored ownership manifest/evidence directory. Before provisioning, verify the record and run a full-payload preview of both IPs through the unchanged D13 gate. The observed network preview contains 12 creates, no modifications/deletions and no effective public-IP tags. Full application deployment and runtime certification remain pending.
+
+Only the network group and its exemption were created during this preparation. Continue with the same manifest; normal owned-group destruction includes its exemption. Explicit exemption enumeration supplements generic resource inventory, so an unrecorded exemption prevents cleanup.
+
+At every later start, read the live exemption using the persistent ignored environment contract and any run-manifest records. Missing, expired or changed exemptions block Build/cycle/Resume before mutation and include explicit create-or-extend guidance; warn within two hours of expiry. A preflight failure preserves the existing lab. Keep cleanup available after expiry, retain the environment contract after destruction, and require renewed approval plus validation for any extension or replacement.
+
+## D16. Subscription-level HA eligibility and targeted regional retry
+
+The 4 November autonomous troubleshooting request authorizes an isolated Sweden Central retry with the same private topology and cross-zone HA requirements. The earlier North Europe attempt returned `MultiAzHaIsOfferRestricted`. Its regional capability response advertises `ZoneRedundant` for the selected SKU while the subscription-level `zoneRedundantHaSupported` is `Disabled`. Require top-level `restricted: Disabled` and `zoneRedundantHaSupported: Enabled` before infrastructure creation. Fail before resources or cleanup on an incompatible startup.
+
+Sweden Central reports both required flags and exposes the selected SKU, zones, and PostgreSQL failover Action. The deployment defaults now select Sweden Central; D05's historical project default remains subject to these live checks. Propagate the selected location consistently through resource groups, Container Apps private DNS, storage service tags, application/controller resources, and vault purge. Region support still requires actual provisioning evidence.
+
+Use new dedicated groups, ownership GUID, evidence and a finite D15-shaped waiver under the existing authorization to troubleshoot and retry. Preserve the previous manifest for its already-running cleanup. If that cleanup overlaps preparation, retain a full live snapshot and exclude only its exact inventoried, already-scheduled-for-deletion resource IDs from the new comparison baseline. Preserve every other current resource and perform final combined verification after both cleanups.
+Use an internal Container Apps environment (`vnetConfiguration.internal: true`) while retaining zone redundancy, public network access Disabled and the environment private endpoint. Keep app ingress `external: true` so the private runner can reach the app from its peered VNet; environment type constrains that ingress to private network access. This removes the external application load-balancer endpoint from the retry. Azure can still require service-owned management/outbound public IPs, so this configuration is a tested alternative and provides no assumed exemption from governance checks. Preserve the previous manifest for its already-running cleanup. If that cleanup overlaps preparation, retain a full live snapshot and exclude only its exact inventoried, already-scheduled-for-deletion resource IDs from the new comparison baseline. Preserve every other current resource and perform final combined verification after both cleanups.
+
+Create the exact compiled PostgreSQL resource first and verify healthy cross-zone HA before retrying the full stack. During diagnosis, retain successful owned resources and retry the failed stage in place; use the complete cycle's automatic destruction for unattended normal runs. Timestamp preview, provider provisioning and deletion phases separately from configured load-test durations. Keep service-managed infrastructure groups read-only and keep BYOIP/feature registration excluded.

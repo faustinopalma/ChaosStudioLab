@@ -1,0 +1,13 @@
+{
+  "subscriptionId": "",
+  "tenantId": "",
+  "expectedAccount": "",
+  "azureConfigDirectory": "",
+  "deploymentRegion": "swedencentral",
+  "requiredPolicyExemptions": [],
+  "resourceGroups": {
+    "network": "",
+    "workload": "",
+    "operations": ""
+  }
+}
