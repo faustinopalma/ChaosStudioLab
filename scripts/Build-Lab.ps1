@@ -2,7 +2,7 @@
 param(
     [Parameter(Mandatory)][string] $ManifestPath,
     [Parameter(Mandatory)]
-    [ValidateSet('Plan', 'Prerequisites', 'Infrastructure', 'Runner', 'Application')]
+    [ValidateSet('Plan', 'Prerequisites', 'Infrastructure', 'Runner', 'Application', 'NativeScenarios')]
     [string] $Step,
     [ValidateRange(1, 65535)][int] $TunnelPort = 50222
 )
@@ -95,6 +95,7 @@ try {
             APP_NAME=$w.applicationName; APP_RESOURCE_GROUP=$script:LabGroups[1]
             LOG_ANALYTICS_WORKSPACE_ID=$w.logAnalyticsCustomerId
             PACKAGE_SHA256=$m.applicationPackageSha256
+            SOURCE_REVISION=$m.sourceRevision
         }
         $configPath = Join-Path $root 'runner-config.json'
         Write-LabJson $configPath $config
@@ -117,6 +118,10 @@ try {
             [IO.Compression.ZipFileExtensions]::CreateEntryFromFile($zip, $configPath, 'runner-config.json') | Out-Null
             [IO.Compression.ZipFileExtensions]::CreateEntryFromFile($zip, $package, 'application.zip') | Out-Null
         } finally { $zip.Dispose() }
+        $m.applicationSourceBundleSha256 = (Get-FileHash $bundle -Algorithm SHA256).Hash.ToLowerInvariant()
+        $m.applicationPackagePath = $package
+        $m.applicationPublicationState = 'PACKAGE_PREPARED'
+        Write-LabJson $ManifestPath $m
         & scp @options -P $TunnelPort $bundle 'csloperator@127.0.0.1:source.zip'
         if ($LASTEXITCODE -ne 0) { throw 'Private source/package transfer failed.' }
         Write-Information 'Private bootstrap/publication output is buffered in ~/csl/bootstrap.log; the guest stage has a 20-minute deadline.' -InformationAction Continue
@@ -124,7 +129,46 @@ try {
         if ($LASTEXITCODE -ne 0) { throw 'Private migration/SCM package publication failed. Inspect the buffered guest log; resources were preserved.' }
         & ssh @sshArgs 'cd ~/csl && timeout 600 pwsh -NoLogo -NoProfile -File scripts/runner/verify.ps1 > verification.log 2>&1'
         if ($LASTEXITCODE -ne 0) { throw 'Private API authentication/DNS/durability verification failed.' }
+        & ssh @sshArgs 'cd ~/csl && timeout 330 pwsh -NoLogo -NoProfile -File scripts/runner/qualify-app.ps1 -OutputPath results/publication-participation.json'
+        if ($LASTEXITCODE -ne 0) { throw 'Private all-instance participation probes failed after publication.' }
+        $participationPath = Join-Path $root 'publication-participation.json'
+        & scp @options -P $TunnelPort 'csloperator@127.0.0.1:csl/results/publication-participation.json' $participationPath
+        if ($LASTEXITCODE -ne 0) { throw 'Private all-instance participation evidence retrieval failed.' }
+        $participation = Get-Content $participationPath -Raw | ConvertFrom-Json
+        $instances = Invoke-LabAz @('rest', '--method', 'get', '--url',
+            "https://management.azure.com$($w.applicationId)/instances?api-version=2025-03-01", '-o', 'json') |
+            ConvertFrom-Json -AsHashtable
+        Assert-LabAppServicePlacement $plan $instances.value $participation.observations
         $m.status = 'PRIVATE_APPLICATION_PUBLISHED'
+        $m.applicationPublicationState = 'PRIVATE_PUBLICATION_VERIFIED'
+    } elseif ($Step -eq 'NativeScenarios') {
+        if (-not $m.ContainsKey('nativeSelection')) { throw 'BLOCKED: retain actual private participation and subscription zone-mapping proof before creating native definitions.' }
+        $w = $m.outputs['csl-infrastructure'].workload.value
+        $selection = $m.nativeSelection
+        $proof = Get-Content -LiteralPath $selection.participationProofPath -Raw | ConvertFrom-Json
+        $instances = Invoke-LabAz @('rest', '--method', 'get', '--url',
+            "https://management.azure.com$($w.applicationId)/instances?api-version=2025-03-01", '-o', 'json') |
+            ConvertFrom-Json -AsHashtable
+        Assert-LabAppServicePlacement $plan $instances.value $proof.observations
+        $locations = Invoke-LabAz @('account', 'list-locations', '--query',
+            "[?name=='$script:LabLocation'].{name:name,availabilityZoneMappings:availabilityZoneMappings}", '-o', 'json') |
+            ConvertFrom-Json -AsHashtable -NoEnumerate
+        if ($locations.Count -ne 1 -or $locations[0].name -ne $script:LabLocation) {
+            throw 'BLOCKED: exact subscription/region availability-zone mapping is unavailable.'
+        }
+        $matched = @($instances.value | Where-Object name -eq $selection.instanceId)
+        $zone = @($locations[0].availabilityZoneMappings | Where-Object logicalZone -eq $selection.logicalZone)
+        if ($selection.applicationId -ine $w.applicationId -or $matched.Count -ne 1 -or $zone.Count -ne 1 -or
+            $zone[0].physicalZone -cne $selection.physicalZone -or
+            $selection.physicalZone -notin @($instances.value.properties.physicalZone)) {
+            throw 'BLOCKED: native instance or logical-to-physical zone selection no longer matches actual owned placement.'
+        }
+        $m.outputs['csl-native-process-scenarios'] = Invoke-LabDeployment $m $ManifestPath $script:LabGroups[1] `
+            'csl-native-process-scenarios' (Join-Path $script:LabRoot 'infra\native-process-scenarios.bicep') @{
+                workspaceName=$w.chaosWorkspaceName; applicationResourceId=$w.applicationId
+                instanceId=$selection.instanceId; logicalZone=$selection.logicalZone
+            }
+        $m.status = 'NATIVE_DEFINITIONS_CREATED'
     }
     Write-LabJson $ManifestPath $m
     Write-Information "Build stage $Step completed. Actual instance/health/traffic readiness and native tests require separate qualification." -InformationAction Continue

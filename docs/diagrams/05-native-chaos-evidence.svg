@@ -1,13 +1,13 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1500" height="960" viewBox="0 0 1500 960">
   <title>Deterministic native Chaos suite - required evidence and verdicts</title>
-  <desc>Independent verdicts for baseline, exact-instance process crash, zone-selected process crash, PostgreSQL failover, combined overlapping effects and genuine infrastructure-zone loss. Every acknowledged write must be reconciled. Spain Central allocation validation supplies no application or native-test verdict.</desc>
+  <desc>Independent verdicts for baseline, exact-instance process crash, zone-selected process crash, PostgreSQL failover, combined overlapping effects and genuine infrastructure-zone loss. Every issued write must be reconciled. Private SCM and actual six-worker three-zone participation passed. An external database stop blocks the full baseline and native fault suite.</desc>
   <defs>
     <style>text { font-family: Segoe UI, sans-serif; fill: #000; font-size: 20px } .title { font-size: 32px; font-weight: 600 } .heading { font-size: 23px; font-weight: 600 } .small { font-size: 18px }</style>
   </defs>
   <rect width="1500" height="960" fill="#fff"/>
   <rect x="40" y="25" width="1420" height="95" rx="10" fill="#fff4ce" stroke="#f7630c" stroke-width="2"/>
   <text x="65" y="65" class="title">Deterministic native Chaos suite - evidence contract</text>
-  <text x="65" y="100">Current run: all six verdicts BLOCKED. No workload, private SCM, instance placement or native effect is qualified.</text>
+  <text x="65" y="100">Private SCM and six-worker placement verified; all six suite verdicts BLOCKED after an external database stop.</text>
   <rect x="40" y="145" width="1420" height="110" rx="10" fill="#cfe4fa" stroke="#0078d4" stroke-width="2"/>
   <text x="65" y="180" class="heading">Mandatory readiness gate before every fault</text>
   <text x="65" y="210">Actual six Linux workers / three physical zones / all-instance health and business traffic / private app and SCM</text>

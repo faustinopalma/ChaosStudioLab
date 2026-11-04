@@ -109,13 +109,13 @@ function Save-LabRunnerEvidence {
 
 function Test-LabDurability {
     param([string] $ManifestPath, [string] $RunId, [int] $TunnelPort,
-        [ValidateSet('baseline', 'app-instance', 'app-zone', 'failover', 'combined')][string] $Phase)
+        [ValidateSet('warmup', 'baseline', 'app-instance', 'app-zone', 'failover', 'combined')][string] $Phase)
     if ($RunId -notmatch '^[0-9a-f]{32}$') { throw 'Invalid durability run ID.' }
     $manifest = Read-LabManifest $ManifestPath
     $root = Split-Path $ManifestPath -Parent
     $options = @(Get-LabSshOptions $manifest $root)
     Write-Information "[$([DateTimeOffset]::UtcNow.ToString('O'))] Verifying original $Phase writes through the private API." -InformationAction Continue
-    & ssh @options -p $TunnelPort 'csloperator@127.0.0.1' "cd ~/csl && pwsh -NoLogo -NoProfile -File scripts/runner/verify.ps1 -AcknowledgedAttemptsPath results/$RunId/attempts.ndjson > $Phase-durability.log 2>&1"
+    & ssh @options -p $TunnelPort 'csloperator@127.0.0.1' "cd ~/csl && timeout 1200 pwsh -NoLogo -NoProfile -File scripts/runner/verify.ps1 -AcknowledgedAttemptsPath results/$RunId/attempts.ndjson > $Phase-durability.log 2>&1"
     $verificationExit = $LASTEXITCODE
     $report = Join-Path $root "evidence\$Phase-durability-verdict.json"
     & scp @options -P $TunnelPort "csloperator@127.0.0.1:csl/results/$RunId/durability-verdict.json" $report
@@ -154,15 +154,17 @@ function Confirm-LabContext {
 }
 
 function Invoke-LabArm {
-    param([string] $Method, [string] $Uri, [object] $Body = $null)
+    param([ValidateSet('Get','Post','Put')][string] $Method, [string] $Uri, [object] $Body = $null)
     $address = [Uri] $Uri
-    if ($address.Host -ne 'management.azure.com') { throw 'Unexpected management API host.' }
+    if (-not $address.IsAbsoluteUri -or $address.Scheme -ne 'https' -or
+        $address.Host -ne 'management.azure.com' -or $address.Port -ne 443 -or
+        $address.UserInfo -or $address.Fragment) { throw 'Unexpected management API address.' }
     Assert-LabResourceId $address.AbsolutePath
     $accessToken = Invoke-LabAz @('account', 'get-access-token', '--resource', 'https://management.azure.com/', '--query', 'accessToken', '-o', 'tsv')
     try {
         $arguments = @{
             Uri = $Uri; Method = $Method; Headers = @{ Authorization = "Bearer $accessToken" }
-            TimeoutSec = 120; ContentType = 'application/json'
+            TimeoutSec = 120; ContentType = 'application/json'; MaximumRedirection = 0
         }
         if ($null -ne $Body) { $arguments.Body = $Body | ConvertTo-Json -Depth 50 }
         $response = Invoke-WebRequest @arguments

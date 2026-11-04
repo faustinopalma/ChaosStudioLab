@@ -112,6 +112,7 @@ function readOrder(operationId, expectedChecksum, phase, trackWorkload = true) {
     durationMs: elapsedMs,
     expectedChecksum,
     responseChecksum: body && body.payloadSha256,
+    errorCode: body && body.error,
     instanceId: response.headers['X-Lab-Instance-Id'] || null,
     processId: response.headers['X-Lab-Process-Id'] || null,
     processStartedAtUtc: response.headers['X-Lab-Process-Start-Utc'] || null,
@@ -211,6 +212,7 @@ function writeOrder(operationId, payload, phase, trackWorkload = true) {
       durationMs: elapsedMs,
       expectedChecksum,
       responseChecksum,
+      errorCode: responseBody && responseBody.error,
       instanceId: response.headers['X-Lab-Instance-Id'] || null,
       processId: response.headers['X-Lab-Process-Id'] || null,
       processStartedAtUtc: response.headers['X-Lab-Process-Start-Utc'] || null,
@@ -369,6 +371,8 @@ export default function (data) {
       scheduledAtUtc: new Date(startedAt).toISOString(),
       recordedAtUtc: new Date().toISOString(),
       durationMs,
+      readSucceeded,
+      writeSucceeded,
       success: succeeded,
     });
     return;

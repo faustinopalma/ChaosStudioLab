@@ -210,7 +210,7 @@ There is no independent 24-hour suspension or deletion guarantee in this archite
 
 Record source revision/package hash, region, exact owned resources, native Scenario/Action identifiers, app instance/zone snapshots, role transitions, phase boundaries, errors, dropped operations, latency and write verification. Keep partial results when a step fails.
 
-The earlier source remains an implementation baseline. Existing `Build-Lab.ps1`, lifecycle and cycle scripts must not be presented as this revised interface until refactored and verified.
+The active `Build-Lab.ps1` now implements the staged private App Service deployment; historical lifecycle/cycle entrypoints remain inert. `Test-Lab.ps1` implements individually selected baseline/native cases with fail-closed readiness and evidence gates. Its native effect orchestration remains unqualified end-to-end; the [execution results](app-service-results.md) record current capabilities and blockers.
 
 ## 8. Lab lifecycle commands
 

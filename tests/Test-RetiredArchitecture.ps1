@@ -1,6 +1,6 @@
 $ErrorActionPreference = 'Stop'
 $root = Split-Path $PSScriptRoot -Parent
-foreach ($name in @('Invoke-LabCycle', 'Register-Controller', 'Set-LabLifecycle', 'Destroy-Lab', 'Test-Lab')) {
+foreach ($name in @('Invoke-LabCycle', 'Register-Controller', 'Set-LabLifecycle', 'Destroy-Lab')) {
     $tokens = $null
     $errors = $null
     $ast = [Management.Automation.Language.Parser]::ParseFile(
@@ -16,4 +16,4 @@ if ($common -match 'Start-Job|vm-csl-worker|New-LabLifecycleParameters' -or
     (Test-Path (Join-Path $root 'infra\worker-bootstrap.bicep'))) {
     throw 'An active worker, background installer or lifecycle runbook remains.'
 }
-'Retired lifecycle/destruction/cycle entrypoints and unqualified tests fail before any operation; no entrypoint was invoked.'
+'Retired lifecycle/destruction/cycle entrypoints fail before any operation; individually selected native tests have separate readiness guards.'

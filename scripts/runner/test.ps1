@@ -2,7 +2,8 @@
 param(
     [ValidateSet('warmup', 'baseline', 'app-instance', 'app-zone', 'failover', 'combined')]
     [string] $Phase = 'baseline',
-    [ValidatePattern('^\d+[sm]$')][string] $Duration = '10m'
+    [ValidatePattern('^\d+[sm]$')][string] $Duration = '10m',
+    [ValidatePattern('^[0-9a-f]{32}$')][string] $RunId = [Guid]::NewGuid().ToString('N')
 )
 $ErrorActionPreference = 'Stop'
 $config = Get-Content (Join-Path $PSScriptRoot '..\..\runner-config.json') -Raw | ConvertFrom-Json
@@ -17,6 +18,6 @@ try {
     $rate = if ($Phase -in @('app-instance', 'app-zone')) { 0.99 } else { 0.999 }
     $p95 = if ($Phase -in @('app-instance', 'app-zone')) { 2000 } else { 1000 }
     & (Join-Path $PSScriptRoot '..\..\tests\load\run.ps1') `
-        -OutputRoot (Join-Path $PSScriptRoot '..\..\results') -Phase $Phase -Duration $Duration `
+        -OutputRoot (Join-Path $PSScriptRoot '..\..\results') -Phase $Phase -Duration $Duration -RunId $RunId `
         -MinimumBusinessOperationSuccessRate $rate -SuccessfulOperationP95LimitMs $p95
 } finally { Remove-Item Env:\API_TOKEN -ErrorAction SilentlyContinue }

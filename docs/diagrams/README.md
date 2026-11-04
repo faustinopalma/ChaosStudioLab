@@ -5,7 +5,7 @@
 - [Private Linux App Service target architecture](04-private-linux-app-service.svg): managed six-worker plan, required three-zone participation, separate outbound Integration/inbound PE subnets, private application/SCM/database paths and one runner.
 - [Deterministic native suite evidence contract](05-native-chaos-evidence.svg): independent baseline, exact-instance, zone-selected, database, combined and real-zone verdicts, including effect overlap and all-write durability.
 
-These are editable SVG sources with generic labeled components. Placement is illustrative. The live workload is blocked by AZ-worker quota, and no runtime/fault acceptance is implied. Open the sources in Inkscape; export a PNG only when a preview is needed.
+These are editable SVG sources with generic labeled components. Actual six-worker participation across three physical zones and private SCM publication have passed. The database was externally stopped; the full baseline and fault suite remain BLOCKED. The diagrams identify point-in-time placement evidence and separate native-runtime qualification. Open the sources in Inkscape; export a PNG only when a preview is needed.
 
 ## Historical drawings
 

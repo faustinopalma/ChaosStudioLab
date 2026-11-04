@@ -6,6 +6,9 @@ param(
     [Parameter()]
     [string] $Phase = 'baseline',
 
+    [ValidatePattern('^[0-9a-f]{32}$')]
+    [string] $RunId = [Guid]::NewGuid().ToString('N'),
+
     [Parameter()]
     [string] $Duration = '10m',
 
@@ -41,9 +44,9 @@ if ($null -eq $k6) {
 }
 
 $resolvedOutputRoot = [System.IO.Path]::GetFullPath($OutputRoot)
-$runId = [Guid]::NewGuid().ToString('N')
 $runDirectory = Join-Path $resolvedOutputRoot $runId
-New-Item -ItemType Directory -Path $runDirectory -Force | Out-Null
+if (Test-Path -LiteralPath $runDirectory) { throw 'A measurement run ID cannot reuse an existing output directory.' }
+New-Item -ItemType Directory -Path $runDirectory | Out-Null
 
 $consolePath = Join-Path $runDirectory 'k6-console.log'
 $summaryPath = Join-Path $runDirectory 'summary.json'
@@ -52,6 +55,9 @@ $attemptsPath = Join-Path $runDirectory 'attempts.ndjson'
 $reportPath = Join-Path $runDirectory 'run.json'
 $scenarioPath = Join-Path $PSScriptRoot 'scenario.js'
 $startedAt = [DateTimeOffset]::UtcNow
+@{runId=$runId;phase=$Phase;runnerProcessId=$PID;startedAtUtc=$startedAt.ToString('O')
+    duration=$Duration;rate=$Rate;targetHost=$apiUri.Host} |
+    ConvertTo-Json | Set-Content (Join-Path $runDirectory 'started.json') -Encoding utf8
 
 $previousEnvironment = @{
     RUN_ID = $env:RUN_ID
