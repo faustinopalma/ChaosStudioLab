@@ -324,33 +324,93 @@ function Assert-LabLinuxRuntime {
     }
 }
 
+function Assert-LabWindowsRuntime {
+    param([object[]] $Runtimes)
+    $qualified = @($Runtimes | Where-Object {
+        $_ -is [hashtable] -and $_.ContainsKey('config') -and $_.config -eq 'dotnet|9' -and
+        $_.ContainsKey('os') -and $_.os -eq 'Windows' -and
+        $_.ContainsKey('support') -and $_.support -in @('Active', 'Near')
+    })
+    $endOfLife = [DateTimeOffset]::MinValue
+    if ($qualified.Count -ne 1 -or -not $qualified[0].ContainsKey('end_of_life') -or
+        -not [DateTimeOffset]::TryParse($qualified[0].end_of_life, [Globalization.CultureInfo]::InvariantCulture,
+            [Globalization.DateTimeStyles]::AssumeUniversal, [ref]$endOfLife) -or
+        $endOfLife -le [DateTimeOffset]::UtcNow) {
+        throw 'BLOCKED: the qualified Windows dotnet|9 runtime is missing, unsupported, ambiguous or past its catalog end_of_life.'
+    }
+    if ($qualified[0].support -eq 'Near') {
+        Write-Warning "Bounded lab runtime Windows dotnet|9 is Near end of support ($($qualified[0].end_of_life)); requalify before that date."
+    }
+}
+
+function Assert-LabApplicationRuntime {
+    param([ValidateSet('linux', 'windows')][string] $Platform)
+    $runtimes = @(Invoke-LabAz @('webapp', 'list-runtimes', '--os', $Platform, '-o', 'json') | ConvertFrom-Json -AsHashtable)
+    if ($Platform -eq 'windows') { Assert-LabWindowsRuntime $runtimes } else { Assert-LabLinuxRuntime $runtimes }
+}
+
+function Get-LabApplicationTarget {
+    param([hashtable] $Manifest)
+    $target = ([hashtable]$Manifest.outputs['csl-infrastructure'].workload.value).Clone()
+    $platform = if ($Manifest.ContainsKey('applicationTarget')) { [string]$Manifest.applicationTarget } else { 'linux' }
+    if ($platform -eq 'windows') {
+        if (-not $Manifest.outputs.ContainsKey('csl-windows-application')) {
+            throw 'BLOCKED: the Windows application target has not been deployed.'
+        }
+        $windows = $Manifest.outputs['csl-windows-application']
+        foreach ($key in @('applicationId', 'applicationName', 'applicationFqdn', 'scmFqdn')) {
+            $target[$key] = $windows[$key].value
+        }
+        $target.planName = 'asp-csl-windows-baseline'
+        $target.nativeScenariosOutput = 'csl-native-process-scenarios-windows'
+        $target.nativeSelectionKey = 'windowsNativeSelection'
+    } elseif ($platform -eq 'linux') {
+        $target.planName = 'asp-csl-linux-baseline'
+        $target.nativeScenariosOutput = 'csl-native-process-scenarios'
+        $target.nativeSelectionKey = 'nativeSelection'
+    } else {
+        throw "Unsupported application target platform: $platform"
+    }
+    $target.platform = $platform
+    $target.planId = $target.applicationId -replace '/sites/[^/]+$', "/serverfarms/$($target.planName)"
+    return $target
+}
+
 function Assert-LabAppServicePlan {
-    param([hashtable] $Plan)
-    if ('linux' -notin @($Plan.kind -split ',') -or
-        $Plan.properties.reserved -ne $true -or
+    param([hashtable] $Plan, [ValidateSet('linux', 'windows')][string] $Platform = 'linux')
+    $linuxKind = 'linux' -in @($Plan.kind -split ',')
+    if (($Platform -eq 'linux' -and (-not $linuxKind -or $Plan.properties.reserved -ne $true)) -or
+        ($Platform -eq 'windows' -and ($linuxKind -or $Plan.properties.reserved -ne $false)) -or
         $Plan.properties.zoneRedundant -ne $true -or
         $Plan.properties.perSiteScaling -ne $false -or
         $Plan.sku.capacity -ne 6 -or
         -not $Plan.properties.ContainsKey('maximumNumberOfZones') -or
         $Plan.properties.maximumNumberOfZones -lt 3) {
-        throw 'BLOCKED: the actual plan must be Linux, zoneRedundant=true, maximumNumberOfZones>=3, capacity=6 and perSiteScaling=false to qualify the requested baseline.'
+        throw "BLOCKED: the actual plan must be $Platform, zoneRedundant=true, maximumNumberOfZones>=3, capacity=6 and perSiteScaling=false to qualify the requested baseline."
     }
 }
 
 function Assert-LabAppServiceConfiguration {
-    param([hashtable] $Configuration)
+    param([hashtable] $Configuration, [ValidateSet('linux', 'windows')][string] $Platform = 'linux')
     if (-not $Configuration.ContainsKey('alwaysOn') -or
         $Configuration.alwaysOn -isnot [bool] -or $Configuration.alwaysOn -ne $true) {
         throw 'BLOCKED: actual App Service config/web must have alwaysOn=true to retain the six-worker baseline during idle periods.'
     }
-    if (-not $Configuration.ContainsKey('linuxFxVersion') -or $Configuration.linuxFxVersion -cne 'DOTNETCORE|9.0') {
+    if ($Platform -eq 'windows') {
+        if (-not $Configuration.ContainsKey('netFrameworkVersion') -or $Configuration.netFrameworkVersion -cne 'v9.0' -or
+            -not $Configuration.ContainsKey('use32BitWorkerProcess') -or $Configuration.use32BitWorkerProcess -ne $false -or
+            ($Configuration.ContainsKey('linuxFxVersion') -and -not [string]::IsNullOrEmpty($Configuration.linuxFxVersion))) {
+            throw 'BLOCKED: actual Windows App Service config/web must use the 64-bit .NET v9.0 runtime.'
+        }
+    } elseif (-not $Configuration.ContainsKey('linuxFxVersion') -or $Configuration.linuxFxVersion -cne 'DOTNETCORE|9.0') {
         throw 'BLOCKED: actual App Service config/web must use the native-qualified Linux DOTNETCORE|9.0 runtime.'
     }
 }
 
 function Assert-LabAppServicePlacement {
-    param([hashtable] $Plan, [object[]] $Instances, [object[]] $Observations)
-    Assert-LabAppServicePlan $Plan
+    param([hashtable] $Plan, [object[]] $Instances, [object[]] $Observations,
+        [ValidateSet('linux', 'windows')][string] $Platform = 'linux')
+    Assert-LabAppServicePlan $Plan $Platform
     if ($Instances.Count -ne 6 -or @($Instances.name | Sort-Object -Unique).Count -ne 6) {
         throw 'BLOCKED: exactly six distinct actual application instances are required.'
     }

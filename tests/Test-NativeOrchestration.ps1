@@ -43,6 +43,11 @@ $script:LabGroups=@('rg-fixture-net','rg-fixture-work','rg-fixture-ops')
 function Confirm-LabContext {}
 function Read-LabManifest([string]$Path) { Get-Content $Path -Raw | ConvertFrom-Json -AsHashtable }
 function Assert-LabPolicyExemptions($Manifest) {}
+function Get-LabApplicationTarget($Manifest) {
+    $target=$Manifest.outputs['csl-infrastructure'].workload.value.Clone()
+    $target.platform='linux'; $target.applicationId='/fixture/sites/app'; $target.planId='/fixture/serverfarms/plan'
+    return $target
+}
 function Get-LabSshOptions($Manifest,$Root) { @() }
 function Write-LabJson([string]$Path,$Value) { $Value | ConvertTo-Json -Depth 30 | Set-Content $Path }
 function Invoke-LabAz([string[]]$Arguments) {

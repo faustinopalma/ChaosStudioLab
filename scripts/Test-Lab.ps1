@@ -33,7 +33,7 @@ function Invoke-PrivateQualification([string]$Label) {
     $instances=Invoke-LabAz @('rest','--method','get','--url',
         "https://management.azure.com$($w.applicationId)/instances?api-version=2025-03-01",'-o','json') | ConvertFrom-Json -AsHashtable
     Write-LabJson (Join-Path $caseRoot "$Label-instances.json") $instances
-    Assert-LabAppServicePlacement $plan $instances.value $proof.observations
+    Assert-LabAppServicePlacement $plan $instances.value $proof.observations $w.platform
     return @{instances=$instances.value;observations=$proof.observations}
 }
 function Start-PrivateMeasurement([string]$Phase,[string]$Duration,[string]$RunId) {
@@ -113,6 +113,7 @@ function Complete-SelectedNative([hashtable]$Intent,[hashtable]$Definition) {
 function Invoke-NativeCase {
     if(-not $m.ContainsKey('lastBaseline') -or $m.lastBaseline.status -ne 'PASS' -or
         $m.lastBaseline.packageSha256 -cne $m.applicationPackageSha256 -or
+        $m.lastBaseline.applicationId -ine $w.applicationId -or
         ([DateTimeOffset]::UtcNow-[DateTimeOffset]$m.lastBaseline.completedAtUtc).TotalHours -gt 4 -or
         @(Compare-Object @($m.lastBaseline.instanceIds | Sort-Object) @($before.instances.name | Sort-Object)).Count) {
         throw 'BLOCKED: a successful recent baseline on this package and exact six instances is required.'
@@ -127,14 +128,15 @@ function Invoke-NativeCase {
     $applicationDefinition=$null
     $databaseDefinition=$null
     if($isApplication) {
-        if(-not $m.outputs.ContainsKey('csl-native-process-scenarios')) { throw 'BLOCKED: validated native process definitions have not been deployed.' }
-        $selection=$m.nativeSelection
+        if(-not $m.outputs.ContainsKey($w.nativeScenariosOutput) -or -not $m.ContainsKey($w.nativeSelectionKey)) { throw 'BLOCKED: validated native process definitions have not been deployed for the selected application target.' }
+        $selection=$m[$w.nativeSelectionKey]
+        if($selection.applicationId -ine $w.applicationId) { throw 'BLOCKED: native selection belongs to a different application target.' }
         $selected=@($before.instances | Where-Object name -eq $selection.instanceId)
         if($selected.Count -ne 1 -or $selected[0].properties.physicalZone -cne $selection.physicalZone) { throw 'BLOCKED: selected native instance/zone placement changed.' }
         $kind=if($TestId -eq 'HA-APP-ZONE-001') { 'zone' } else { 'instance' }
         $outputKey=if($kind -eq 'zone') { 'zoneConfigurationId' } else { 'instanceConfigurationId' }
         $selector=if($kind -eq 'zone') { $selection.logicalZone } else { $selection.instanceId }
-        $applicationDefinition=Get-VerifiedNativeDefinition $m.outputs['csl-native-process-scenarios'][$outputKey].value $w.applicationId $kind $selector
+        $applicationDefinition=Get-VerifiedNativeDefinition $m.outputs[$w.nativeScenariosOutput][$outputKey].value $w.applicationId $kind $selector
         $report.targetInstanceIds=if($kind -eq 'zone') {
             @($before.instances | Where-Object { $_.properties.physicalZone -ceq $selection.physicalZone } | ForEach-Object name)
         } else { @($selection.instanceId) }
@@ -275,22 +277,22 @@ try {
     if($m.ContainsKey('activeNativeOperations') -and @($m.activeNativeOperations | Where-Object { $_.status -notin @('SUCCEEDED','FAILED_RECONCILED') }).Count) {
         throw 'BLOCKED: reconcile the previously accepted or uncertain native operation before starting another test.'
     }
-    $w=$m.outputs['csl-infrastructure'].workload.value
+    $w=Get-LabApplicationTarget $m
+    $report.applicationTarget=@{platform=$w.platform;applicationId=$w.applicationId;planId=$w.planId}
     $postgres=Invoke-LabAz @('postgres','flexible-server','show','-g',$script:LabGroups[1],'-n',$w.postgresName,'-o','json') | ConvertFrom-Json -AsHashtable
     Write-LabJson (Join-Path $caseRoot 'postgres-before.json') $postgres
     if($postgres.state -ne 'Ready' -or $postgres.highAvailability.mode -ne 'ZoneRedundant' -or
         $postgres.highAvailability.state -ne 'Healthy' -or $postgres.network.publicNetworkAccess -ne 'Disabled') {
         throw "BLOCKED: PostgreSQL state=$($postgres.state), HA state=$($postgres.highAvailability.state); require private Ready/Healthy zone-redundant primary/standby before measurement or injection."
     }
-    Assert-LabLinuxRuntime @(Invoke-LabAz @('webapp','list-runtimes','--os','linux','-o','json') |
-        ConvertFrom-Json -AsHashtable)
+    Assert-LabApplicationRuntime $w.platform
     $plan=Invoke-LabAz @('rest','--method','get','--url',
-        "https://management.azure.com$($w.applicationId -replace '/sites/[^/]+$','/serverfarms/asp-csl-linux-baseline')?api-version=2025-03-01",'-o','json') | ConvertFrom-Json -AsHashtable
+        "https://management.azure.com$($w.planId)?api-version=2025-03-01",'-o','json') | ConvertFrom-Json -AsHashtable
     Write-LabJson (Join-Path $caseRoot 'actual-plan.json') $plan
-    Assert-LabAppServicePlan $plan
+    Assert-LabAppServicePlan $plan $w.platform
     $configuration=(Invoke-LabArm GET "https://management.azure.com$($w.applicationId)/config/web?api-version=2025-03-01").body
     Write-LabJson (Join-Path $caseRoot 'actual-app-configuration.json') $configuration
-    Assert-LabAppServiceConfiguration $configuration.properties
+    Assert-LabAppServiceConfiguration $configuration.properties $w.platform
     Wait-LabSsh $m $stateRoot $TunnelPort
     # Keep CLI tunnel session cleanup outside concurrent measurements and evidence collection.
     $managementSession=Start-PrivateCommand management $caseId 'timeout 7200 cat > /dev/null'
@@ -318,7 +320,8 @@ try {
     $report.status='PASS'
     $report.reason='Five-minute warmup and ten-minute baseline passed, every issued write was reconciled, and all six application instances contributed health/business traffic across three physical zones before and after measurement.'
     $m.lastBaseline=@{status='PASS';completedAtUtc=[DateTimeOffset]::UtcNow.ToString('O');caseRoot=$caseRoot
-        packageSha256=$m.applicationPackageSha256;instanceIds=@($before.instances.name)}
+        packageSha256=$m.applicationPackageSha256;instanceIds=@($before.instances.name)
+        applicationId=$w.applicationId;platform=$w.platform}
     Write-LabJson $ManifestPath $m
 } catch {
     $report.status=if($_.Exception.Message -like 'BLOCKED:*') { 'BLOCKED' } elseif($_.Exception.Message -like 'INCONCLUSIVE:*') { 'INCONCLUSIVE' } else { 'FAIL' }

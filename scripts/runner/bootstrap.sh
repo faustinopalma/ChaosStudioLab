@@ -49,4 +49,4 @@ az webapp deploy --resource-group "$APP_RESOURCE_GROUP" --name "$APP_NAME" \
 az rest --method post \
   --url "https://management.azure.com/subscriptions/$SUBSCRIPTION_ID/resourceGroups/$APP_RESOURCE_GROUP/providers/Microsoft.Web/sites/$APP_NAME/config/configreferences/appsettings/refresh?api-version=2022-03-01" \
   --output none
-echo 'Private database migration and checksummed Linux SCM package publication completed; private startup/participation qualification follows in PC orchestration.'
+echo 'Private database migration and checksummed private SCM package publication completed; private startup/participation qualification follows in PC orchestration.'

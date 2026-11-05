@@ -79,9 +79,35 @@ $operations = @($template.resources | Where-Object name -eq 'csl-operations')[0]
 Assert ($operations.variables.storageRegionNames.spaincentral -eq 'SpainCentral') 'Spain Central Storage egress service-tag mapping is missing.'
 $plan = Compile 'infra\modules\app-service-plan.bicep'
 $serverFarm = @($plan.resources | Where-Object type -eq 'Microsoft.Web/serverfarms')[0]
-Assert ($serverFarm.kind -eq 'linux' -and $serverFarm.properties.reserved -and
-    $serverFarm.properties.zoneRedundant -and -not $serverFarm.properties.perSiteScaling -and
-    $serverFarm.sku.capacity -eq 6) 'The early plan must retain six fixed zone-redundant Linux workers.'
+Assert ($plan.parameters.platform.defaultValue -eq 'linux' -and
+    $serverFarm.kind -eq "[if(equals(parameters('platform'), 'linux'), 'linux', 'app')]" -and
+    $serverFarm.properties.reserved -eq "[equals(parameters('platform'), 'linux')]" -and
+    $serverFarm.properties.zoneRedundant -eq $true -and -not $serverFarm.properties.perSiteScaling -and
+    $serverFarm.sku.capacity -eq 6) 'The early plan must retain six fixed zone-redundant workers, Linux by default.'
+$windows = Compile 'infra\windows-application.bicep'
+$windowsResources = @(Resources $windows)
+$windowsApp = @($windowsResources | Where-Object type -eq 'Microsoft.Web/sites')
+Assert ($windowsApp.Count -eq 1) 'Expected exactly one Windows comparison Web App.'
+$wp = $windowsApp[0].properties
+Assert ($windowsApp[0].kind -eq 'app' -and $wp.reserved -eq $false -and $wp.publicNetworkAccess -eq 'Disabled' -and
+    $wp.httpsOnly -and -not $wp.clientAffinityEnabled -and $wp.siteConfig.netFrameworkVersion -eq 'v9.0' -and
+    $wp.siteConfig.use32BitWorkerProcess -eq $false -and $wp.siteConfig.healthCheckPath -eq '/health/live' -and
+    $wp.siteConfig.alwaysOn -and $wp.siteConfig.vnetRouteAllEnabled) 'Private Windows comparison app contract drifted.'
+$windowsSubnet = @($windowsResources | Where-Object type -eq 'Microsoft.Network/virtualNetworks/subnets')[0]
+Assert ($windows.parameters.integrationSubnetName.defaultValue -eq 'app-service-integration-windows' -and
+    $windowsSubnet.properties.delegations[0].properties.serviceName -eq 'Microsoft.Web/serverFarms' -and
+    $wp.virtualNetworkSubnetId -like '*integrationSubnet*' -or $wp.virtualNetworkSubnetId -like "*resourceId('Microsoft.Network/virtualNetworks/subnets'*") 'Windows outbound integration must use its own delegated subnet.'
+$windowsEndpoint = @($windowsResources | Where-Object type -eq 'Microsoft.Network/privateEndpoints')[0]
+Assert ($windowsEndpoint.properties.subnet.id -like '*/subnets/private-endpoints*' -and
+    $windowsEndpoint.properties.privateLinkServiceConnections[0].properties.groupIds[0] -eq 'sites') 'Windows inbound Private Endpoint must use the separate endpoint subnet.'
+Assert (@($windowsResources | Where-Object { $_.type -eq 'Microsoft.Web/sites/basicPublishingCredentialsPolicies' -and -not $_.properties.allow }).Count -eq 2) 'Windows SCM/FTP basic credentials must remain disabled.'
+$windowsPlan = @($windowsResources | Where-Object name -eq 'csl-windows-plan')[0]
+Assert ($windowsPlan.properties.parameters.platform.value -eq 'windows') 'The Windows app must use the zone-redundant Windows plan.'
+$windowsSubnetInline = @($work.properties.subnets | Where-Object name -eq 'app-service-integration-windows')
+Assert ($windowsSubnetInline.Count -eq 1) 'The authoritative VNet must retain the separate Windows integration subnet.'
+$native = Compile 'infra\native-process-scenarios.bicep'
+Assert ($native.parameters.platform.defaultValue -eq 'linux' -and
+    $native.variables.processNameParameters -eq "[if(equals(parameters('platform'), 'linux'), createArray(createObject('key', 'ProcessName', 'value', 'dotnet')), createArray())]") 'Native process naming must stay explicit for Linux and omitted for the Windows main worker.'
 Assert ($plan.parameters.planSku.allowedValues.Count -eq 6 -and
     'P0v3' -in $plan.parameters.planSku.allowedValues -and 'P2v2' -in $plan.parameters.planSku.allowedValues -and
     $serverFarm.sku.tier -match "endsWith.*'v2'.*'PremiumV2'.*'v4'.*'PremiumV4'.*'PremiumV3'") 'Premium SKU generations must map to their correct tiers.'

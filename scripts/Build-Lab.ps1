@@ -28,14 +28,15 @@ try {
                 planSku = $config.workload.appServiceSku
             }
     }
-    $planId = "/subscriptions/$script:LabSubscription/resourceGroups/$($script:LabGroups[1])/providers/Microsoft.Web/serverfarms/asp-csl-linux-baseline"
+    $target = if ($Step -in @('Application', 'NativeScenarios')) { Get-LabApplicationTarget $m } else { @{ platform = 'linux' } }
+    $planId = "/subscriptions/$script:LabSubscription/resourceGroups/$($script:LabGroups[1])/providers/Microsoft.Web/serverfarms/asp-csl-$($target.platform)-baseline"
     $plan = Invoke-LabAz @('rest', '--method', 'get', '--url',
         "https://management.azure.com${planId}?api-version=2025-03-01", '-o', 'json') | ConvertFrom-Json -AsHashtable
     Write-LabJson (Join-Path $root "$Step-actual-plan.json") $plan
     if ($planId -notin $m.resourceIds -or $plan.tags.deploymentInstanceId -ne $m.deploymentInstanceId) {
-        throw 'Missing or foreign owned Linux plan.'
+        throw "Missing or foreign owned $($target.platform) plan."
     }
-    Assert-LabAppServicePlan $plan
+    Assert-LabAppServicePlan $plan $target.platform
     if ($Step -eq 'Plan') { $m.status = 'PLAN_THREE_ZONE_CAPABLE' }
     elseif ($Step -eq 'Prerequisites') {
         foreach ($scope in @(@{index=1;module='workload'}, @{index=2;module='operations'})) {
@@ -76,7 +77,7 @@ try {
         $m = Read-LabManifest $ManifestPath
         $m.status = 'RUNNER_SOFTWARE_INSTALLED'
     } elseif ($Step -eq 'Application') {
-        $w = $m.outputs['csl-infrastructure'].workload.value
+        $w = $target
         $o = $m.outputs['csl-infrastructure'].operations.value
         Wait-LabSsh $m $root $TunnelPort
         $options = @(Get-LabSshOptions $m $root)
@@ -138,21 +139,21 @@ try {
         $instances = Invoke-LabAz @('rest', '--method', 'get', '--url',
             "https://management.azure.com$($w.applicationId)/instances?api-version=2025-03-01", '-o', 'json') |
             ConvertFrom-Json -AsHashtable
-        Assert-LabAppServicePlacement $plan $instances.value $participation.observations
+        Assert-LabAppServicePlacement $plan $instances.value $participation.observations $w.platform
         $configuration=(Invoke-LabArm GET "https://management.azure.com$($w.applicationId)/config/web?api-version=2025-03-01").body
         Write-LabJson (Join-Path $root 'publication-app-configuration.json') $configuration
-        Assert-LabAppServiceConfiguration $configuration.properties
+        Assert-LabAppServiceConfiguration $configuration.properties $w.platform
         $m.status = 'PRIVATE_APPLICATION_PUBLISHED'
         $m.applicationPublicationState = 'PRIVATE_PUBLICATION_VERIFIED'
     } elseif ($Step -eq 'NativeScenarios') {
-        if (-not $m.ContainsKey('nativeSelection')) { throw 'BLOCKED: retain actual private participation and subscription zone-mapping proof before creating native definitions.' }
-        $w = $m.outputs['csl-infrastructure'].workload.value
-        $selection = $m.nativeSelection
+        $w = $target
+        if (-not $m.ContainsKey($w.nativeSelectionKey)) { throw 'BLOCKED: retain actual private participation and subscription zone-mapping proof before creating native definitions.' }
+        $selection = $m[$w.nativeSelectionKey]
         $proof = Get-Content -LiteralPath $selection.participationProofPath -Raw | ConvertFrom-Json
         $instances = Invoke-LabAz @('rest', '--method', 'get', '--url',
             "https://management.azure.com$($w.applicationId)/instances?api-version=2025-03-01", '-o', 'json') |
             ConvertFrom-Json -AsHashtable
-        Assert-LabAppServicePlacement $plan $instances.value $proof.observations
+        Assert-LabAppServicePlacement $plan $instances.value $proof.observations $w.platform
         $locations = Invoke-LabAz @('account', 'list-locations', '--query',
             "[?name=='$script:LabLocation'].{name:name,availabilityZoneMappings:availabilityZoneMappings}", '-o', 'json') |
             ConvertFrom-Json -AsHashtable -NoEnumerate
@@ -166,10 +167,10 @@ try {
             $selection.physicalZone -notin @($instances.value.properties.physicalZone)) {
             throw 'BLOCKED: native instance or logical-to-physical zone selection no longer matches actual owned placement.'
         }
-        $m.outputs['csl-native-process-scenarios'] = Invoke-LabDeployment $m $ManifestPath $script:LabGroups[1] `
-            'csl-native-process-scenarios' (Join-Path $script:LabRoot 'infra\native-process-scenarios.bicep') @{
+        $m.outputs[$w.nativeScenariosOutput] = Invoke-LabDeployment $m $ManifestPath $script:LabGroups[1] `
+            $w.nativeScenariosOutput (Join-Path $script:LabRoot 'infra\native-process-scenarios.bicep') @{
                 workspaceName=$w.chaosWorkspaceName; applicationResourceId=$w.applicationId
-                instanceId=$selection.instanceId; logicalZone=$selection.logicalZone
+                instanceId=$selection.instanceId; logicalZone=$selection.logicalZone; platform=$w.platform
             }
         $m.status = 'NATIVE_DEFINITIONS_CREATED'
     }

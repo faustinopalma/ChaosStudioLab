@@ -265,7 +265,7 @@ function Assert-LabNativeConfiguration {
             $parameters.Count -ne $expectedParameterCount -or
             -not $parameters.ContainsKey('InstanceIds') -or -not $parameters.ContainsKey('Zones') -or
             ($parameters.ContainsKey('ProcessName') -and $parameters['ProcessName'] -cne 'dotnet') -or
-            [string]::IsNullOrWhiteSpace($Selector)) { throw 'Native Linux main-process Action contract drifted.' }
+            [string]::IsNullOrWhiteSpace($Selector)) { throw 'Native main-process Action contract drifted (Linux names dotnet; Windows omits ProcessName for the main w3wp).' }
         $instances=ConvertFrom-Json -InputObject $parameters['InstanceIds'] -NoEnumerate
         $zones=ConvertFrom-Json -InputObject $parameters['Zones'] -NoEnumerate
         if($instances -isnot [array] -or $zones -isnot [array] -or
