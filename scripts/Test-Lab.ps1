@@ -90,11 +90,11 @@ function Confirm-AllWriteHistory {
     }
     $report.retention=$history
 }
-function Get-VerifiedNativeDefinition([string]$ConfigurationId,[string]$TargetId,[string]$Kind,[string]$Selector) {
+function Get-VerifiedNativeDefinition([string]$ConfigurationId,[string]$TargetId,[string]$Kind,[string]$Selector,[string]$Platform='linux') {
     $configuration=(Invoke-LabArm Get "https://management.azure.com${ConfigurationId}?api-version=2026-08-01-preview").body
     $scenarioId=Get-LabNativeScenarioId $configuration
     $scenario=(Invoke-LabArm Get "https://management.azure.com${scenarioId}?api-version=2026-08-01-preview").body
-    Assert-LabNativeConfiguration $configuration $scenario $TargetId $Kind $Selector
+    Assert-LabNativeConfiguration $configuration $scenario $TargetId $Kind $Selector $Platform
     Write-LabJson (Join-Path $caseRoot "$Kind-definition.json") @{configuration=$configuration;scenario=$scenario}
     return @{configuration=$configuration;scenario=$scenario;targetId=$TargetId;kind=$Kind}
 }
@@ -144,7 +144,7 @@ function Invoke-NativeCase {
         $kind=if($TestId -eq 'HA-APP-ZONE-001') { 'zone' } else { 'instance' }
         $outputKey=if($kind -eq 'zone') { 'zoneConfigurationId' } else { 'instanceConfigurationId' }
         $selector=if($kind -eq 'zone') { $selection.logicalZone } else { $selection.instanceId }
-        $applicationDefinition=Get-VerifiedNativeDefinition $m.outputs[$w.nativeScenariosOutput][$outputKey].value $w.applicationId $kind $selector
+        $applicationDefinition=Get-VerifiedNativeDefinition $m.outputs[$w.nativeScenariosOutput][$outputKey].value $w.applicationId $kind $selector $w.platform
         $report.targetInstanceIds=if($kind -eq 'zone') {
             @($before.instances | Where-Object { $_.properties.physicalZone -ceq $selection.physicalZone } | ForEach-Object name)
         } else { @($selection.instanceId) }

@@ -230,6 +230,13 @@ function Confirm-LabNativeAppServiceIdentity {
             $_.operationName.value -ieq 'Microsoft.Web/sites/instances/processes/delete' -and
             [DateTimeOffset]$_.eventTimestamp -ge $start -and [DateTimeOffset]$_.eventTimestamp -le $completionDeadline
         })
+        $wrongTargets=@($operations | Where-Object {
+            $_.status.value -in @('Succeeded','Failed') -and $_.resourceId -imatch $pattern -and
+            $processIds.ContainsKey($Matches.instance.ToLowerInvariant()) -and $Matches.process -cne $processIds[$Matches.instance.ToLowerInvariant()]
+        })
+        if($wrongTargets.Count) {
+            throw "Native process deletion on a selected instance addressed $(@($wrongTargets | ForEach-Object { ($_.resourceId -split '/')[-1] } | Sort-Object -Unique) -join ',') instead of the pre-selected application process; the crash target is not verified."
+        }
         $success=@($operations | Where-Object { $_.status.value -eq 'Succeeded' })
         $succeededInstances=@($success | ForEach-Object { if($_.resourceId -imatch $pattern) { $Matches.instance.ToLowerInvariant() } } | Sort-Object -Unique)
         if(@($expected | Where-Object { $_ -notin $succeededInstances }).Count -eq 0) { break }
@@ -360,7 +367,7 @@ function Get-LabNativeScenarioId {
 
 function Assert-LabNativeConfiguration {
     param([hashtable] $Configuration,[hashtable] $Scenario,[string] $TargetId,
-        [ValidateSet('instance','zone','postgres')][string] $Kind,[string] $Selector)
+        [ValidateSet('instance','zone','postgres')][string] $Kind,[string] $Selector,[ValidateSet('linux','windows')][string] $Platform='linux')
     $targets=@($Configuration.properties.resourceTargeting.include.resources)
     if($targets.Count -ne 1 -or $targets[0] -ine $TargetId -or
         (Get-LabNativeScenarioId $Configuration) -ine $Scenario.id) {
@@ -382,11 +389,11 @@ function Assert-LabNativeConfiguration {
             throw 'Native PostgreSQL forced-failover contract drifted.'
         }
     } else {
-        if($actionUrn -cne 'urn:csci:microsoft:appservice:killprocess/1.0.0' -or
-            $parameters.Count -ne 3 -or
+        # Windows rejects every explicit ProcessName in validation; its default main worker is the out-of-process dotnet application.
+        $processNameValid=if($Platform -eq 'linux') { $parameters.Count -eq 3 -and $parameters['ProcessName'] -ceq 'dotnet' } else { $parameters.Count -eq 2 -and -not $parameters.ContainsKey('ProcessName') }
+        if($actionUrn -cne 'urn:csci:microsoft:appservice:killprocess/1.0.0' -or -not $processNameValid -or
             -not $parameters.ContainsKey('InstanceIds') -or -not $parameters.ContainsKey('Zones') -or
-            $parameters['ProcessName'] -cne 'dotnet' -or
-            [string]::IsNullOrWhiteSpace($Selector)) { throw 'Native application-process Action contract drifted (both platforms name the dotnet application process).' }
+            [string]::IsNullOrWhiteSpace($Selector)) { throw "Native application-process Action contract drifted for $Platform (Linux names dotnet; Windows omits ProcessName)." }
         $instances=ConvertFrom-Json -InputObject $parameters['InstanceIds'] -NoEnumerate
         $zones=ConvertFrom-Json -InputObject $parameters['Zones'] -NoEnumerate
         if($instances -isnot [array] -or $zones -isnot [array] -or

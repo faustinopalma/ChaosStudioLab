@@ -26,8 +26,15 @@ Assert-LabNativeConfiguration $configuration $scenario $appId instance instance-
 $namedParameters=$scenario.properties.actions[0].parameters
 $scenario.properties.actions[0].parameters=@($namedParameters|Where-Object key -ne ProcessName)
 Expect-Rejected { Assert-LabNativeConfiguration $configuration $scenario $appId instance instance-a }
+Assert-LabNativeConfiguration $configuration $scenario $appId instance instance-a windows
+$scenario.properties.actions[0].parameters=$namedParameters
+Expect-Rejected { Assert-LabNativeConfiguration $configuration $scenario $appId instance instance-a windows }
 $scenario.properties.actions[0].parameters=@($namedParameters|ForEach-Object { if($_.key -eq 'ProcessName') { @{key='ProcessName';value='w3wp'} } else { $_ } })
 Expect-Rejected { Assert-LabNativeConfiguration $configuration $scenario $appId instance instance-a }
+Expect-Rejected { Assert-LabNativeConfiguration $configuration $scenario $appId instance instance-a windows }
+$scenario.properties.actions[0].parameters=@(@($namedParameters|Where-Object key -ne ProcessName)+@(@{key='Unexpected';value='not-allowed'}))
+Expect-Rejected { Assert-LabNativeConfiguration $configuration $scenario $appId instance instance-a windows }
+$scenario.properties.actions[0].parameters=@($namedParameters)
 $scenario.properties.actions[0].parameters+=@(@{key='Unexpected';value='not-allowed'})
 Expect-Rejected { Assert-LabNativeConfiguration $configuration $scenario $appId instance instance-a }
 $scenario.properties.actions[0].parameters=$namedParameters
@@ -285,6 +292,14 @@ try {
     $nativeFixture.response.body.properties.managedIdentityPrincipalId='misreported'
     Expect-Rejected { Complete-LabNativeExecution $intent $manifest $path (Join-Path $fixture 'app-scm-process') $scenario $appId $principal @('instance-a') @{'instance-a'='6536'} }
     if($intent.status -ne 'TERMINAL_UNVERIFIED') { throw 'A deletion of a process other than the pre-selected application process was reconciled.' }
+    $savedEvents=$nativeFixture.activityEvents
+    $nativeFixture.activityEvents=@(
+        (New-ProcessDeleteEvent 'instance-a' 'Started' '2026-11-05T09:00:07.6Z' 'kill-a'),
+        (New-ProcessDeleteEvent 'instance-a' 'Failed' '2026-11-05T09:00:07.9Z' 'kill-a'))
+    $sleeps=$nativeFixture.auditSleeps
+    Expect-Rejected { Confirm-LabNativeAppServiceIdentity $nativeFixture.response.body $scenario $appId $principal (Join-Path $fixture 'app-failed-wrong-process') -ExpectedInstanceIds @('instance-a') -ExpectedProcessIds @{'instance-a'='6536'} -AuditTimeoutSeconds 900 }
+    if($nativeFixture.auditSleeps -ne $sleeps) { throw 'A terminal deletion of a non-selected process waited for the visibility deadline instead of failing immediately.' }
+    $nativeFixture.activityEvents=$savedEvents
     Expect-Rejected { Complete-LabNativeExecution $intent $manifest $path (Join-Path $fixture 'app-without-selection') $scenario $appId $principal }
     Expect-Rejected { Complete-LabNativeExecution $intent $manifest $path (Join-Path $fixture 'app-without-process') $scenario $appId $principal @('instance-a') }
     Expect-Rejected { Confirm-LabNativeAppServiceIdentity $nativeFixture.response.body $scenario $appId $principal (Join-Path $fixture 'app-process-map-mismatch') -ExpectedInstanceIds @('instance-a') -ExpectedProcessIds @{'instance-b'='2800'} -AuditTimeoutSeconds 0 }

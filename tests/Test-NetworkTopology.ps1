@@ -106,8 +106,8 @@ Assert ($windowsPlan.properties.parameters.platform.value -eq 'windows') 'The Wi
 $windowsSubnetInline = @($work.properties.subnets | Where-Object name -eq 'app-service-integration-windows')
 Assert ($windowsSubnetInline.Count -eq 1) 'The authoritative VNet must retain the separate Windows integration subnet.'
 $native = Compile 'infra\native-process-scenarios.bicep'
-Assert ($native.parameters.platform.defaultValue -eq 'linux' -and @($native.variables.processNameParameters).Count -eq 1 -and
-    $native.variables.processNameParameters[0].key -ceq 'ProcessName' -and $native.variables.processNameParameters[0].value -ceq 'dotnet') 'Native process naming must explicitly select the dotnet application process on both platforms.'
+Assert ($native.parameters.platform.defaultValue -eq 'linux' -and
+    $native.variables.processNameParameters -ceq "[if(equals(parameters('platform'), 'linux'), createArray(createObject('key', 'ProcessName', 'value', 'dotnet')), createArray())]") 'Native process naming must select dotnet on Linux and use the measured Windows default main worker (ProcessName omitted).'
 Assert ($plan.parameters.planSku.allowedValues.Count -eq 6 -and
     'P0v3' -in $plan.parameters.planSku.allowedValues -and 'P2v2' -in $plan.parameters.planSku.allowedValues -and
     $serverFarm.sku.tier -match "endsWith.*'v2'.*'PremiumV2'.*'v4'.*'PremiumV4'.*'PremiumV3'") 'Premium SKU generations must map to their correct tiers.'
