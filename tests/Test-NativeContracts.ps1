@@ -60,7 +60,7 @@ foreach($address in @($poll.Replace('https:','http:'),$poll.Replace('management.
 }
 $fixture=Join-Path ([IO.Path]::GetTempPath()) "csl-native-contract-$([Guid]::NewGuid().ToString('N'))"
 New-Item -ItemType Directory -Path $fixture | Out-Null
-$nativeFixture=@{response=@{statusCode=200;headers=@{};body=@{properties=@{status='Succeeded'}}};fail=$false}
+$nativeFixture=@{response=@{statusCode=200;headers=@{};body=@{properties=@{status='Succeeded'}}};fail=$false;activityQueries=0}
 function Invoke-LabArm {
     param($Method,$Uri,$Body)
     if($nativeFixture.fail) { throw 'Fixture native submission transport uncertainty.' }
@@ -71,6 +71,7 @@ function Invoke-LabArm {
 }
 function Invoke-LabAz {
     param([string[]] $Arguments)
+    $nativeFixture.activityQueries++
     return ConvertTo-Json -InputObject $nativeFixture.activityEvents -Depth 20
 }
 try {
@@ -145,7 +146,9 @@ try {
     $nativeFixture.activityEvents[1].Remove('httpRequest')
     Complete-LabNativeExecution $intent $manifest $path (Join-Path $fixture 'audited-pg-without-terminal-http') $pgScenario $pgId $principal | Out-Null
     $foreignPgId=$pgId -replace '/resourceGroups/[^/]+/','/resourceGroups/foreign/'
+    $queryCount=$nativeFixture.activityQueries
     Expect-Rejected { Confirm-LabNativePostgresIdentity $nativeFixture.response.body $pgScenario $foreignPgId $principal (Join-Path $fixture 'foreign-pg-audit') }
+    if($nativeFixture.activityQueries -ne $queryCount) { throw 'Foreign native identity-audit target reached Azure before ownership rejection.' }
     $nativeFixture.activityEvents[1].httpRequest=@{clientRequestId='same-request'}
     $nativeFixture.activityEvents[1].caller='other'
     Expect-Rejected { Complete-LabNativeExecution $intent $manifest $path (Join-Path $fixture 'wrong-pg-caller') $pgScenario $pgId $principal }
