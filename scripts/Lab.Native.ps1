@@ -124,6 +124,7 @@ function Complete-LabNativeExecution {
 
 function Confirm-LabNativePostgresIdentity {
     param([hashtable] $Result,[hashtable] $Scenario,[string] $TargetId,[string] $PrincipalId,[string] $EvidencePrefix)
+    Assert-LabResourceId $TargetId
     if($TargetId -notmatch '/providers/Microsoft.DBforPostgreSQL/flexibleServers/[^/]+$' -or
         (Get-LabNativeActionUrn $Scenario.properties.actions[0].actionId) -cne 'urn:csci:microsoft:azurepostgresql:failover/1.0.0') {
         throw 'Native execution identity differs from the verified configuration; no qualified independent identity audit exists for this Action.'

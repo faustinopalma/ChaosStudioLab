@@ -2,7 +2,7 @@
 
 Updated: 5 November 2026.
 
-**Current target: private Linux Azure App Service deployed across three observed availability zones, with private PostgreSQL HA and PC-driven execution.** The private architecture, six-worker/three-zone participation and complete BASE-001 are verified. Required native application/combined coverage remains blocked by actual provider target-validation failures; database-effect qualification is in progress. Actual results are recorded separately.
+**Current target: private Linux Azure App Service deployed across three observed availability zones, with private PostgreSQL HA and PC-driven execution.** The private architecture, six-worker/three-zone participation and complete BASE-001 are verified. Native database recovery/durability passed through explicit reconciliation, with 34.601 s recovery and separate full-phase availability FAIL. Application/combined coverage remains blocked by actual provider target-validation failures through all eight advertised Workspace regions against the same application. Actual results are recorded separately.
 
 [D22](../DECISIONS-ACCEPTED.md#d22-autonomous-completion-and-withdrawn-operational-prohibitions) records the operator's withdrawal of previous project-level operational prohibitions and autonomous completion without a cost ceiling. Existing database start, necessary lab repairs, exemption maintenance, regional alternatives and the complete requested suite are authorized.
 

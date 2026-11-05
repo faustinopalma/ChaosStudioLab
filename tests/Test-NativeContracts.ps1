@@ -144,6 +144,8 @@ try {
     }
     $nativeFixture.activityEvents[1].Remove('httpRequest')
     Complete-LabNativeExecution $intent $manifest $path (Join-Path $fixture 'audited-pg-without-terminal-http') $pgScenario $pgId $principal | Out-Null
+    $foreignPgId=$pgId -replace '/resourceGroups/[^/]+/','/resourceGroups/foreign/'
+    Expect-Rejected { Confirm-LabNativePostgresIdentity $nativeFixture.response.body $pgScenario $foreignPgId $principal (Join-Path $fixture 'foreign-pg-audit') }
     $nativeFixture.activityEvents[1].httpRequest=@{clientRequestId='same-request'}
     $nativeFixture.activityEvents[1].caller='other'
     Expect-Rejected { Complete-LabNativeExecution $intent $manifest $path (Join-Path $fixture 'wrong-pg-caller') $pgScenario $pgId $principal }
