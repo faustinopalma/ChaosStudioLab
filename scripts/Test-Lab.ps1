@@ -39,7 +39,7 @@ function Invoke-PrivateQualification([string]$Label) {
 function Start-PrivateMeasurement([string]$Phase,[string]$Duration,[string]$RunId) {
     Start-PrivateCommand $Phase $RunId "cd ~/csl && timeout 1800 pwsh -NoLogo -NoProfile -File scripts/runner/test.ps1 -Phase $Phase -Duration $Duration -RunId $RunId > $Phase-$RunId.log 2>&1"
 }
-function Start-PrivateCommand([string]$Phase,[string]$RunId,[string]$Command) {
+function Start-PrivateCommand([string]$Phase,[string]$RunId,[string]$Command,[string]$ReadyLine) {
     $start=[Diagnostics.ProcessStartInfo]::new((Get-Command ssh -ErrorAction Stop).Source)
     foreach($argument in $sshArgs) { $start.ArgumentList.Add($argument) }
     $start.ArgumentList.Add($Command)
@@ -50,7 +50,18 @@ function Start-PrivateCommand([string]$Phase,[string]$RunId,[string]$Command) {
     $process=[Diagnostics.Process]::new()
     $process.StartInfo=$start
     if(-not $process.Start()) { throw 'Private foreground measurement SSH did not start.' }
-    return @{process=$process;stdout=$process.StandardOutput.ReadToEndAsync();stderr=$process.StandardError.ReadToEndAsync()
+    $stderr=$process.StandardError.ReadToEndAsync()
+    if($ReadyLine) {
+        $ready=$process.StandardOutput.ReadLineAsync()
+        if(-not $ready.Wait(60000) -or $ready.GetAwaiter().GetResult() -cne $ReadyLine) {
+            if(-not $process.HasExited) { Stop-Process -Id $process.Id -Force; $process.WaitForExit() }
+            $message=$stderr.GetAwaiter().GetResult()
+            $process.Dispose()
+            throw "Private observer readiness failed before load or injection: $message"
+        }
+        Write-Information "[$([DateTimeOffset]::UtcNow.ToString('O'))] Independent observer authenticated and emitted its exact RunId readiness marker." -InformationAction Continue
+    }
+    return @{process=$process;stdout=$process.StandardOutput.ReadToEndAsync();stderr=$stderr
         runId=$RunId;phase=$Phase;startedAtUtc=[DateTimeOffset]::UtcNow.ToString('O')}
 }
 function Complete-PrivateObserver([hashtable]$Observer) {
@@ -143,7 +154,7 @@ function Invoke-NativeCase {
     $duration=if($isDatabase) {'18m'} else {'12m'}
     $observerSeconds=if($isDatabase) {1200} else {840}
     $runId=[Guid]::NewGuid().ToString('N')
-    $observer=Start-PrivateCommand observer $runId "cd ~/csl && timeout 1500 pwsh -NoLogo -NoProfile -File scripts/runner/observe.ps1 -RunId $runId -Seconds $observerSeconds"
+    $observer=Start-PrivateCommand observer $runId "cd ~/csl && timeout 1500 pwsh -NoLogo -NoProfile -File scripts/runner/observe.ps1 -RunId $runId -Seconds $observerSeconds" "OBSERVER_READY:$runId"
     $measurement=$null
     $results=@()
     $intents=@()

@@ -15,6 +15,7 @@ if($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($token)) { throw 'Privat
 $started=[DateTimeOffset]::UtcNow
 $deadline=$started.AddSeconds($Seconds)
 $path=Join-Path $directory 'observations.ndjson'
+$ready=$false
 try {
     while([DateTimeOffset]::UtcNow -lt $deadline) {
         foreach($kind in @('live','dependencies')) {
@@ -48,6 +49,10 @@ try {
                 $event.observedAtUtc=[DateTimeOffset]::UtcNow.ToString('O')
                 $event | ConvertTo-Json -Compress | Add-Content -LiteralPath $path -Encoding utf8
             }
+        }
+        if(-not $ready) {
+            Write-Output "OBSERVER_READY:$RunId"
+            $ready=$true
         }
         Start-Sleep -Seconds 1
     }
