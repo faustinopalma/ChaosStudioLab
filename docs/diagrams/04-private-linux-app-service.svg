@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape" width="1600" height="1080" viewBox="0 0 1600 1080">
   <title>Private Linux App Service resilience lab - deployed architecture</title>
-  <desc>Spain Central workload: all six workers served actual health and checksum-verified business traffic in three physical zones. Separate outbound Integration and inbound Private Endpoint subnets and private PostgreSQL HA. One private runner and operations VNet/NAT/Bastion remain in Sweden Central with global VNet peering. Complete baseline passed. Native database recovery and durability passed through reconciliation; full-phase availability failed separately. Observed primary/standby are zones 2/1. Native application validation fails through all eight advertised Workspace regions against the same application; application/combined coverage remains blocked.</desc>
+  <desc>Spain Central workload: all six workers served actual health and checksum-verified business traffic in three physical zones. Separate outbound Integration and inbound Private Endpoint subnets and private PostgreSQL HA. One private runner and operations VNet/NAT/Bastion remain in Sweden Central with global VNet peering. Fresh Linux9 baseline passed. Native database recovery and durability passed through reconciliation at 32.288 seconds; full-phase availability failed separately. Observed primary/standby are zones 2/1. Native validation passes on Linux9 but actual application Actions fail internally; application/combined coverage remains blocked. Runtime support ends 10 November 2026.</desc>
   <defs>
     <marker id="arrow-blue" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth"><path d="M0,0 L0,6 L9,3 z" fill="#0078d4"/></marker>
     <marker id="arrow-green" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth"><path d="M0,0 L0,6 L9,3 z" fill="#107c10"/></marker>
@@ -59,7 +59,7 @@
     <text x="520" y="245">spaincentral-az1</text><text x="870" y="245">spaincentral-az2</text><text x="1220" y="245">spaincentral-az3</text>
     <text x="540" y="312">worker 1</text><text x="695" y="312">worker 2</text><text x="890" y="312">worker 3</text><text x="1045" y="312">worker 4</text><text x="1240" y="312">worker 5</text><text x="1395" y="312">worker 6</text>
     <text x="500" y="400" class="small">Observed: two workers per physical zone; every worker served healthy and checksum-verified business requests.</text>
-    <text x="500" y="430" class="small">Private application + SCM; public access disabled; .NET 10; versioned, checksummed package.</text>
+    <text x="500" y="430" class="small">Private app + SCM; public access disabled; lab .NET 9 (support ends 10 Nov); checksummed package.</text>
     <text x="75" y="560" class="heading">Operations: Sweden Central</text>
     <text x="95" y="625" class="heading">One private runner</text><text x="95" y="655">Bastion SSH + NAT egress</text><text x="95" y="685" class="small">Bounded load / private publication</text>
     <text x="500" y="560" class="heading">Workload VNet - dedicated, separate subnets</text>
@@ -73,6 +73,6 @@
     <text x="500" y="830" class="small">Blue: private ingress / SCM     Green: application data path     Purple dashed: native control-plane fault targeting</text>
     <text x="500" y="895" class="heading">Private PostgreSQL Flexible Server - public data plane disabled</text>
     <text x="525" y="955">Observed primary - zone 2</text><text x="1075" y="955">Observed HA standby - zone 1</text>
-    <text x="50" y="1045" class="small">Eight Workspace regions: app validation BLOCKED. DB recovery PASS / full-phase availability FAIL. Resources remain deployed.</text>
+    <text x="50" y="1045" class="small">Linux9 validation PASS; application Actions fail internally. DB recovery PASS / full-phase availability FAIL. Lab retained.</text>
   </g>
 </svg>
