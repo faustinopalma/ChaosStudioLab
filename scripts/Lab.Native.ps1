@@ -46,6 +46,17 @@ function Wait-LabNativeOperation {
     throw 'Native operation exceeded its bounded foreground deadline; retain its polling URL and reconcile in place.'
 }
 
+function Get-LabNativeActionUrn {
+    param([string] $ActionId)
+    switch -CaseSensitive ($ActionId) {
+        'microsoft-appservice-killprocess/1.0' { return 'urn:csci:microsoft:appservice:killprocess/1.0.0' }
+        'urn:csci:microsoft:appservice:killprocess/1.0.0' { return $ActionId }
+        'microsoft-azurepostgresql-failover/1.0' { return 'urn:csci:microsoft:azurepostgresql:failover/1.0.0' }
+        'urn:csci:microsoft:azurepostgresql:failover/1.0.0' { return $ActionId }
+        default { throw "Unqualified native Action identifier: $ActionId" }
+    }
+}
+
 function Complete-LabNativeExecution {
     param([hashtable] $Intent,[hashtable] $Manifest,[string] $ManifestPath,[string] $EvidencePrefix,
         [hashtable] $Scenario,[string] $TargetId,[string] $PrincipalId)
@@ -65,7 +76,7 @@ function Complete-LabNativeExecution {
     if($compiled.actions.Count -ne 1) { throw 'Native execution compiled an unexpected Action count.' }
     $actual=@($compiled.actions.Values)[0].properties
     $expected=@($Scenario.properties.actions)[0]
-    if($actual.faultUrn -cne $expected.actionId -or @($actual.targetResources).Count -ne 1 -or
+    if($actual.faultUrn -cne (Get-LabNativeActionUrn $expected.actionId) -or @($actual.targetResources).Count -ne 1 -or
         $actual.targetResources[0].fullyQualifiedIdentifier -ine $TargetId -or
         $actual.faultParameters.Count -ne @($expected.parameters).Count) { throw 'Native compiled Action or target contract drifted.' }
     foreach($parameter in $expected.parameters) {
@@ -134,6 +145,7 @@ function Assert-LabNativeConfiguration {
     }
     $actions=@($Scenario.properties.actions)
     if($actions.Count -ne 1) { throw 'Expected exactly one explicitly configured native Action.' }
+    $actionUrn=Get-LabNativeActionUrn $actions[0].actionId
     $parameters=@{}
     foreach($parameter in $actions[0].parameters) {
         if($parameters.ContainsKey($parameter.key)) { throw 'Duplicate native Action parameter.' }
@@ -141,13 +153,13 @@ function Assert-LabNativeConfiguration {
         $parameters[$parameter.key]=$parameter.value
     }
     if($Kind -eq 'postgres') {
-        if($actions[0].actionId -ne 'urn:csci:microsoft:azurepostgresql:failover/1.0.0' -or
+        if($actionUrn -cne 'urn:csci:microsoft:azurepostgresql:failover/1.0.0' -or
             $parameters.Count -ne 3 -or $parameters['FailoverMode'] -cne '1' -or
             $parameters['RestoreOnStop'] -cne 'false' -or $parameters['SkipIneligibleServers'] -cne 'false') {
             throw 'Native PostgreSQL forced-failover contract drifted.'
         }
     } else {
-        if($actions[0].actionId -ne 'urn:csci:microsoft:appservice:killprocess/1.0.0' -or
+        if($actionUrn -cne 'urn:csci:microsoft:appservice:killprocess/1.0.0' -or
             $parameters.Count -ne 3 -or $parameters['ProcessName'] -cne 'dotnet' -or
             [string]::IsNullOrWhiteSpace($Selector)) { throw 'Native Linux main-process Action contract drifted.' }
         $instances=ConvertFrom-Json -InputObject $parameters['InstanceIds'] -NoEnumerate

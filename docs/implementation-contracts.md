@@ -51,6 +51,8 @@ Scenario string-valued parameters serialize selector arrays. The process name is
 
 The preview configuration GET returns `properties.scenarioId` as a short Scenario name. Resolve it against the configuration's exact owned parent resource ID and verify the binding; full IDs are accepted only when they identify that same parent.
 
+Scenario GET normalizes the two selected Actions to `microsoft-appservice-killprocess/1.0` and `microsoft-azurepostgresql-failover/1.0`. An explicit version-pinned mapping connects those observed identifiers to their canonical execution fault URNs; unknown Actions/versions fail validation.
+
 Actual execution identity, target IDs, canonical Action, compiled parameters and Action summary must match the selected configuration. Process crashes have discrete semantics. HA-AZ-001 retains a separate verdict based on genuine infrastructure-zone evidence.
 
 Linux runtime/selector support is verified against the actual Action and endpoint. The [Windows comparison](research.md#linux-baseline-and-windows-test-coverage) records the documented Windows-only cache-stampede template and any observed runtime advantage. Unavailable or unqualified required coverage receives an explicit BLOCKED verdict.

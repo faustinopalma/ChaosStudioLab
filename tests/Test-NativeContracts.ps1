@@ -29,6 +29,12 @@ if((Get-LabNativeScenarioId $configuration) -cne $scenarioId) { throw 'Provider 
 $configuration.properties.scenarioId='other'
 Expect-Rejected { Assert-LabNativeConfiguration $configuration $scenario $appId instance instance-a }
 $configuration.properties.scenarioId=$scenarioId
+$scenario.properties.actions[0].actionId='microsoft-appservice-killprocess/1.0'
+Assert-LabNativeConfiguration $configuration $scenario $appId instance instance-a
+if((Get-LabNativeActionUrn 'microsoft-azurepostgresql-failover/1.0') -cne 'urn:csci:microsoft:azurepostgresql:failover/1.0.0') {
+    throw 'Observed native PostgreSQL Action identifier lost its canonical fault mapping.'
+}
+Expect-Rejected { Get-LabNativeActionUrn 'microsoft-appservice-killprocess/2.0' }
 $scenario.properties.actions[0].parameters[0].value=''
 Expect-Rejected { Assert-LabNativeConfiguration $configuration $scenario $appId instance instance-a }
 $scenario.properties.actions[0].parameters[0].value='dotnet'
@@ -76,7 +82,7 @@ try {
     $principal='00000000-0000-0000-0000-000000000002'
     $parameters=@{}
     foreach($p in $scenario.properties.actions[0].parameters) { $parameters[$p.key]=$p.value }
-    $compiled=@{actions=@{kill=@{properties=@{faultUrn=$scenario.properties.actions[0].actionId
+    $compiled=@{actions=@{kill=@{properties=@{faultUrn=(Get-LabNativeActionUrn $scenario.properties.actions[0].actionId)
         faultParameters=$parameters;targetResources=@(@{fullyQualifiedIdentifier=$appId})}}}}
     $nativeFixture.response.body=@{properties=@{
         status='Succeeded';managedIdentityPrincipalId=$principal;resources=@(@{id=$appId});errors=@()
