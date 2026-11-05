@@ -351,7 +351,8 @@ function Assert-LabApplicationRuntime {
 
 function Get-LabApplicationTarget {
     param([hashtable] $Manifest)
-    $target = ([hashtable]$Manifest.outputs['csl-infrastructure'].workload.value).Clone()
+    $target = @{}
+    foreach ($entry in $Manifest.outputs['csl-infrastructure'].workload.value.GetEnumerator()) { $target[$entry.Key] = $entry.Value }
     $platform = if ($Manifest.ContainsKey('applicationTarget')) { [string]$Manifest.applicationTarget } else { 'linux' }
     if ($platform -eq 'windows') {
         if (-not $Manifest.outputs.ContainsKey('csl-windows-application')) {

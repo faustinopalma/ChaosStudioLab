@@ -66,9 +66,10 @@ Expect-Blocked { Assert-LabAppServiceConfiguration @{alwaysOn=$true;netFramework
 Expect-Blocked { Assert-LabAppServiceConfiguration @{alwaysOn=$true;linuxFxVersion='DOTNETCORE|9.0'} windows }
 $linuxId = '/subscriptions/s/resourceGroups/rg/providers/Microsoft.Web/sites/csl-api-x'
 $windowsId = '/subscriptions/s/resourceGroups/rg/providers/Microsoft.Web/sites/csl-win-x'
-$manifest = @{outputs=@{'csl-infrastructure'=@{workload=@{value=@{applicationId=$linuxId;applicationName='csl-api-x';applicationFqdn='a';scmFqdn='b';postgresName='pg'}}}}}
+$workload = (@{applicationId=$linuxId;applicationName='csl-api-x';applicationFqdn='a';scmFqdn='b';postgresName='pg';migrationClientId='m'} | ConvertTo-Json | ConvertFrom-Json -AsHashtable)
+$manifest = @{outputs=@{'csl-infrastructure'=@{workload=@{value=$workload}}}}
 $target = Get-LabApplicationTarget $manifest
-if ($target.platform -ne 'linux' -or $target.planId -notlike '*/serverfarms/asp-csl-linux-baseline' -or
+if ($target.platform -ne 'linux' -or $target.planId -notlike '*/serverfarms/asp-csl-linux-baseline' -or $target.migrationClientId -ne 'm' -or
     $target.nativeScenariosOutput -ne 'csl-native-process-scenarios' -or $target.nativeSelectionKey -ne 'nativeSelection') {
     throw 'Default Linux application target drifted.'
 }
