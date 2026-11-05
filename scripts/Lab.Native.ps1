@@ -59,14 +59,15 @@ function Confirm-LabNativeValidation {
         -AllowFailedTerminal -OperationKind Validation
     Write-LabJson "$EvidencePrefix-terminal.json" $result
     $properties=$result.properties
+    $validationErrors=if($properties.ContainsKey('validationErrors')) { $properties.validationErrors } else { $null }
     if($properties.status -ne 'Succeeded') {
-        $diagnostics=@{errors=$properties.errors;validationErrors=$properties.validationErrors} | ConvertTo-Json -Depth 15 -Compress
+        $diagnostics=@{errors=$properties.errors;validationErrors=$validationErrors} | ConvertTo-Json -Depth 15 -Compress
         throw "BLOCKED: native non-fault validation ended as $($properties.status): $diagnostics"
     }
     if(@($properties.resources).Count -ne 1 -or $properties.resources[0].id -ine $TargetId -or
         @($properties.errors | Where-Object { $null -ne $_ }).Count -gt 0 -or
-        ($null -ne $properties.validationErrors -and
-            (@($properties.validationErrors.permission).Count -gt 0 -or @($properties.validationErrors.resource).Count -gt 0))) {
+        ($null -ne $validationErrors -and
+            (@($validationErrors.permission).Count -gt 0 -or @($validationErrors.resource).Count -gt 0))) {
         throw 'BLOCKED: native validation lacks clean evidence for the exact owned target.'
     }
     Write-Information "[$([DateTimeOffset]::UtcNow.ToString('O'))] Native non-fault validation passed for the exact owned target." -InformationAction Continue

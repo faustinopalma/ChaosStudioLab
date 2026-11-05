@@ -75,6 +75,8 @@ try {
     Expect-Rejected { Wait-LabNativeOperation $poll (Join-Path $fixture 'failed') -TimeoutSeconds 1 }
     $nativeFixture.response.body.properties=@{status='Succeeded';resources=@(@{id=$appId});errors=@();validationErrors=$null}
     Confirm-LabNativeValidation $configuration.id $appId (Join-Path $fixture 'validation') | Out-Null
+    $nativeFixture.response.body.properties.Remove('validationErrors')
+    Confirm-LabNativeValidation $configuration.id $appId (Join-Path $fixture 'validation-without-optional-errors') | Out-Null
     $nativeFixture.response.body.properties.resources[0].id="$scope/Microsoft.Web/sites/other"
     Expect-Rejected { Confirm-LabNativeValidation $configuration.id $appId (Join-Path $fixture 'wrong-validation-target') }
     $nativeFixture.response.body.properties.resources[0].id=$appId
