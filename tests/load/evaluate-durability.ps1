@@ -1,7 +1,8 @@
 [CmdletBinding()]
 param(
     [Parameter(Mandatory)][string] $AttemptsPath,
-    [Parameter(Mandatory)][string] $OutputPath
+    [Parameter(Mandatory)][string] $OutputPath,
+    [ValidateRange(0, 6)][int] $TransientReadRetries = 4
 )
 $ErrorActionPreference = 'Stop'
 if (-not $env:API_BASE_URL -or -not $env:API_TOKEN) { throw 'Private API URL and token are required for durability verification.' }
@@ -29,7 +30,27 @@ $proof = [ordered]@{
     issuedUniqueWrites = $writes.Count
     acknowledgedUniqueWrites = @($writes.Values | Where-Object acknowledged).Count
     retainedWrites = 0; confirmedAbsentUnacknowledgedWrites = 0; lostAcknowledgedWrites = 0
+    transientReadRetries = 0; readsResolvedAfterRetry = 0
     failures = [Collections.Generic.List[object]]::new()
+}
+# A transient read-back response proves neither retention nor loss, so it is retried before the write is classified.
+$transientStatuses = @(408, 429, 500, 502, 503, 504)
+function Read-Write([string] $Id) {
+    for ($attempt = 0; ; $attempt++) {
+        try {
+            $response = Invoke-WebRequest "$($env:API_BASE_URL.TrimEnd('/'))/api/orders/$Id" -Headers @{
+                Authorization = "Bearer $env:API_TOKEN"; 'X-Run-Id' = $runIds[0]
+            } -WebSession $session -SkipHttpErrorCheck -TimeoutSec 15
+            if ($response.StatusCode -notin $transientStatuses -or $attempt -ge $TransientReadRetries) {
+                if ($attempt -gt 0 -and $response.StatusCode -notin $transientStatuses) { $proof.readsResolvedAfterRetry++ }
+                return $response
+            }
+        } catch {
+            if ($attempt -ge $TransientReadRetries) { throw }
+        }
+        $proof.transientReadRetries++
+        Start-Sleep -Seconds ([Math]::Pow(2, $attempt + 1))
+    }
 }
 $session = [Microsoft.PowerShell.Commands.WebRequestSession]::new()
 $processed = 0
@@ -40,9 +61,7 @@ try {
             Write-Information "Checking write $processed of $($writes.Count)." -InformationAction Continue
         }
         $write = $writes[$id]
-        $response = Invoke-WebRequest "$($env:API_BASE_URL.TrimEnd('/'))/api/orders/$id" -Headers @{
-            Authorization = "Bearer $env:API_TOKEN"; 'X-Run-Id' = $runIds[0]
-        } -WebSession $session -SkipHttpErrorCheck -TimeoutSec 15
+        $response = Read-Write $id
         if ($response.StatusCode -eq 404 -and -not $write.acknowledged) {
             $proof.confirmedAbsentUnacknowledgedWrites++
             continue

@@ -1,5 +1,5 @@
 [CmdletBinding()]
-param([string] $AcknowledgedAttemptsPath, [switch] $VerifyAllRuns, [ValidateRange(1, 300)][int] $SettleSeconds = 60)
+param([string] $AcknowledgedAttemptsPath, [switch] $VerifyAllRuns, [ValidateRange(1, 300)][int] $SettleSeconds = 60, [ValidateRange(1, 8)][int] $ReadParallelism = 4)
 $ErrorActionPreference = 'Stop'
 $config = Get-Content (Join-Path $PSScriptRoot '..\..\runner-config.json') -Raw | ConvertFrom-Json
 & az login --identity --client-id $config.RUNNER_CLIENT_ID --allow-no-subscriptions -o none
@@ -90,22 +90,40 @@ try {
             -OutputPath (Join-Path (Split-Path $AcknowledgedAttemptsPath -Parent) 'durability-verdict.json')
     }
     if ($VerifyAllRuns) {
-        $aggregate=@{status='INCONCLUSIVE';startedAtUtc=[DateTimeOffset]::UtcNow.ToString('O');runs=@()}
+        $aggregate=@{status='INCONCLUSIVE';startedAtUtc=[DateTimeOffset]::UtcNow.ToString('O');runs=@();readParallelism=$ReadParallelism}
         try {
-            foreach($directory in Get-ChildItem -LiteralPath $out -Directory | Sort-Object Name) {
-                $attempts=Join-Path $directory.FullName 'attempts.ndjson'
-                if(-not (Test-Path -LiteralPath $attempts)) { continue }
+            $directories=@(foreach($directory in Get-ChildItem -LiteralPath $out -Directory | Sort-Object Name) {
+                if(-not (Test-Path -LiteralPath (Join-Path $directory.FullName 'attempts.ndjson'))) { continue }
                 if($directory.Name -notmatch '^[0-9a-f]{32}$') { throw 'Unexpected write-run directory; full-history reconciliation stopped.' }
-                $verdictPath=Join-Path $directory.FullName 'durability-verdict.json'
-                try {
-                    & (Join-Path $PSScriptRoot '..\..\tests\load\evaluate-durability.ps1') -AttemptsPath $attempts -OutputPath $verdictPath
-                } finally {
-                    if(Test-Path -LiteralPath $verdictPath) {
-                        $aggregate.runs+=@(Get-Content $verdictPath -Raw | ConvertFrom-Json)
-                    }
+                $directory.FullName
+            })
+            if($directories.Count -eq 0) { throw 'Full-history verification found no measurement write runs.' }
+            $evaluator=Join-Path $PSScriptRoot '..\..\tests\load\evaluate-durability.ps1'
+            # Bounded concurrency keeps the growing history inside its deadline; each run is still read sequentially and attributed by X-Run-Id.
+            $evaluateRun={
+                param([string] $RunDirectory, [string] $Evaluator)
+                $verdictPath=Join-Path $RunDirectory 'durability-verdict.json'
+                Remove-Item -LiteralPath $verdictPath -ErrorAction SilentlyContinue
+                $errorMessage=$null
+                try { & $Evaluator -AttemptsPath (Join-Path $RunDirectory 'attempts.ndjson') -OutputPath $verdictPath | Out-Null }
+                catch { $errorMessage=$_.Exception.Message }
+                [pscustomobject]@{directory=$RunDirectory;verdictPath=$verdictPath;error=$errorMessage}
+            }
+            $outcomes=@(if($ReadParallelism -eq 1) {
+                foreach($directory in $directories) { & $evaluateRun $directory $evaluator }
+            } else {
+                $evaluateRunText=$evaluateRun.ToString()
+                $directories | ForEach-Object -ThrottleLimit $ReadParallelism -Parallel {
+                    & ([scriptblock]::Create($using:evaluateRunText)) $_ $using:evaluator
+                }
+            })
+            foreach($outcome in $outcomes | Sort-Object directory) {
+                if(Test-Path -LiteralPath $outcome.verdictPath) {
+                    $aggregate.runs+=@(Get-Content $outcome.verdictPath -Raw | ConvertFrom-Json)
                 }
             }
-            if($aggregate.runs.Count -eq 0) { throw 'Full-history verification found no measurement write runs.' }
+            $failed=@($outcomes | Where-Object { $_.error -or -not (Test-Path -LiteralPath $_.verdictPath) })
+            if($failed.Count) { throw "Full-history reconciliation has $($failed.Count) failed or unresolved run(s): $(($failed | ForEach-Object { Split-Path $_.directory -Leaf }) -join ', ')." }
             $aggregate.status='PASS'
         } finally {
             if(@($aggregate.runs | Where-Object status -eq 'FAIL').Count) { $aggregate.status='FAIL' }

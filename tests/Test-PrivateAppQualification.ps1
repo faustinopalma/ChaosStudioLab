@@ -123,12 +123,12 @@ try {
             status=201;success=$true;responseChecksum=$checksum} |
             ConvertTo-Json -Compress | Set-Content (Join-Path $directory 'attempts.ndjson')
     }
-    & (Join-Path $fixture 'scripts\runner\verify.ps1') -SettleSeconds 1 -VerifyAllRuns
+    & (Join-Path $fixture 'scripts\runner\verify.ps1') -SettleSeconds 1 -VerifyAllRuns -ReadParallelism 1
     $history=Get-Content (Join-Path $fixture 'results\all-runs-durability.json') -Raw | ConvertFrom-Json
     if($history.status -ne 'PASS' -or $history.runs.Count -ne 2) { throw 'Final verification did not reconcile every earlier measurement run.' }
     $qualificationFixtureState.orders.Remove($historyIds[0])
     $caught=$false
-    try { & (Join-Path $fixture 'scripts\runner\verify.ps1') -SettleSeconds 1 -VerifyAllRuns } catch { $caught=$true }
+    try { & (Join-Path $fixture 'scripts\runner\verify.ps1') -SettleSeconds 1 -VerifyAllRuns -ReadParallelism 1 } catch { $caught=$true }
     $history=Get-Content (Join-Path $fixture 'results\all-runs-durability.json') -Raw | ConvertFrom-Json
     if(-not $caught -or $history.status -ne 'FAIL' -or $history.runs[0].lostAcknowledgedWrites -ne 1) {
         throw 'Final verification hid the loss of an earlier acknowledged measurement write.'
