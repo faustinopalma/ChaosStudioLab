@@ -77,6 +77,7 @@ builder.Services.AddSingleton<NpgsqlDataSource>(services =>
 builder.Services.AddSingleton<IOrderRepository, NpgsqlOrderRepository>();
 builder.Services.AddSingleton<OrderService>();
 builder.Services.AddSingleton<DatabaseHealthProbe>();
+builder.Services.AddSingleton<DatabaseOpenDiagnostics>();
 
 var app = builder.Build();
 var processStartedAtUtc = new DateTimeOffset(
@@ -117,6 +118,17 @@ app.MapGet("/health/ready", async (
         ? Results.Ok(readyResponse)
         : Results.Json(readyResponse, statusCode: StatusCodes.Status503ServiceUnavailable);
 });
+
+app.MapGet("/diagnostics/db-open", async (
+    DatabaseOpenDiagnostics diagnostics,
+    HttpContext context) => Results.Ok(new
+{
+    instanceId = ReplicaId(),
+    processId = Environment.ProcessId,
+    processStartedAtUtc,
+    revision = Revision(),
+    stages = await diagnostics.RunAsync(context.RequestAborted)
+})).RequireAuthorization();
 
 app.MapGet("/health/dependencies", async (
     DatabaseHealthProbe database,

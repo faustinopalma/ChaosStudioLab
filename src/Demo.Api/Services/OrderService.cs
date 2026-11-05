@@ -109,17 +109,23 @@ public sealed class OrderService(
             }
             catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
             {
+                logger.LogWarning(
+                    "Database deadline exceeded for operation {OperationId} on attempt {Attempt}; {Runtime}",
+                    operationId,
+                    attempt + 1,
+                    RuntimeSnapshot.Describe());
                 throw new DatabaseDeadlineExceededException();
             }
             catch (Exception exception) when (IsTransient(exception) && attempt < RetryDelays.Length)
             {
                 logger.LogWarning(
                     exception,
-                    "Transient database failure for operation {OperationId}; retry {RetryNumber}; {ExceptionType}: {ExceptionMessage}",
+                    "Transient database failure for operation {OperationId}; retry {RetryNumber}; {ExceptionType}: {ExceptionMessage}; {Runtime}",
                     operationId,
                     attempt + 1,
                     exception.GetType().FullName,
-                    exception.Message);
+                    exception.Message,
+                    RuntimeSnapshot.Describe());
 
                 var jitter = TimeSpan.FromMilliseconds(Random.Shared.Next(0, 100));
                 try
