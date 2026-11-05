@@ -66,12 +66,24 @@ foreach($address in @($poll.Replace('https:','http:'),$poll.Replace('management.
 }
 $fixture=Join-Path ([IO.Path]::GetTempPath()) "csl-native-contract-$([Guid]::NewGuid().ToString('N'))"
 New-Item -ItemType Directory -Path $fixture | Out-Null
-$nativeFixture=@{response=@{statusCode=200;headers=@{};body=@{properties=@{status='Succeeded'}}};fail=$false;activityQueries=0;activityDelay=0;auditSleeps=0}
+$nativeFixture=@{response=@{statusCode=200;headers=@{};body=@{properties=@{status='Succeeded'}}};fail=$false;activityQueries=0;activityDelay=0;auditSleeps=0
+    discoveries=0;discovered=@();workspaceScopes=@("/subscriptions/$script:LabSubscription/resourceGroups/$($script:LabGroups[1])")}
 function Invoke-LabArm {
     param($Method,$Uri,$Body)
     if($nativeFixture.fail) { throw 'Fixture native submission transport uncertainty.' }
     if($Method -eq 'Post' -and $Uri -match '/validate\?') {
         return @{statusCode=202;headers=@{Location=$poll};body=$null}
+    }
+    if($Method -eq 'Post' -and $Uri -match '/discover\?') {
+        $nativeFixture.discoveries++
+        return @{statusCode=202;headers=@{Location=$poll};body=$null}
+    }
+    if($Method -eq 'Get' -and $Uri -match '/discoveredResources\?') {
+        return @{statusCode=200;headers=@{};body=@{value=@($nativeFixture.discovered | ForEach-Object {
+            @{properties=@{fullyQualifiedIdentifier=$_}} })}}
+    }
+    if($Method -eq 'Get' -and $Uri -match '/workspaces/fixture\?') {
+        return @{statusCode=200;headers=@{};body=@{properties=@{scopes=@($nativeFixture.workspaceScopes)}}}
     }
     return $nativeFixture.response
 }
@@ -105,6 +117,22 @@ try {
     $nativeFixture.response.body.properties.status='Succeeded'
     $nativeFixture.response.body.properties.validationErrors=@{permission=@();resource=@(@{errorCode=-1})}
     Expect-Rejected { Confirm-LabNativeValidation $configuration.id $appId (Join-Path $fixture 'validation-errors') }
+    $validationProperties=$nativeFixture.response.body.properties
+    $nativeFixture.response.body.properties=@{status='Succeeded'}
+    $workspaceId="$scope/Microsoft.Chaos/workspaces/fixture"
+    $databaseId="$scope/Microsoft.DBforPostgreSQL/flexibleServers/fixture"
+    $nativeFixture.discovered=@($appId,$databaseId,"$scope/Microsoft.Web/sites/other")
+    $found=@(Find-LabNativeTargets $workspaceId @($appId,$databaseId) $fixture)
+    if($found.Count -ne 2 -or $nativeFixture.discoveries -ne 1) { throw 'Native discovery refresh did not expose exactly the owned targets.' }
+    $nativeFixture.discovered=@($databaseId)
+    Expect-Rejected { Find-LabNativeTargets $workspaceId @($appId) $fixture }
+    $nativeFixture.discovered=@($appId,$appId)
+    Expect-Rejected { Find-LabNativeTargets $workspaceId @($appId) $fixture }
+    $nativeFixture.discovered=@($appId)
+    $nativeFixture.workspaceScopes=@("/subscriptions/$script:LabSubscription/resourceGroups/rg-unrelated")
+    Expect-Rejected { Find-LabNativeTargets $workspaceId @($appId) $fixture }
+    $nativeFixture.workspaceScopes=@("/subscriptions/$script:LabSubscription/resourceGroups/$($script:LabGroups[1])")
+    $nativeFixture.response.body.properties=$validationProperties
     $manifest=@{}
     $path=Join-Path $fixture 'manifest.json'
     $nativeFixture.fail=$true

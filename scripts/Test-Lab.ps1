@@ -153,6 +153,11 @@ function Invoke-NativeCase {
             }
         }
     }
+    # Workspace discovery is a snapshot; targets created after it are excluded from resource targeting until refreshed.
+    $discoveryRoot=Join-Path $caseRoot 'discovery'
+    New-Item -ItemType Directory -Path $discoveryRoot -Force | Out-Null
+    $targetIds=@(@($applicationDefinition,$databaseDefinition) | Where-Object { $null -ne $_ } | ForEach-Object { $_.targetId })
+    Find-LabNativeTargets $workspaceId $targetIds $discoveryRoot | Out-Null
     foreach($definition in @($applicationDefinition,$databaseDefinition)) {
         if($null -eq $definition) { continue }
         Confirm-LabNativeValidation $definition.configuration.id $definition.targetId `
