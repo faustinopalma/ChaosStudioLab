@@ -77,6 +77,7 @@ function Complete-PrivateObserver([hashtable]$Observer) {
 }
 function Confirm-AllWriteHistory {
     $time=[DateTimeOffset]::UtcNow
+    Write-Information "[$($time.ToString('O'))] Reconciling every prior smoke/measurement write with a one-hour foreground deadline." -InformationAction Continue
     & ssh @sshArgs "cd ~/csl && timeout 3600 pwsh -NoLogo -NoProfile -File scripts/runner/verify.ps1 -VerifyAllRuns > all-history-$caseId.log 2>&1"
     $exitCode=$LASTEXITCODE
     & scp @sshOptions -P $TunnelPort 'csloperator@127.0.0.1:csl/results/all-runs-durability.json' (Join-Path $caseRoot 'all-runs-durability.json')
