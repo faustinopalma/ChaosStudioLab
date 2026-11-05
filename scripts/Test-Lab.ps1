@@ -160,6 +160,7 @@ function Invoke-NativeCase {
     $intents=@()
     $dbIntent=$null
     try {
+        Write-Information "[$([DateTimeOffset]::UtcNow.ToString('O'))] Starting attributable $phase load for $duration, run $runId." -InformationAction Continue
         $measurement=Start-PrivateMeasurement $phase $duration $runId
         Start-Sleep -Seconds 45
         if($measurement.process.HasExited -or $observer.process.HasExited) { throw 'BLOCKED: bounded load or independent observer exited before injection.' }
@@ -192,6 +193,13 @@ function Invoke-NativeCase {
             $intents+=@($appIntent)
             $results+=@(Complete-SelectedNative $appIntent $applicationDefinition)
         }
+    } catch {
+        Write-LabJson (Join-Path $caseRoot 'native-stage-error.json') @{
+            message=$_.Exception.Message;scriptStackTrace=$_.ScriptStackTrace
+            observedAtUtc=[DateTimeOffset]::UtcNow.ToString('O');runId=$runId
+        }
+        Write-Warning "Native stage failed before final evidence reconciliation: $($_.Exception.Message)"
+        throw
     } finally {
         try {
             if($null -ne $dbIntent -and $dbIntent.status -eq 'ACCEPTED') {
