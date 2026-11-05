@@ -115,9 +115,11 @@ public sealed class OrderService(
             {
                 logger.LogWarning(
                     exception,
-                    "Transient database failure for operation {OperationId}; retry {RetryNumber}.",
+                    "Transient database failure for operation {OperationId}; retry {RetryNumber}; {ExceptionType}: {ExceptionMessage}",
                     operationId,
-                    attempt + 1);
+                    attempt + 1,
+                    exception.GetType().FullName,
+                    exception.Message);
 
                 var jitter = TimeSpan.FromMilliseconds(Random.Shared.Next(0, 100));
                 try

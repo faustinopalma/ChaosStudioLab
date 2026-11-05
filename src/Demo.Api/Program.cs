@@ -5,10 +5,12 @@ using Demo.Api.Contracts;
 using Demo.Api.Data;
 using Demo.Api.Security;
 using Demo.Api.Services;
+using System.Security.Cryptography.X509Certificates;
 using Microsoft.AspNetCore.Authentication;
 using Npgsql;
 
 var builder = WebApplication.CreateBuilder(args);
+builder.Logging.AddFilter("Npgsql", LogLevel.Warning);
 
 if (!string.IsNullOrWhiteSpace(builder.Configuration["APPLICATIONINSIGHTS_CONNECTION_STRING"]))
 {
@@ -39,6 +41,12 @@ builder.Services.AddSingleton<NpgsqlDataSource>(services =>
         MaxPoolSize = 50
     };
     var dataSource = new NpgsqlDataSourceBuilder(connection.ConnectionString);
+    dataSource.UseLoggerFactory(services.GetRequiredService<ILoggerFactory>());
+    dataSource.UseSslClientAuthenticationOptionsCallback(options =>
+    {
+        options.CertificateRevocationCheckMode = X509RevocationMode.Online;
+        options.CertificateChainPolicy = PostgresTlsPolicy.CreateChainPolicy();
+    });
 
     if (!string.Equals(
             configuration["Postgres:Authentication"],
@@ -182,8 +190,10 @@ app.MapPost("/api/orders", async (
     {
         loggerFactory.CreateLogger("Orders").LogError(
             exception,
-            "Database retries were exhausted for order {OperationId}.",
-            operationId);
+            "Database retries were exhausted for order {OperationId}; {ExceptionType}: {ExceptionMessage}",
+            operationId,
+            exception.InnerException?.GetType().FullName,
+            exception.InnerException?.Message);
         return Results.Json(
             new { error = "database_unavailable", operationId, traceId = TraceId(context) },
             statusCode: StatusCodes.Status503ServiceUnavailable);
@@ -229,8 +239,10 @@ app.MapGet("/api/orders/{operationId:guid}", async (
     {
         loggerFactory.CreateLogger("Orders").LogError(
             exception,
-            "Database retries were exhausted for read {OperationId}.",
-            operationId);
+            "Database retries were exhausted for read {OperationId}; {ExceptionType}: {ExceptionMessage}",
+            operationId,
+            exception.InnerException?.GetType().FullName,
+            exception.InnerException?.Message);
         return Results.Json(
             new { error = "database_unavailable", operationId, traceId = TraceId(context) },
             statusCode: StatusCodes.Status503ServiceUnavailable);
