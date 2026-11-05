@@ -302,7 +302,7 @@ function Get-LabNativeApplicationProcesses {
             if($processId -notmatch '^[0-9]+$') { throw 'Native application process listing returned an invalid process identifier.' }
             $detail=(Invoke-LabArm Get "$base/${processId}?api-version=2024-11-01").body
             Write-LabJson "$EvidencePrefix-$instance-process-$processId.json" $detail
-            if($detail.properties.name -ceq $ProcessName -and $detail.properties.is_scm_site -ne $true) { $application+=@($processId) }
+            if($detail.properties.name -ceq $ProcessName -and $detail.properties['is_scm_site'] -ne $true) { $application+=@($processId) }
         }
         if($application.Count -ne 1) {
             throw "BLOCKED: instance $instance must host exactly one non-SCM $ProcessName application process before injection; found $($application.Count)."

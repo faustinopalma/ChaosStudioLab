@@ -90,7 +90,10 @@ function Invoke-LabArm {
         $listed=@($nativeFixture.processes[$Matches.instance])
         if($Matches.ContainsKey('process')) {
             $process=@($listed | Where-Object pid -eq $Matches.process)[0]
-            return @{statusCode=200;headers=@{};body=@{properties=@{name=$process.name;is_scm_site=$process.scm}}}
+            $properties=@{name=$process.name}
+            # Like the live API, non-SCM processes omit is_scm_site entirely.
+            if($process.scm) { $properties.is_scm_site=$true }
+            return @{statusCode=200;headers=@{};body=@{properties=$properties}}
         }
         return @{statusCode=200;headers=@{};body=@{value=@($listed | ForEach-Object {
             @{name="fixture/$($Matches.instance)/$($_.pid)";properties=@{name=$_.name}} })}}
