@@ -30,6 +30,8 @@ PC orchestration uses visible stage logs and bounded command deadlines. Each mea
 
 Every baseline and native case synchronizes the current runner/load/observer/durability tools in one package and verifies every private source checksum before qualification or load. Reports retain those hashes. An older publication bundle therefore cannot silently run an obsolete verifier or canary.
 
+Completed raw-evidence archives use at most three transfer attempts for explicit transient SSH connection failures. Each retry is logged and retrieves the same archive; authentication/host-key failures and exhausted retries fail explicitly. Measurement and native fault submission are never repeated by this transfer retry.
+
 Active source implements the App Service workflow. The obsolete cycle, Automation/Hybrid Worker, lifecycle control-store, Suspend/Resume and registry/image interfaces have been removed.
 
 ## Native Action contracts

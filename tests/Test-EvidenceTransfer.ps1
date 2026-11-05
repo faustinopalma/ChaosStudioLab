@@ -18,7 +18,7 @@ $Phase = 'baseline'; $TunnelPort = 50222; $sshArgs = @(); $sshOptions = @()
 $ManifestPath = Join-Path $stateRoot 'manifest.json'
 function Read-LabManifest([string] $Path) { @{} }
 function Get-LabSshOptions([hashtable] $Manifest, [string] $StateRoot) { @() }
-$fixture = @{packExit = 0; packMessage = ''; copyExit = 0; copies = 0}
+$fixture = @{packExit = 0; packMessage = ''; copyExit = 0; copies = 0; transientCopies = 0}
 function ssh {
     param([Parameter(ValueFromRemainingArguments)][string[]] $Arguments)
     if ($Arguments[-1] -ne 'cd ~/csl && tar -czf baseline-evidence.tgz results') { throw 'Evidence packing contract changed.' }
@@ -28,6 +28,12 @@ function ssh {
 function scp {
     param([Alias('P')][int] $Port, [Parameter(ValueFromRemainingArguments)][string[]] $Arguments)
     $fixture.copies++
+    if ($fixture.transientCopies -gt 0) {
+        $fixture.transientCopies--
+        $global:LASTEXITCODE = 255
+        'Connection timed out during banner exchange'
+        return
+    }
     if ($fixture.copyExit -eq 0) { Copy-Item -LiteralPath $fixtureArchive -Destination $Arguments[-1] }
     $global:LASTEXITCODE = $fixture.copyExit
 }
@@ -51,6 +57,18 @@ try {
         } catch { $rejected = $true }
         if ($rejected -ne ($case -ne 'PartialGrowingFile')) { throw "Evidence failure contract mismatch: $case" }
     }
+    $fixture.packExit = 0
+    $fixture.copyExit = 0
+    $fixture.transientCopies = 1
+    $beforeCopies = $fixture.copies
+    Save-LabRunnerEvidence -ManifestPath $ManifestPath -Phase $Phase -TunnelPort $TunnelPort
+    if ($fixture.copies - $beforeCopies -ne 2) { throw 'Transient evidence transfer was not retried exactly once.' }
+    $fixture.transientCopies = 3
+    $beforeCopies = $fixture.copies
+    $rejected = $false
+    try { Save-LabRunnerEvidence -ManifestPath $ManifestPath -Phase $Phase -TunnelPort $TunnelPort }
+    catch { $rejected = $true }
+    if (-not $rejected -or $fixture.copies - $beforeCopies -ne 3) { throw 'Evidence transport retry deadline was not enforced.' }
     $global:LASTEXITCODE = 0
     'Compressed evidence preserves exact raw bytes and reports packing, transfer and live partial-snapshot failures.'
 } finally {

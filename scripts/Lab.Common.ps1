@@ -140,8 +140,17 @@ function Save-LabRunnerEvidence {
             Write-Warning 'Partial evidence was archived while the failed-stage workload was still writing.'
         } else { throw "Private evidence compression failed: $($packed -join "`n")" }
     }
-    & scp @sshOptions -P $TunnelPort "csloperator@127.0.0.1:csl/$name" $archive
-    if ($LASTEXITCODE -ne 0) { throw 'Private compressed evidence retrieval failed.' }
+    for ($attempt = 1; $attempt -le 3; $attempt++) {
+        $copyOutput = & scp @sshOptions -P $TunnelPort "csloperator@127.0.0.1:csl/$name" $archive 2>&1
+        if ($LASTEXITCODE -eq 0) { break }
+        $message = $copyOutput -join [Environment]::NewLine
+        if ($attempt -eq 3 -or $message -notmatch 'Connection timed out|Connection reset|Connection closed' -or
+            $message -match 'Permission denied|Host key verification failed|REMOTE HOST IDENTIFICATION HAS CHANGED') {
+            throw "Private compressed evidence retrieval failed: $message"
+        }
+        Write-Warning "Private evidence transfer encountered a transient connection failure ($attempt/3); retrying the same completed archive: $message"
+        Start-Sleep -Seconds 5
+    }
     & tar -xzf $archive -C $evidenceRoot
     if ($LASTEXITCODE -ne 0) { throw 'Private evidence archive extraction failed.' }
 }
