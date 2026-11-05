@@ -80,7 +80,8 @@ function Confirm-AllWriteHistory {
 }
 function Get-VerifiedNativeDefinition([string]$ConfigurationId,[string]$TargetId,[string]$Kind,[string]$Selector) {
     $configuration=(Invoke-LabArm Get "https://management.azure.com${ConfigurationId}?api-version=2026-08-01-preview").body
-    $scenario=(Invoke-LabArm Get "https://management.azure.com$($configuration.properties.scenarioId)?api-version=2026-08-01-preview").body
+    $scenarioId=Get-LabNativeScenarioId $configuration
+    $scenario=(Invoke-LabArm Get "https://management.azure.com${scenarioId}?api-version=2026-08-01-preview").body
     Assert-LabNativeConfiguration $configuration $scenario $TargetId $Kind $Selector
     Write-LabJson (Join-Path $caseRoot "$Kind-definition.json") @{configuration=$configuration;scenario=$scenario}
     return @{configuration=$configuration;scenario=$scenario;targetId=$TargetId;kind=$Kind}

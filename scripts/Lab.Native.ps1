@@ -108,12 +108,28 @@ function Find-LabNativeTargets {
     return $targets.ToArray()
 }
 
+function Get-LabNativeScenarioId {
+    param([hashtable] $Configuration)
+    $configurationId=[string]$Configuration.id
+    Assert-LabResourceId $configurationId
+    if($configurationId -notmatch '^(?<parent>/subscriptions/[^/]+/resourceGroups/[^/]+/providers/Microsoft\.Chaos/workspaces/[^/]+/scenarios/(?<name>[^/]+))/configurations/[^/]+$') {
+        throw 'Native configuration has an invalid Scenario parent resource ID.'
+    }
+    $parent=$Matches.parent
+    $name=$Matches.name
+    $binding=[string]$Configuration.properties.scenarioId
+    if($binding -ine $parent -and $binding -ine $name) {
+        throw 'Native configuration Scenario binding differs from its owned parent resource.'
+    }
+    return $parent
+}
+
 function Assert-LabNativeConfiguration {
     param([hashtable] $Configuration,[hashtable] $Scenario,[string] $TargetId,
         [ValidateSet('instance','zone','postgres')][string] $Kind,[string] $Selector)
     $targets=@($Configuration.properties.resourceTargeting.include.resources)
     if($targets.Count -ne 1 -or $targets[0] -ine $TargetId -or
-        $Configuration.properties.scenarioId -ine $Scenario.id) {
+        (Get-LabNativeScenarioId $Configuration) -ine $Scenario.id) {
         throw 'Native configuration does not bind the exact intended Scenario and single owned resource.'
     }
     $actions=@($Scenario.properties.actions)

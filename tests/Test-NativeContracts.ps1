@@ -21,8 +21,14 @@ $scenario=@{id=$scenarioId;properties=@{actions=@(@{
     actionId='urn:csci:microsoft:appservice:killprocess/1.0.0'
     parameters=@(@{key='ProcessName';value='dotnet'},@{key='InstanceIds';value='["instance-a"]'},@{key='Zones';value='[]'})
 })}}
-$configuration=@{properties=@{scenarioId=$scenarioId;resourceTargeting=@{include=@{resources=@($appId)}}}}
+$configuration=@{id="$scenarioId/configurations/exact";properties=@{scenarioId=$scenarioId;resourceTargeting=@{include=@{resources=@($appId)}}}}
 Assert-LabNativeConfiguration $configuration $scenario $appId instance instance-a
+$configuration.properties.scenarioId='instance'
+Assert-LabNativeConfiguration $configuration $scenario $appId instance instance-a
+if((Get-LabNativeScenarioId $configuration) -cne $scenarioId) { throw 'Provider short Scenario name was not resolved against its exact owned parent.' }
+$configuration.properties.scenarioId='other'
+Expect-Rejected { Assert-LabNativeConfiguration $configuration $scenario $appId instance instance-a }
+$configuration.properties.scenarioId=$scenarioId
 $scenario.properties.actions[0].parameters[0].value=''
 Expect-Rejected { Assert-LabNativeConfiguration $configuration $scenario $appId instance instance-a }
 $scenario.properties.actions[0].parameters[0].value='dotnet'

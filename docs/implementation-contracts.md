@@ -49,6 +49,8 @@ The current pinned native API is `2026-08-01-preview`.
 
 Scenario string-valued parameters serialize selector arrays. The process name is explicit because actual Scenario creation rejects an empty value. Intent is saved before submission; accepted/uncertain executions are reconciled before another submission.
 
+The preview configuration GET returns `properties.scenarioId` as a short Scenario name. Resolve it against the configuration's exact owned parent resource ID and verify the binding; full IDs are accepted only when they identify that same parent.
+
 Actual execution identity, target IDs, canonical Action, compiled parameters and Action summary must match the selected configuration. Process crashes have discrete semantics. HA-AZ-001 retains a separate verdict based on genuine infrastructure-zone evidence.
 
 Linux runtime/selector support is verified against the actual Action and endpoint. The [Windows comparison](research.md#linux-baseline-and-windows-test-coverage) records the documented Windows-only cache-stampede template and any observed runtime advantage. Unavailable or unqualified required coverage receives an explicit BLOCKED verdict.
