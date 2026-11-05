@@ -62,6 +62,8 @@ Linux runtime/selector support is verified against the actual Action and endpoin
 - Provider failover spacing: at least twenty minutes after the previous terminal completion, with a Healthy standby.
 - Reconcile every unique issued write, including response-loss outcomes, and verify every acknowledged write's checksum and retention across every previous run.
 
+The independent observer records frontend HTML errors without terminating during an application restart. Database disruption and combined overlap require an authenticated application response with an explicit PostgreSQL `unavailable` or `timeout` status; a generic HTTP 503 supplies insufficient dependency evidence.
+
 Each test reports submission, acceptance, actual effect, terminal completion, recovery, errors/drops, latency and durability separately. A complete-suite PASS requires every mandatory application/database/combined test to pass its actual acceptance gates.
 
 ## State and publication

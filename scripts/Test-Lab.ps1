@@ -163,7 +163,10 @@ function Invoke-NativeCase {
                     $lines=& ssh @sshArgs "cd ~/csl && tail -n 4 results/observer-$runId/observations.ndjson"
                     if($LASTEXITCODE -ne 0) { throw 'Independent overlap observer retrieval failed.' }
                     $events=@($lines | Where-Object { $_ } | ForEach-Object { $_ | ConvertFrom-Json })
-                    $observed=@($events | Where-Object { $_.kind -eq 'dependencies' -and $_.statusCode -eq 503 -and $_.processId }).Count -gt 0
+                    $observed=@($events | Where-Object {
+                        $_.kind -eq 'dependencies' -and $_.statusCode -eq 503 -and $_.processId -and
+                        $_.dependencyStatus -in @('unavailable','timeout')
+                    }).Count -gt 0
                     if(-not $observed) { Start-Sleep -Seconds 2 }
                 } while(-not $observed -and [DateTimeOffset]::UtcNow -lt $deadline)
                 if(-not $observed) { throw 'INCONCLUSIVE: no independently observed database disruption qualified combined application injection.' }

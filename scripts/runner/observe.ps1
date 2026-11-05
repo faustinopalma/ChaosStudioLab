@@ -34,8 +34,12 @@ try {
                 $event.processId=[string]($response.Headers['X-Lab-Process-Id'] | Select-Object -First 1)
                 $event.processStartedAtUtc=[string]($response.Headers['X-Lab-Process-Start-Utc'] | Select-Object -First 1)
                 if($kind -eq 'dependencies' -and $response.StatusCode -in @(200,503)) {
-                    $body=$response.Content | ConvertFrom-Json
-                    $event.dependencyStatus=$body.dependencies.postgresql
+                    if([string]($response.Headers['Content-Type'] | Select-Object -First 1) -like 'application/json*') {
+                        $body=$response.Content | ConvertFrom-Json
+                        $event.dependencyStatus=$body.dependencies.postgresql
+                    } else {
+                        $event.error="HTTP $($response.StatusCode) returned a non-JSON response; PostgreSQL dependency status is unverified."
+                    }
                 }
             } catch [Net.Http.HttpRequestException], [Net.WebException], [Threading.Tasks.TaskCanceledException] {
                 $event.statusCode=0

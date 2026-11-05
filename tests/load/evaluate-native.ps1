@@ -56,7 +56,9 @@ try {
         $dependency=@($observations | Where-Object {
             $_.kind -eq 'dependencies' -and (Get-Time $_.requestedAtUtc) -ge $SubmittedAtUtc
         } | Sort-Object requestedAtUtc)
-        $bad=@($dependency | Where-Object { $_.statusCode -eq 503 -and $_.processId })
+        $bad=@($dependency | Where-Object {
+            $_.statusCode -eq 503 -and $_.processId -and $_.dependencyStatus -in @('unavailable','timeout')
+        })
         if($bad.Count -eq 0) { throw 'INCONCLUSIVE: role swap occurred, but no independently observed application database disruption bounds recovery.' }
         $databaseEffect=Get-Time $bad[0].observedAtUtc
         if($TestId -eq 'HA-COMBINED-001') {

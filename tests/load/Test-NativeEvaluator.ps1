@@ -10,7 +10,7 @@ $before=@(0..5 | ForEach-Object {
 $dbBefore=@{id='/subscriptions/fixture/resourceGroups/fixture/providers/Microsoft.DBforPostgreSQL/flexibleServers/fixture'
     state='Ready';availabilityZone='1';highAvailability=@{mode='ZoneRedundant';state='Healthy';standbyAvailabilityZone='2'}}
 $dbAfter=@{state='Ready';availabilityZone='2';highAvailability=@{mode='ZoneRedundant';state='Healthy';standbyAvailabilityZone='1'}}
-function Invoke-Case([string]$Name,[string]$TestId,[string]$Phase,[string]$Expected,[int]$RestartSecond=15,[string[]]$Targets=@('instance-0')) {
+function Invoke-Case([string]$Name,[string]$TestId,[string]$Phase,[string]$Expected,[int]$RestartSecond=15,[string[]]$Targets=@('instance-0'),[switch]$UnverifiedDependency) {
     $directory=Join-Path $root $Name
     New-Item -ItemType Directory -Path $directory | Out-Null
     $events=[Collections.Generic.List[string]]::new()
@@ -29,6 +29,7 @@ function Invoke-Case([string]$Name,[string]$TestId,[string]$Phase,[string]$Expec
                 requestedAtUtc=$time.ToString('O');observedAtUtc=$time.AddMilliseconds(10).ToString('O')} | ConvertTo-Json -Compress))
         }
         $observations.Add((@{kind='dependencies';statusCode=if($second -in 10..30) {503} else {200}
+            dependencyStatus=if($second -in 10..30) {if($UnverifiedDependency) {$null} else {'unavailable'}} else {'healthy'}
             processId='101';requestedAtUtc=$time.ToString('O');observedAtUtc=$time.AddMilliseconds(10).ToString('O')} | ConvertTo-Json -Compress))
     }
     $attempts=Join-Path $directory 'attempts.ndjson'
@@ -52,5 +53,6 @@ try {
     Invoke-Case database HA-DB-001 failover PASS -Targets @()
     Invoke-Case combined HA-COMBINED-001 combined PASS
     Invoke-Case non-overlap HA-COMBINED-001 combined INCONCLUSIVE -RestartSecond 100
+    Invoke-Case unverified-dependency HA-COMBINED-001 combined INCONCLUSIVE -UnverifiedDependency
     'Native effects require every selected process, complete post-effect accounting, real database role swap, recovery/stability and independently bracketed overlap.'
 } finally { Remove-Item -LiteralPath $root -Recurse }
