@@ -4,6 +4,9 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <!-- On Windows the application runs as its own dotnet process, distinct from the main and SCM w3wp workers, so a native process crash can name it exactly. -->
+    <AspNetCoreHostingModel>OutOfProcess</AspNetCoreHostingModel>
+    <UseAppHost>false</UseAppHost>
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="Azure.Identity" Version="1.21.0" />

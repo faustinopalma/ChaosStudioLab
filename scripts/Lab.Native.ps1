@@ -87,7 +87,7 @@ function Get-LabNativeActionUrn {
 
 function Complete-LabNativeExecution {
     param([hashtable] $Intent,[hashtable] $Manifest,[string] $ManifestPath,[string] $EvidencePrefix,
-        [hashtable] $Scenario,[string] $TargetId,[string] $PrincipalId,[string[]] $ExpectedInstanceIds=@())
+        [hashtable] $Scenario,[string] $TargetId,[string] $PrincipalId,[string[]] $ExpectedInstanceIds=@(),[hashtable] $ExpectedProcessIds=@{})
     $result=Wait-LabNativeOperation $Intent.pollUri $EvidencePrefix -AllowFailedTerminal
     Write-LabJson "$EvidencePrefix-terminal.json" $result
     $Intent.status=if($result.properties.status -eq 'Succeeded') { 'TERMINAL_UNVERIFIED' } else { 'FAILED_RECONCILED' }
@@ -114,12 +114,12 @@ function Complete-LabNativeExecution {
     }
     if(@($result.properties.errors | Where-Object { $null -ne $_ }).Count -gt 0 -or @($result.properties.scenarioRunSummary).Count -ne 1 -or
         $result.properties.scenarioRunSummary[0].state -ne 'Succeeded') { throw 'Native execution lacks clean successful Action-level evidence.' }
-    if($result.properties.managedIdentityPrincipalId -ine $PrincipalId) {
-        if($TargetId -match '/providers/Microsoft\.Web/sites/[^/]+$') {
-            Confirm-LabNativeAppServiceIdentity $result $Scenario $TargetId $PrincipalId $EvidencePrefix -ExpectedInstanceIds $ExpectedInstanceIds
-        } else {
-            Confirm-LabNativePostgresIdentity $result $Scenario $TargetId $PrincipalId $EvidencePrefix
-        }
+    # The run summary does not identify the terminated process, so every App Service execution is audited against the pre-selected application process.
+    if($TargetId -match '/providers/Microsoft\.Web/sites/[^/]+$') {
+        Confirm-LabNativeAppServiceIdentity $result $Scenario $TargetId $PrincipalId $EvidencePrefix `
+            -ExpectedInstanceIds $ExpectedInstanceIds -ExpectedProcessIds $ExpectedProcessIds
+    } elseif($result.properties.managedIdentityPrincipalId -ine $PrincipalId) {
+        Confirm-LabNativePostgresIdentity $result $Scenario $TargetId $PrincipalId $EvidencePrefix
     }
     $Intent.status='SUCCEEDED'
     Write-LabJson $ManifestPath $Manifest
@@ -196,7 +196,7 @@ function Confirm-LabNativePostgresIdentity {
 
 function Confirm-LabNativeAppServiceIdentity {
     param([hashtable] $Result,[hashtable] $Scenario,[string] $TargetId,[string] $PrincipalId,[string] $EvidencePrefix,
-        [string[]] $ExpectedInstanceIds=@(),[ValidateRange(0,900)][int] $AuditTimeoutSeconds=900)
+        [string[]] $ExpectedInstanceIds=@(),[hashtable] $ExpectedProcessIds=@{},[ValidateRange(0,900)][int] $AuditTimeoutSeconds=900)
     Assert-LabResourceId $TargetId
     if($TargetId -notmatch '/providers/Microsoft\.Web/sites/[^/]+$' -or
         (Get-LabNativeActionUrn $Scenario.properties.actions[0].actionId) -cne 'urn:csci:microsoft:appservice:killprocess/1.0.0') {
@@ -204,6 +204,11 @@ function Confirm-LabNativeAppServiceIdentity {
     }
     $expected=@($ExpectedInstanceIds | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | ForEach-Object { $_.ToLowerInvariant() } | Sort-Object -Unique)
     if($expected.Count -lt 1) { throw 'Native App Service identity audit requires the explicit expected target instances.' }
+    $processIds=@{}
+    foreach($key in $ExpectedProcessIds.Keys) { $processIds[([string]$key).ToLowerInvariant()]=[string]$ExpectedProcessIds[$key] }
+    if($processIds.Count -ne $expected.Count -or @($expected | Where-Object { -not $processIds.ContainsKey($_) -or $processIds[$_] -notmatch '^[0-9]+$' }).Count) {
+        throw 'Native App Service identity audit requires the exact pre-selected application process on every target instance.'
+    }
     $start=[DateTimeOffset]$Result.properties.startTime
     $end=[DateTimeOffset]$Result.properties.endTime
     if($end -le $start) { throw 'Native identity audit requires an explicit positive execution interval.' }
@@ -260,6 +265,9 @@ function Confirm-LabNativeAppServiceIdentity {
             }
         }
         $null=$completed.resourceId -imatch $pattern
+        if($Matches.process -cne $processIds[$instance]) {
+            throw "Native process deletion on a selected instance terminated process $($Matches.process) instead of the pre-selected application process; the crash target is not verified."
+        }
         $records+=@{instanceId=$instance;processId=$Matches.process;resourceId=$completed.resourceId
             correlationId=$completed.correlationId;clientRequestId=$started[0].httpRequest.clientRequestId
             started=$started[0].eventTimestamp;completed=$completed.eventTimestamp}
@@ -269,9 +277,39 @@ function Confirm-LabNativeAppServiceIdentity {
         reportedPrincipalId=$Result.properties.managedIdentityPrincipalId
         executionStartedAtUtc=$start.ToString('O');executionEndedAtUtc=$end.ToString('O')
         completionEvidenceDeadlineUtc=$completionDeadline.ToString('O')
-        activityQueries=$attempt;expectedInstanceIds=$expected;processDeletions=$records
+        activityQueries=$attempt;expectedInstanceIds=$expected;expectedProcessIds=$processIds;processDeletions=$records
     }
-    Write-Warning 'Native principal metadata differs; every selected instance process deletion was independently authenticated to the declared Workspace identity using correlated Azure Activity Log caller/object claims. Exact proof is retained privately; no role was granted.'
+    if($Result.properties.managedIdentityPrincipalId -ine $PrincipalId) {
+        Write-Warning 'Native principal metadata differs; every selected instance process deletion was independently authenticated to the declared Workspace identity using correlated Azure Activity Log caller/object claims. Exact proof is retained privately; no role was granted.'
+    }
+}
+
+function Get-LabNativeApplicationProcesses {
+    param([string] $ApplicationId,[string[]] $InstanceIds,[string] $ProcessName,[string] $EvidencePrefix)
+    Assert-LabResourceId $ApplicationId
+    if($ApplicationId -notmatch '/providers/Microsoft\.Web/sites/[^/]+$' -or @($InstanceIds).Count -lt 1 -or $ProcessName -cne 'dotnet') {
+        throw 'Native application process selection requires an owned site, explicit instances and the dotnet application process name.'
+    }
+    $selected=@{}
+    foreach($instance in $InstanceIds) {
+        if($instance -notmatch '^[0-9A-Za-z-]+$') { throw 'Native application process selection received an invalid instance identifier.' }
+        $base="https://management.azure.com$ApplicationId/instances/$instance/processes"
+        $list=(Invoke-LabArm Get "${base}?api-version=2024-11-01").body
+        Write-LabJson "$EvidencePrefix-$instance-processes.json" $list
+        $application=@()
+        foreach($candidate in @($list.value | Where-Object { $_.properties.name -ceq $ProcessName })) {
+            $processId=($candidate.name -split '/')[-1]
+            if($processId -notmatch '^[0-9]+$') { throw 'Native application process listing returned an invalid process identifier.' }
+            $detail=(Invoke-LabArm Get "$base/${processId}?api-version=2024-11-01").body
+            Write-LabJson "$EvidencePrefix-$instance-process-$processId.json" $detail
+            if($detail.properties.name -ceq $ProcessName -and $detail.properties.is_scm_site -ne $true) { $application+=@($processId) }
+        }
+        if($application.Count -ne 1) {
+            throw "BLOCKED: instance $instance must host exactly one non-SCM $ProcessName application process before injection; found $($application.Count)."
+        }
+        $selected[$instance.ToLowerInvariant()]=$application[0]
+    }
+    return $selected
 }
 
 function Find-LabNativeTargets {
@@ -344,12 +382,11 @@ function Assert-LabNativeConfiguration {
             throw 'Native PostgreSQL forced-failover contract drifted.'
         }
     } else {
-        $expectedParameterCount=if($parameters.ContainsKey('ProcessName')) {3} else {2}
         if($actionUrn -cne 'urn:csci:microsoft:appservice:killprocess/1.0.0' -or
-            $parameters.Count -ne $expectedParameterCount -or
+            $parameters.Count -ne 3 -or
             -not $parameters.ContainsKey('InstanceIds') -or -not $parameters.ContainsKey('Zones') -or
-            ($parameters.ContainsKey('ProcessName') -and $parameters['ProcessName'] -cne 'dotnet') -or
-            [string]::IsNullOrWhiteSpace($Selector)) { throw 'Native main-process Action contract drifted (Linux names dotnet; Windows omits ProcessName for the main w3wp).' }
+            $parameters['ProcessName'] -cne 'dotnet' -or
+            [string]::IsNullOrWhiteSpace($Selector)) { throw 'Native application-process Action contract drifted (both platforms name the dotnet application process).' }
         $instances=ConvertFrom-Json -InputObject $parameters['InstanceIds'] -NoEnumerate
         $zones=ConvertFrom-Json -InputObject $parameters['Zones'] -NoEnumerate
         if($instances -isnot [array] -or $zones -isnot [array] -or

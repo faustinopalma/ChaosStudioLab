@@ -99,12 +99,19 @@ function Get-VerifiedNativeDefinition([string]$ConfigurationId,[string]$TargetId
     return @{configuration=$configuration;scenario=$scenario;targetId=$TargetId;kind=$Kind}
 }
 function Invoke-SelectedNative([hashtable]$Definition) {
+    if($Definition.kind -ne 'postgres') {
+        # Selected immediately before injection so the audit can prove the Action terminated this exact application process.
+        $report.targetProcessIds=Get-LabNativeApplicationProcesses $Definition.targetId @($report.targetInstanceIds) dotnet `
+            (Join-Path $caseRoot "$($Definition.kind)-application-processes")
+        Write-Information "[$([DateTimeOffset]::UtcNow.ToString('O'))] Pre-selected application processes: $(@($report.targetProcessIds.GetEnumerator() | Sort-Object Name | ForEach-Object { "$($_.Name)=$($_.Value)" }) -join ', ')." -InformationAction Continue
+    }
     Start-LabNativeExecution $Definition.configuration.id $m $ManifestPath (Join-Path $caseRoot $Definition.kind)
 }
 function Complete-SelectedNative([hashtable]$Intent,[hashtable]$Definition) {
     $expectedInstances=if($Definition.kind -eq 'postgres') { @() } else { @($report.targetInstanceIds) }
+    $expectedProcesses=if($Definition.kind -eq 'postgres' -or -not $report.ContainsKey('targetProcessIds')) { @{} } else { $report.targetProcessIds }
     $result=Complete-LabNativeExecution $Intent $m $ManifestPath (Join-Path $caseRoot $Definition.kind) `
-        $Definition.scenario $Definition.targetId $nativePrincipal $expectedInstances
+        $Definition.scenario $Definition.targetId $nativePrincipal $expectedInstances $expectedProcesses
     if($Definition.kind -eq 'postgres') {
         $m.lastPostgresFaultFinishedAtUtc=[DateTimeOffset]::UtcNow.ToString('O')
         Write-LabJson $ManifestPath $m

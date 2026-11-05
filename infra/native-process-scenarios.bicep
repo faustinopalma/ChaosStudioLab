@@ -10,19 +10,19 @@ param instanceId string
   '3'
 ])
 param logicalZone string
-@description('Linux scenarios name the dotnet worker. Windows omits ProcessName so the Action selects the documented main w3wp worker instead of the SCM w3wp.')
+@description('Both platforms name the dotnet application process. On Windows the out-of-process host runs the application as dotnet, separate from the main and SCM w3wp workers that share one process name.')
 @allowed([
   'linux'
   'windows'
 ])
 param platform string = 'linux'
 
-var processNameParameters = platform == 'linux' ? [
+var processNameParameters = [
   {
     key: 'ProcessName'
     value: 'dotnet'
   }
-] : []
+]
 
 resource workspace 'Microsoft.Chaos/workspaces@2026-08-01-preview' existing = {
   name: workspaceName

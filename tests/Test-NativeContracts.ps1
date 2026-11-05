@@ -25,7 +25,9 @@ $configuration=@{id="$scenarioId/configurations/exact";properties=@{scenarioId=$
 Assert-LabNativeConfiguration $configuration $scenario $appId instance instance-a
 $namedParameters=$scenario.properties.actions[0].parameters
 $scenario.properties.actions[0].parameters=@($namedParameters|Where-Object key -ne ProcessName)
-Assert-LabNativeConfiguration $configuration $scenario $appId instance instance-a
+Expect-Rejected { Assert-LabNativeConfiguration $configuration $scenario $appId instance instance-a }
+$scenario.properties.actions[0].parameters=@($namedParameters|ForEach-Object { if($_.key -eq 'ProcessName') { @{key='ProcessName';value='w3wp'} } else { $_ } })
+Expect-Rejected { Assert-LabNativeConfiguration $configuration $scenario $appId instance instance-a }
 $scenario.properties.actions[0].parameters+=@(@{key='Unexpected';value='not-allowed'})
 Expect-Rejected { Assert-LabNativeConfiguration $configuration $scenario $appId instance instance-a }
 $scenario.properties.actions[0].parameters=$namedParameters
@@ -67,6 +69,7 @@ foreach($address in @($poll.Replace('https:','http:'),$poll.Replace('management.
 $fixture=Join-Path ([IO.Path]::GetTempPath()) "csl-native-contract-$([Guid]::NewGuid().ToString('N'))"
 New-Item -ItemType Directory -Path $fixture | Out-Null
 $nativeFixture=@{response=@{statusCode=200;headers=@{};body=@{properties=@{status='Succeeded'}}};fail=$false;activityQueries=0;activityDelay=0;auditSleeps=0
+    processQueries=0;processes=@{}
     discoveries=0;discovered=@();workspaceScopes=@("/subscriptions/$script:LabSubscription/resourceGroups/$($script:LabGroups[1])")}
 function Invoke-LabArm {
     param($Method,$Uri,$Body)
@@ -81,6 +84,16 @@ function Invoke-LabArm {
     if($Method -eq 'Get' -and $Uri -match '/discoveredResources\?') {
         return @{statusCode=200;headers=@{};body=@{value=@($nativeFixture.discovered | ForEach-Object {
             @{properties=@{fullyQualifiedIdentifier=$_}} })}}
+    }
+    if($Method -eq 'Get' -and $Uri -match '/instances/(?<instance>[^/]+)/processes(/(?<process>[0-9]+))?\?') {
+        $nativeFixture.processQueries++
+        $listed=@($nativeFixture.processes[$Matches.instance])
+        if($Matches.ContainsKey('process')) {
+            $process=@($listed | Where-Object pid -eq $Matches.process)[0]
+            return @{statusCode=200;headers=@{};body=@{properties=@{name=$process.name;is_scm_site=$process.scm}}}
+        }
+        return @{statusCode=200;headers=@{};body=@{value=@($listed | ForEach-Object {
+            @{name="fixture/$($Matches.instance)/$($_.pid)";properties=@{name=$_.name}} })}}
     }
     if($Method -eq 'Get' -and $Uri -match '/workspaces/fixture\?') {
         return @{statusCode=200;headers=@{};body=@{properties=@{scopes=@($nativeFixture.workspaceScopes)}}}
@@ -153,8 +166,11 @@ try {
     }}
     $intent=@{pollUri=$poll;status='ACCEPTED'}
     $manifest=@{activeNativeOperations=@($intent)}
-    Complete-LabNativeExecution $intent $manifest $path (Join-Path $fixture 'verified') $scenario $appId $principal | Out-Null
-    if($intent.status -ne 'SUCCEEDED') { throw 'Fully verified native terminal success was not reconciled.' }
+    $queryCount=$nativeFixture.activityQueries
+    Expect-Rejected { Complete-LabNativeExecution $intent $manifest $path (Join-Path $fixture 'verified') $scenario $appId $principal }
+    if($intent.status -ne 'TERMINAL_UNVERIFIED' -or $nativeFixture.activityQueries -ne $queryCount) {
+        throw 'An App Service completion without a pre-selected application process was accepted or queried Azure.'
+    }
     $nativeFixture.response.body.properties.managedIdentityPrincipalId='wrong-principal'
     Expect-Rejected { Complete-LabNativeExecution $intent $manifest $path (Join-Path $fixture 'wrong-identity') $scenario $appId $principal }
     if($intent.status -ne 'TERMINAL_UNVERIFIED') { throw 'Unverified native success was incorrectly cleared for another fault.' }
@@ -252,28 +268,58 @@ try {
     $nativeFixture.activityEvents=@(
         (New-ProcessDeleteEvent 'instance-a' 'Started' '2026-11-05T09:00:07.6Z' 'kill-a'),
         (New-ProcessDeleteEvent 'instance-a' 'Succeeded' '2026-11-05T09:00:07.9Z' 'kill-a'))
-    Complete-LabNativeExecution $intent $manifest $path (Join-Path $fixture 'audited-app') $scenario $appId $principal @('instance-a') | Out-Null
+    Complete-LabNativeExecution $intent $manifest $path (Join-Path $fixture 'audited-app') $scenario $appId $principal @('instance-a') @{'instance-a'='2800'} | Out-Null
     $proof=Get-Content (Join-Path $fixture 'audited-app-identity-proof.json') -Raw | ConvertFrom-Json
     if($intent.status -ne 'SUCCEEDED' -or $proof.processDeletions.Count -ne 1 -or $proof.processDeletions[0].processId -ne '2800') {
         throw 'Independently authenticated native App Service process deletion was not reconciled.'
     }
+    $nativeFixture.response.body.properties.managedIdentityPrincipalId=$principal
+    $queryCount=$nativeFixture.activityQueries
+    Complete-LabNativeExecution $intent $manifest $path (Join-Path $fixture 'audited-app-matching-principal') $scenario $appId $principal @('instance-a') @{'instance-a'='2800'} | Out-Null
+    if($intent.status -ne 'SUCCEEDED' -or $nativeFixture.activityQueries -ne $queryCount+1) {
+        throw 'An App Service completion with matching principal metadata skipped the process identity audit.'
+    }
+    $nativeFixture.response.body.properties.managedIdentityPrincipalId='misreported'
+    Expect-Rejected { Complete-LabNativeExecution $intent $manifest $path (Join-Path $fixture 'app-scm-process') $scenario $appId $principal @('instance-a') @{'instance-a'='6536'} }
+    if($intent.status -ne 'TERMINAL_UNVERIFIED') { throw 'A deletion of a process other than the pre-selected application process was reconciled.' }
     Expect-Rejected { Complete-LabNativeExecution $intent $manifest $path (Join-Path $fixture 'app-without-selection') $scenario $appId $principal }
-    Expect-Rejected { Confirm-LabNativeAppServiceIdentity $nativeFixture.response.body $scenario $appId $principal (Join-Path $fixture 'app-missing-instance') -ExpectedInstanceIds @('instance-a','instance-b') -AuditTimeoutSeconds 0 }
+    Expect-Rejected { Complete-LabNativeExecution $intent $manifest $path (Join-Path $fixture 'app-without-process') $scenario $appId $principal @('instance-a') }
+    Expect-Rejected { Confirm-LabNativeAppServiceIdentity $nativeFixture.response.body $scenario $appId $principal (Join-Path $fixture 'app-process-map-mismatch') -ExpectedInstanceIds @('instance-a') -ExpectedProcessIds @{'instance-b'='2800'} -AuditTimeoutSeconds 0 }
+    Expect-Rejected { Confirm-LabNativeAppServiceIdentity $nativeFixture.response.body $scenario $appId $principal (Join-Path $fixture 'app-missing-instance') -ExpectedInstanceIds @('instance-a','instance-b') -ExpectedProcessIds @{'instance-a'='2800';'instance-b'='2800'} -AuditTimeoutSeconds 0 }
     $zoneEvents=$nativeFixture.activityEvents+@(
         (New-ProcessDeleteEvent 'instance-b' 'Started' '2026-11-05T09:00:08.1Z' 'kill-b'),
         (New-ProcessDeleteEvent 'instance-b' 'Succeeded' '2026-11-05T09:00:08.4Z' 'kill-b'))
     $nativeFixture.activityEvents=$zoneEvents
-    Confirm-LabNativeAppServiceIdentity $nativeFixture.response.body $scenario $appId $principal (Join-Path $fixture 'app-zone') -ExpectedInstanceIds @('instance-a','instance-b') -AuditTimeoutSeconds 0
-    Expect-Rejected { Confirm-LabNativeAppServiceIdentity $nativeFixture.response.body $scenario $appId $principal (Join-Path $fixture 'app-outside-selection') -ExpectedInstanceIds @('instance-a') -AuditTimeoutSeconds 0 }
+    Confirm-LabNativeAppServiceIdentity $nativeFixture.response.body $scenario $appId $principal (Join-Path $fixture 'app-zone') -ExpectedInstanceIds @('instance-a','instance-b') -ExpectedProcessIds @{'instance-a'='2800';'instance-b'='2800'} -AuditTimeoutSeconds 0
+    Expect-Rejected { Confirm-LabNativeAppServiceIdentity $nativeFixture.response.body $scenario $appId $principal (Join-Path $fixture 'app-outside-selection') -ExpectedInstanceIds @('instance-a') -ExpectedProcessIds @{'instance-a'='2800'} -AuditTimeoutSeconds 0 }
     $nativeFixture.activityEvents=@($zoneEvents[0],$zoneEvents[1])
     $nativeFixture.activityEvents[1].caller='other'
-    Expect-Rejected { Confirm-LabNativeAppServiceIdentity $nativeFixture.response.body $scenario $appId $principal (Join-Path $fixture 'app-wrong-caller') -ExpectedInstanceIds @('instance-a') -AuditTimeoutSeconds 0 }
+    Expect-Rejected { Confirm-LabNativeAppServiceIdentity $nativeFixture.response.body $scenario $appId $principal (Join-Path $fixture 'app-wrong-caller') -ExpectedInstanceIds @('instance-a') -ExpectedProcessIds @{'instance-a'='2800'} -AuditTimeoutSeconds 0 }
     $nativeFixture.activityEvents[1].caller=$principal
     $nativeFixture.activityEvents[0].eventTimestamp='2026-11-05T09:00:08Z'
-    Expect-Rejected { Confirm-LabNativeAppServiceIdentity $nativeFixture.response.body $scenario $appId $principal (Join-Path $fixture 'app-unordered') -ExpectedInstanceIds @('instance-a') -AuditTimeoutSeconds 0 }
+    Expect-Rejected { Confirm-LabNativeAppServiceIdentity $nativeFixture.response.body $scenario $appId $principal (Join-Path $fixture 'app-unordered') -ExpectedInstanceIds @('instance-a') -ExpectedProcessIds @{'instance-a'='2800'} -AuditTimeoutSeconds 0 }
     $nativeFixture.activityEvents[0].eventTimestamp='2026-11-05T09:00:07.6Z'
     $nativeFixture.activityEvents=@($nativeFixture.activityEvents[1])
-    Expect-Rejected { Confirm-LabNativeAppServiceIdentity $nativeFixture.response.body $scenario $appId $principal (Join-Path $fixture 'app-missing-start') -ExpectedInstanceIds @('instance-a') -AuditTimeoutSeconds 0 }
-    Expect-Rejected { Confirm-LabNativeAppServiceIdentity $nativeFixture.response.body $pgScenario $appId $principal (Join-Path $fixture 'app-wrong-action') -ExpectedInstanceIds @('instance-a') -AuditTimeoutSeconds 0 }
-    'Native exact targets, serialized non-random selectors, secure owned polling, explicit failures and uncertain submissions verified.'
+    Expect-Rejected { Confirm-LabNativeAppServiceIdentity $nativeFixture.response.body $scenario $appId $principal (Join-Path $fixture 'app-missing-start') -ExpectedInstanceIds @('instance-a') -ExpectedProcessIds @{'instance-a'='2800'} -AuditTimeoutSeconds 0 }
+    Expect-Rejected { Confirm-LabNativeAppServiceIdentity $nativeFixture.response.body $pgScenario $appId $principal (Join-Path $fixture 'app-wrong-action') -ExpectedInstanceIds @('instance-a') -ExpectedProcessIds @{'instance-a'='2800'} -AuditTimeoutSeconds 0 }
+    $nativeFixture.processes=@{
+        'instance-a'=@(@{pid='6220';name='w3wp';scm=$true},@{pid='7832';name='w3wp';scm=$false},@{pid='5100';name='dotnet';scm=$false})
+        'instance-b'=@(@{pid='4100';name='dotnet';scm=$false})
+    }
+    $selected=Get-LabNativeApplicationProcesses $appId @('instance-a','instance-b') dotnet (Join-Path $fixture 'app-processes')
+    if($selected.Count -ne 2 -or $selected['instance-a'] -cne '5100' -or $selected['instance-b'] -cne '4100' -or
+        -not (Test-Path (Join-Path $fixture 'app-processes-instance-a-process-5100.json'))) {
+        throw 'The exact non-SCM dotnet application process was not selected and retained per instance.'
+    }
+    $nativeFixture.processes['instance-b']=@(@{pid='4100';name='dotnet';scm=$true})
+    Expect-Rejected { Get-LabNativeApplicationProcesses $appId @('instance-b') dotnet (Join-Path $fixture 'app-processes-scm') }
+    $nativeFixture.processes['instance-b']=@(@{pid='4100';name='dotnet';scm=$false},@{pid='4200';name='dotnet';scm=$false})
+    Expect-Rejected { Get-LabNativeApplicationProcesses $appId @('instance-b') dotnet (Join-Path $fixture 'app-processes-ambiguous') }
+    $nativeFixture.processes['instance-b']=@(@{pid='7000';name='w3wp';scm=$false})
+    Expect-Rejected { Get-LabNativeApplicationProcesses $appId @('instance-b') dotnet (Join-Path $fixture 'app-processes-missing') }
+    $queryCount=$nativeFixture.processQueries
+    Expect-Rejected { Get-LabNativeApplicationProcesses $appId @('instance-b') w3wp (Join-Path $fixture 'app-processes-wrong-name') }
+    Expect-Rejected { Get-LabNativeApplicationProcesses $appId @('../instance-b') dotnet (Join-Path $fixture 'app-processes-invalid') }
+    if($nativeFixture.processQueries -ne $queryCount) { throw 'Unsafe process selection input reached Azure.' }
+    'Native exact targets, serialized non-random selectors, exact application-process selection and audit, secure owned polling, explicit failures and uncertain submissions verified.'
 } finally { Remove-Item -LiteralPath $fixture -Recurse }
