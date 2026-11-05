@@ -64,8 +64,12 @@ function Invoke-RestMethod {
     (Invoke-WebRequest -Uri $Uri -Headers $Headers -TimeoutSec $TimeoutSec).Content | ConvertFrom-Json
 }
 try {
-    & (Join-Path $fixture 'scripts\runner\verify.ps1')
-    & (Join-Path $fixture 'scripts\runner\verify.ps1')
+    & (Join-Path $fixture 'scripts\runner\verify.ps1') -SettleSeconds 1
+    & (Join-Path $fixture 'scripts\runner\verify.ps1') -SettleSeconds 1
+    $settleProof=@((Get-Content (Join-Path $fixture 'results\private-verification.json') -Raw | ConvertFrom-Json).checks | Where-Object name -eq 'Post-deployment worker stability')
+    if ($settleProof.Count -ne 1 -or $settleProof[0].status -ne 'PASS' -or $settleProof[0].detail.observedProcesses -lt 1) {
+        throw 'Verification did not record the post-deployment worker stability gate.'
+    }
     $journal=Join-Path $fixture 'results\private-verification-writes.ndjson'
     $entries=@(Get-Content $journal | ForEach-Object { $_ | ConvertFrom-Json })
     if ($entries.Count -ne 2 -or @($entries | Where-Object { -not $_.success -or -not $_.acknowledged }).Count) {
@@ -73,10 +77,10 @@ try {
     }
     $qualificationFixtureState.loseNextAcknowledgement=$true
     $caught=$false
-    try { & (Join-Path $fixture 'scripts\runner\verify.ps1') }
+    try { & (Join-Path $fixture 'scripts\runner\verify.ps1') -SettleSeconds 1 }
     catch { $caught=$_.Exception.Message -like '*committed write, then lost response*' }
     if (-not $caught) { throw 'A write transport failure was hidden.' }
-    & (Join-Path $fixture 'scripts\runner\verify.ps1')
+    & (Join-Path $fixture 'scripts\runner\verify.ps1') -SettleSeconds 1
     $durability=Get-Content (Join-Path $fixture 'results\private-verification-durability.json') -Raw | ConvertFrom-Json
     if ($durability.status -ne 'PASS' -or $durability.issuedUniqueWrites -ne 4 -or
         $durability.acknowledgedUniqueWrites -ne 3 -or $durability.retainedWrites -ne 4) {
@@ -119,12 +123,12 @@ try {
             status=201;success=$true;responseChecksum=$checksum} |
             ConvertTo-Json -Compress | Set-Content (Join-Path $directory 'attempts.ndjson')
     }
-    & (Join-Path $fixture 'scripts\runner\verify.ps1') -VerifyAllRuns
+    & (Join-Path $fixture 'scripts\runner\verify.ps1') -SettleSeconds 1 -VerifyAllRuns
     $history=Get-Content (Join-Path $fixture 'results\all-runs-durability.json') -Raw | ConvertFrom-Json
     if($history.status -ne 'PASS' -or $history.runs.Count -ne 2) { throw 'Final verification did not reconcile every earlier measurement run.' }
     $qualificationFixtureState.orders.Remove($historyIds[0])
     $caught=$false
-    try { & (Join-Path $fixture 'scripts\runner\verify.ps1') -VerifyAllRuns } catch { $caught=$true }
+    try { & (Join-Path $fixture 'scripts\runner\verify.ps1') -SettleSeconds 1 -VerifyAllRuns } catch { $caught=$true }
     $history=Get-Content (Join-Path $fixture 'results\all-runs-durability.json') -Raw | ConvertFrom-Json
     if(-not $caught -or $history.status -ne 'FAIL' -or $history.runs[0].lostAcknowledgedWrites -ne 1) {
         throw 'Final verification hid the loss of an earlier acknowledged measurement write.'

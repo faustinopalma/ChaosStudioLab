@@ -7,8 +7,7 @@ namespace Demo.Api.Services;
 // certificate-revocation and managed-identity token costs on its first physical PostgreSQL
 // opens, which exceed the 3-second connect timeout and fail user requests in bursts.
 public sealed class DatabaseWarmupService(
-    DatabaseOpenDiagnostics diagnostics,
-    NpgsqlDataSource dataSource,
+    IServiceProvider services,
     IConfiguration configuration,
     ILogger<DatabaseWarmupService> logger) : IHostedService
 {
@@ -28,13 +27,13 @@ public sealed class DatabaseWarmupService(
         var watch = Stopwatch.StartNew();
         try
         {
-            var stages = await diagnostics.RunAsync(budget.Token);
+            var stages = await services.GetRequiredService<DatabaseOpenDiagnostics>().RunAsync(budget.Token);
             logger.LogWarning(
                 "Database warmup cold-open stages after {ElapsedMs} ms: {Stages}",
                 watch.ElapsedMilliseconds,
                 System.Text.Json.JsonSerializer.Serialize(stages));
 
-            var prefilled = await PrefillAsync(budget.Token);
+            var prefilled = await PrefillAsync(services.GetRequiredService<NpgsqlDataSource>(), budget.Token);
             logger.LogWarning(
                 "Database warmup completed in {ElapsedMs} ms with {Prefilled} pooled connections; {Runtime}",
                 watch.ElapsedMilliseconds,
@@ -53,7 +52,7 @@ public sealed class DatabaseWarmupService(
 
     public Task StopAsync(CancellationToken cancellationToken) => Task.CompletedTask;
 
-    private async Task<int> PrefillAsync(CancellationToken cancellationToken)
+    private async Task<int> PrefillAsync(NpgsqlDataSource dataSource, CancellationToken cancellationToken)
     {
         var connections = new List<NpgsqlConnection>();
         try

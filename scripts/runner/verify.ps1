@@ -1,5 +1,5 @@
 [CmdletBinding()]
-param([string] $AcknowledgedAttemptsPath, [switch] $VerifyAllRuns)
+param([string] $AcknowledgedAttemptsPath, [switch] $VerifyAllRuns, [ValidateRange(1, 300)][int] $SettleSeconds = 60)
 $ErrorActionPreference = 'Stop'
 $config = Get-Content (Join-Path $PSScriptRoot '..\..\runner-config.json') -Raw | ConvertFrom-Json
 & az login --identity --client-id $config.RUNNER_CLIENT_ID --allow-no-subscriptions -o none
@@ -25,6 +25,25 @@ try {
         Start-Sleep 10
     } while ([DateTimeOffset]::UtcNow -lt $deadline)
     Assert-Proof 'Private readiness' ($ready.StatusCode -eq 200) $ready.StatusCode
+    # A package deployment restarts workers in waves after the deploy call returns. Wait until no
+    # new worker process appears and every sampled request succeeds for the whole settle window.
+    $processes = @{}
+    $stableSince = [DateTimeOffset]::UtcNow
+    $settleDeadline = $stableSince.AddMinutes(8)
+    $settled = $false
+    do {
+        $live = Invoke-WebRequest "$base/health/live" -SkipHttpErrorCheck -TimeoutSec 15
+        $key = if ($live.StatusCode -eq 200) { "$($live.Headers['X-Lab-Instance-Id'])|$($live.Headers['X-Lab-Process-Start-Utc'])" }
+        if (-not $key) {
+            $stableSince = [DateTimeOffset]::UtcNow
+        } elseif (-not $processes.ContainsKey($key)) {
+            $processes[$key] = [DateTimeOffset]::UtcNow.ToString('O')
+            $stableSince = [DateTimeOffset]::UtcNow
+        }
+        if (([DateTimeOffset]::UtcNow - $stableSince).TotalSeconds -ge $SettleSeconds) { $settled = $true; break }
+        Start-Sleep -Milliseconds 500
+    } while ([DateTimeOffset]::UtcNow -lt $settleDeadline)
+    Assert-Proof 'Post-deployment worker stability' $settled @{ observedProcesses = $processes.Count; stableSinceUtc = $stableSince.ToString('O') }
     $operationId = [Guid]::NewGuid().ToString()
     $payload = [ordered]@{ sku = 'private-smoke'; quantity = 2; notes = 'durability-check' }
     $request = @{ operationId = $operationId; payload = $payload } | ConvertTo-Json -Compress
