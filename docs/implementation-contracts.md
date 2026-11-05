@@ -72,6 +72,8 @@ Linux runtime/selector support is verified against the actual Action and endpoin
 
 The independent observer records frontend HTML errors without terminating during an application restart. Database disruption and combined overlap require an authenticated application response with an explicit PostgreSQL `unavailable` or `timeout` status; a generic HTTP 503 supplies insufficient dependency evidence.
 
+Combined orchestration allows at most six minutes after native database submission for that independently observed disruption before submitting the application Action. This covers the previously measured four-minute control-plane delay while retaining the bounded eighteen-minute load. The 180-second recovery objective starts at the actual observed disruption. Database/combined acceptance requires at least ten minutes after that actual effect; time spent awaiting injection supplies no post-effect coverage.
+
 Native load starts after the independent observer emits its exact RunId readiness marker through authenticated SSH. This handshake has a sixty-second deadline and serializes private connection establishment before concurrent measurement.
 
 Each test reports submission, acceptance, actual effect, terminal completion, recovery, errors/drops, latency and durability separately. A complete-suite PASS requires every mandatory application/database/combined test to pass its actual acceptance gates.

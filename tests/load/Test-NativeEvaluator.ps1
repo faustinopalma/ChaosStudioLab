@@ -10,7 +10,7 @@ $before=@(0..5 | ForEach-Object {
 $dbBefore=@{id='/subscriptions/fixture/resourceGroups/fixture/providers/Microsoft.DBforPostgreSQL/flexibleServers/fixture'
     state='Ready';availabilityZone='1';highAvailability=@{mode='ZoneRedundant';state='Healthy';standbyAvailabilityZone='2'}}
 $dbAfter=@{state='Ready';availabilityZone='2';highAvailability=@{mode='ZoneRedundant';state='Healthy';standbyAvailabilityZone='1'}}
-function Invoke-Case([string]$Name,[string]$TestId,[string]$Phase,[string]$Expected,[int]$RestartSecond=15,[string[]]$Targets=@('instance-0'),[switch]$UnverifiedDependency) {
+function Invoke-Case([string]$Name,[string]$TestId,[string]$Phase,[string]$Expected,[int]$RestartSecond=15,[string[]]$Targets=@('instance-0'),[switch]$UnverifiedDependency,[int]$DisruptionSecond=10,[string]$ExpectedReason) {
     $directory=Join-Path $root $Name
     New-Item -ItemType Directory -Path $directory | Out-Null
     $events=[Collections.Generic.List[string]]::new()
@@ -28,8 +28,9 @@ function Invoke-Case([string]$Name,[string]$TestId,[string]$Phase,[string]$Expec
                 processStartedAtUtc=if($instance -eq 0 -and $second -ge $RestartSecond) {$base.AddSeconds($RestartSecond).ToString('O')} else {$base.AddHours(-1).ToString('O')}
                 requestedAtUtc=$time.ToString('O');observedAtUtc=$time.AddMilliseconds(10).ToString('O')} | ConvertTo-Json -Compress))
         }
-        $observations.Add((@{kind='dependencies';statusCode=if($second -in 10..30) {503} else {200}
-            dependencyStatus=if($second -in 10..30) {if($UnverifiedDependency) {$null} else {'unavailable'}} else {'healthy'}
+        $disrupted=$second -ge $DisruptionSecond -and $second -le ($DisruptionSecond+20)
+        $observations.Add((@{kind='dependencies';statusCode=if($disrupted) {503} else {200}
+            dependencyStatus=if($disrupted) {if($UnverifiedDependency) {$null} else {'unavailable'}} else {'healthy'}
             processId='101';requestedAtUtc=$time.ToString('O');observedAtUtc=$time.AddMilliseconds(10).ToString('O')} | ConvertTo-Json -Compress))
     }
     $attempts=Join-Path $directory 'attempts.ndjson'
@@ -46,11 +47,16 @@ function Invoke-Case([string]$Name,[string]$TestId,[string]$Phase,[string]$Expec
     if($verdict.status -ne $Expected -or ($Expected -eq 'PASS' -and $caught)) {
         throw "$Name expected $Expected; got $($verdict.status): $($verdict.reason)"
     }
+    if($ExpectedReason -and $verdict.reason -notlike $ExpectedReason) {
+        throw "$Name failed for the wrong acceptance gate: $($verdict.reason)"
+    }
 }
 try {
     Invoke-Case instance HA-APP-001 app-instance PASS
     Invoke-Case missing-zone-member HA-APP-ZONE-001 app-zone INCONCLUSIVE -Targets @('instance-0','instance-1')
     Invoke-Case database HA-DB-001 failover PASS -Targets @()
+    Invoke-Case delayed-effect HA-DB-001 failover INCONCLUSIVE -Targets @() -DisruptionSecond 100 `
+        -ExpectedReason '*ten minutes after independently observed database disruption*'
     Invoke-Case combined HA-COMBINED-001 combined PASS
     Invoke-Case non-overlap HA-COMBINED-001 combined INCONCLUSIVE -RestartSecond 100
     Invoke-Case unverified-dependency HA-COMBINED-001 combined INCONCLUSIVE -UnverifiedDependency

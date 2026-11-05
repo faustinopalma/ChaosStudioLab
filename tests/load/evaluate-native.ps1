@@ -95,7 +95,7 @@ try {
         }
         if($result.recovery.recoveryDurationSeconds -gt 180) { throw 'FAIL: database/combined recovery exceeded 180 seconds.' }
         $lastEvent=Get-Time ($events | Where-Object type -eq canaryTick | Sort-Object scheduledAtUtc | Select-Object -Last 1).scheduledAtUtc
-        if(($lastEvent-$SubmittedAtUtc).TotalSeconds -lt 600) { throw 'INCONCLUSIVE: less than ten minutes of database post-injection observation.' }
+        if(($lastEvent-$effectTime).TotalSeconds -lt 600) { throw 'INCONCLUSIVE: less than ten minutes after independently observed database disruption.' }
     } else {
         $start=[DateTimeOffset]::FromUnixTimeSeconds([long][Math]::Ceiling($effectTime.ToUnixTimeMilliseconds()/1000.0))
         $end=$start.AddSeconds(300)

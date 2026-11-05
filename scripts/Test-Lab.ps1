@@ -176,7 +176,8 @@ function Invoke-NativeCase {
             $dbIntent=Invoke-SelectedNative $databaseDefinition
             $intents+=@($dbIntent)
             if($TestId -eq 'HA-COMBINED-001') {
-                $deadline=[DateTimeOffset]::UtcNow.AddSeconds(180)
+                $deadline=[DateTimeOffset]::UtcNow.AddSeconds(360)
+                Write-Information "[$([DateTimeOffset]::UtcNow.ToString('O'))] Waiting at most six minutes for independently observed database disruption before combined application injection; recovery is measured from the actual effect." -InformationAction Continue
                 $observed=$false
                 do {
                     $lines=& ssh @sshArgs "cd ~/csl && tail -n 4 results/observer-$runId/observations.ndjson"

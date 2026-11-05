@@ -1,6 +1,21 @@
 $ErrorActionPreference='Stop'
 Set-StrictMode -Version Latest
 $root=Split-Path $PSScriptRoot -Parent
+$tokens=$null
+$errors=$null
+$ast=[Management.Automation.Language.Parser]::ParseFile((Join-Path $root 'scripts\Test-Lab.ps1'),[ref]$tokens,[ref]$errors)
+if($errors.Count) { throw 'Native entrypoint parsing failed.' }
+$deadlines=@($ast.FindAll({
+    param($node)
+    $node -is [Management.Automation.Language.AssignmentStatementAst] -and
+        $node.Left.Extent.Text -eq '$deadline' -and $node.Right.Extent.Text -match 'UtcNow.AddSeconds'
+},$true))
+if($deadlines.Count -ne 1) { throw 'Expected one bounded combined control-plane startup deadline.' }
+$now=[DateTimeOffset]::UtcNow
+$deadline=& ([scriptblock]::Create($deadlines[0].Right.Extent.Text))
+if(($deadline-$now).TotalSeconds -lt 360 -or ($deadline-$now).TotalSeconds -gt 361) {
+    throw 'Combined control-plane startup must allow six minutes independently of the 180-second recovery objective.'
+}
 $fixture=Join-Path ([IO.Path]::GetTempPath()) "csl-native-entrypoint-$([Guid]::NewGuid().ToString('N'))"
 New-Item -ItemType Directory -Path (Join-Path $fixture 'scripts') -Force | Out-Null
 Copy-Item (Join-Path $root 'scripts\Test-Lab.ps1') (Join-Path $fixture 'scripts')
