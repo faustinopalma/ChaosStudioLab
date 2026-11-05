@@ -60,7 +60,8 @@ function Confirm-LabNativeValidation {
     Write-LabJson "$EvidencePrefix-terminal.json" $result
     $properties=$result.properties
     if($properties.status -ne 'Succeeded') {
-        throw "BLOCKED: native non-fault validation ended as $($properties.status): $($properties | ConvertTo-Json -Depth 30 -Compress)"
+        $diagnostics=@{errors=$properties.errors;validationErrors=$properties.validationErrors} | ConvertTo-Json -Depth 15 -Compress
+        throw "BLOCKED: native non-fault validation ended as $($properties.status): $diagnostics"
     }
     if(@($properties.resources).Count -ne 1 -or $properties.resources[0].id -ine $TargetId -or
         @($properties.errors | Where-Object { $null -ne $_ }).Count -gt 0 -or
