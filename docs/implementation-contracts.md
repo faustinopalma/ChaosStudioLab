@@ -47,7 +47,7 @@ The current pinned native API is `2026-08-01-preview`.
 | HA-COMBINED-001 | Both Actions, with application replacement independently bracketed by database dependency failure; independently observed disruptive overlap |
 | HA-AZ-001 | Supported correlated infrastructure-zone loss and affected-zone evidence across the relevant application path |
 
-Scenario string-valued parameters serialize selector arrays. The process name is explicit because actual Scenario creation rejects an empty value. Intent is saved before submission; accepted/uncertain executions are reconciled before another submission.
+Scenario string-valued parameters serialize selector arrays. Production uses explicit `ProcessName=dotnet`; the documented optional omission targets the main worker and is also accepted by the exact contract guard. Both shapes require the same deterministic instance/zone arrays and reject unknown parameters or an explicitly empty process name. Intent is saved before submission; accepted/uncertain executions are reconciled before another submission.
 
 The preview configuration GET returns `properties.scenarioId` as a short Scenario name. Resolve it against the configuration's exact owned parent resource ID and verify the binding; full IDs are accepted only when they identify that same parent.
 

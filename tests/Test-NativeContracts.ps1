@@ -23,6 +23,12 @@ $scenario=@{id=$scenarioId;properties=@{actions=@(@{
 })}}
 $configuration=@{id="$scenarioId/configurations/exact";properties=@{scenarioId=$scenarioId;resourceTargeting=@{include=@{resources=@($appId)}}}}
 Assert-LabNativeConfiguration $configuration $scenario $appId instance instance-a
+$namedParameters=$scenario.properties.actions[0].parameters
+$scenario.properties.actions[0].parameters=@($namedParameters|Where-Object key -ne ProcessName)
+Assert-LabNativeConfiguration $configuration $scenario $appId instance instance-a
+$scenario.properties.actions[0].parameters+=@(@{key='Unexpected';value='not-allowed'})
+Expect-Rejected { Assert-LabNativeConfiguration $configuration $scenario $appId instance instance-a }
+$scenario.properties.actions[0].parameters=$namedParameters
 $configuration.properties.scenarioId='instance'
 Assert-LabNativeConfiguration $configuration $scenario $appId instance instance-a
 if((Get-LabNativeScenarioId $configuration) -cne $scenarioId) { throw 'Provider short Scenario name was not resolved against its exact owned parent.' }

@@ -243,8 +243,11 @@ function Assert-LabNativeConfiguration {
             throw 'Native PostgreSQL forced-failover contract drifted.'
         }
     } else {
+        $expectedParameterCount=if($parameters.ContainsKey('ProcessName')) {3} else {2}
         if($actionUrn -cne 'urn:csci:microsoft:appservice:killprocess/1.0.0' -or
-            $parameters.Count -ne 3 -or $parameters['ProcessName'] -cne 'dotnet' -or
+            $parameters.Count -ne $expectedParameterCount -or
+            -not $parameters.ContainsKey('InstanceIds') -or -not $parameters.ContainsKey('Zones') -or
+            ($parameters.ContainsKey('ProcessName') -and $parameters['ProcessName'] -cne 'dotnet') -or
             [string]::IsNullOrWhiteSpace($Selector)) { throw 'Native Linux main-process Action contract drifted.' }
         $instances=ConvertFrom-Json -InputObject $parameters['InstanceIds'] -NoEnumerate
         $zones=ConvertFrom-Json -InputObject $parameters['Zones'] -NoEnumerate
