@@ -2,13 +2,15 @@
 
 The current target is a **private Linux Azure App Service application running across three observed availability zones**, backed by private Azure Database for PostgreSQL Flexible Server with zone-redundant HA.
 
-**Region policy:** The deployed workload uses **Spain Central / P1v3**, with six Linux workers and actual `maximumNumberOfZones: 3`. All six workers served successful health and authenticated checksum-verified business requests across `spaincentral-az1`, `spaincentral-az2` and `spaincentral-az3`. The single private runner/operations VNet/NAT/Bastion and modern **Chaos Workspace remain in Sweden Central**, using global VNet peering and documented cross-region native targeting. [D21](DECISIONS-ACCEPTED.md#d21-expanded-regional-qualification-and-cross-region-workspaces) records the selection. Preserve the current ownership/profile and finite exemption.
+**Region selection:** The deployed workload uses **Spain Central / P1v3**, with six Linux workers and actual `maximumNumberOfZones: 3`. All six workers served successful health and authenticated checksum-verified business requests across `spaincentral-az1`, `spaincentral-az2` and `spaincentral-az3`. The single private runner/operations VNet/NAT/Bastion and modern **Chaos Workspace remain in Sweden Central**, using global VNet peering and documented cross-region native targeting. [D21](DECISIONS-ACCEPTED.md#d21-expanded-regional-qualification-and-cross-region-workspaces) records the selection. Any region can be configured and live-qualified.
+
+**Current authorization:** [D22](DECISIONS-ACCEPTED.md#d22-autonomous-completion-and-withdrawn-operational-prohibitions) records autonomous completion without a cost ceiling, including the existing database start, necessary lab repairs, exemption maintenance and the full requested tests. Active project-level operational prohibitions and extra restart-approval requirements have been removed.
 
 **Execution status:** private infrastructure, runner installation, private SCM package publication, actual three-zone participation and deterministic native definitions were deployed and qualified individually. The five-minute warmup achieved 100% business success, p95 124 ms, zero errors/drops and 1,506 reconciled writes. An external principal then stopped PostgreSQL; the complete baseline and every required native test are **BLOCKED**. No fault, database restart or resource deletion was performed. See [current execution results](docs/app-service-results.md) for precise evidence boundaries and timings.
 
 The [foreground App Service preflight](scripts/Test-AppServicePreflight.ps1) is available for a new run's read-only qualification. Supply the approved `CSL_ENVIRONMENT_FILE`, a fresh `-StateDirectory` under ignored `.local` and `-PreviousManifestPath`. It preserves raw evidence and a new ownership manifest, enforces per-command deadlines and reports every requested test separately. It never deploys, executes faults or cleans up. Resume an existing live run with its current manifest; do not generate another ownership GUID or recreate its groups. See [current research](docs/research.md#fresh-foreground-catalog-qualification).
 
-[Build-Lab.ps1](scripts/Build-Lab.ps1) stages the early plan, private dependencies, single runner, checksummed private publication and definition-only `NativeScenarios` overlay behind separate validation gates. [Test-Lab.ps1](scripts/Test-Lab.ps1) selects one test, requires healthy private PostgreSQL and a successful baseline before injection, and records explicit per-test verdicts. Native effect/recovery/overlap and complete-history retention logic passes local fixtures; live fault qualification remains pending. The previous unattended cycle, controller, Suspend/Resume and Destroy entrypoints fail immediately.
+[Build-Lab.ps1](scripts/Build-Lab.ps1) stages the early plan, private dependencies, single runner, checksummed private publication and definition-only `NativeScenarios` overlay behind separate validation gates. [Test-Lab.ps1](scripts/Test-Lab.ps1) selects one test, requires healthy private PostgreSQL and a successful baseline before injection, and records explicit per-test verdicts. Native effect/recovery/overlap and complete-history retention logic passes local fixtures; live fault qualification remains pending. Obsolete cycle/controller/lifecycle entrypoints have been removed.
 
 ## Required architecture
 
@@ -18,25 +20,26 @@ The [foreground App Service preflight](scripts/Test-AppServicePreflight.ps1) is 
 - Private DNS for application, SCM/Kudu publication, PostgreSQL and required supporting services; public application/database data-plane access disabled.
 - Retained PostgreSQL HA with primary and standby in distinct zones.
 - One private runner for publication, database bootstrap, migration and optional measurement; retain the proven management connectivity initially.
-- Deployment orchestration from the PC with visible progress and local logs. Tests start explicitly; the operator manually deletes the dedicated groups.
+- Deployment orchestration from the PC with visible progress and local logs, executing the requested suite and leaving the final environment available for subsequent operator teardown.
 - Modern Chaos Studio **Workspaces, Scenarios and Actions**, using native App Service process-crash and PostgreSQL failover Actions after their exact regional contracts are verified.
 
 The refactor removes Container Apps, its Dedicated workload profile/image-pull path, Automation Account, two Hybrid Workers, lifecycle control storage and automatic suspension/deletion. The new design has no independent expiry enforcement when the PC disconnects.
 
 Zone-selected process crashes and a correlated infrastructure-zone outage require separate evidence and verdicts. The earlier database recovery measurement supplies no App Service or three-zone application qualification.
 
-Linux is the selected baseline. Qualify native Action support on Linux and record unsupported tests explicitly. The [OS compatibility comparison](docs/research.md#linux-baseline-and-windows-test-coverage) distinguishes a documented Windows-only template from unverified Linux Action eligibility. Do not switch to Windows automatically.
+Linux is the selected baseline. Qualify native Action support on Linux and record unsupported tests explicitly. The [OS compatibility comparison](docs/research.md#linux-baseline-and-windows-test-coverage) distinguishes a documented Windows-only template from unverified Linux Action eligibility.
 
 ## Current documents
 
 - [Implementation specification](docs/specification.md): authoritative requirements, three-zone acceptance, private paths, native faults and local/manual workflow.
 - [Accepted decisions D17-D19](DECISIONS-ACCEPTED.md#d17-private-azure-app-service-across-three-zones): controlling corrections to the previous design.
+- [Implementation contracts](docs/implementation-contracts.md): current operating authorization, deployed architecture and measurable native-test contracts.
 - [Development readiness](docs/development-readiness.md): defined contracts and pending App Service implementation/qualification.
 - [App Service execution results](docs/app-service-results.md): deployed capabilities, warmup measurements, external database stop and separate suite verdicts.
 - [Platform research](docs/research.md#current-app-service-facts-three-zone-and-native-fault-gates): official App Service placement and modern Chaos references.
 - [Historical execution results](docs/first-cycle-results.md): measured Container Apps/PostgreSQL results, incomplete application test coverage, troubleshooting and cleanup limitations.
 
-The [earlier architecture guide](docs/architecture-guide.md), [implementation contracts](docs/implementation-contracts.md) and [autonomous cycle method](docs/lab-cycle-method.md) remain historical. The [diagram index](docs/diagrams/README.md) separates the current target/evidence diagrams from the historical Container Apps/Automation drawings.
+The [earlier architecture guide](docs/architecture-guide.md) and [autonomous cycle method](docs/lab-cycle-method.md) remain historical. The [diagram index](docs/diagrams/README.md) separates the current target/evidence diagrams from the historical Container Apps/Automation drawings.
 
 ## Git and private context
 

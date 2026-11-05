@@ -1,10 +1,10 @@
 # Historical autonomous Container Apps lab cycle method
 
-> **Historical replay procedure; automatic lifecycle superseded.** The current [App Service specification](specification.md) requires deployment from the PC, explicit operator-started Chaos tests and manual resource-group deletion. Do not run the old unattended cycle, controller or automatic-cleanup commands as the new workflow. It retains a private App Service ingress endpoint, outbound VNet Integration, PostgreSQL HA and three observed application zones. The earlier command sequence below is preserved as troubleshooting history.
+> **Archived Container Apps procedure.** The commands and operating scope below belong to retired source recoverable from Git. The active [implementation contracts](implementation-contracts.md) and [D22 authorization](../DECISIONS-ACCEPTED.md#d22-autonomous-completion-and-withdrawn-operational-prohibitions) govern autonomous completion of the deployed private App Service/native suite. This archive supplies troubleshooting history.
 
 ## Ownership and execution boundary
 
-Use the admin Azure CLI profile specified by the operator. The scripts reject any subscription, tenant, identity, lab ID, or resource-group ID that differs from the approved configuration. They never perform PIM, change inherited policy definitions/assignments, request quota increases, or configure existing shared resources. The operator explicitly authorized creation, testing, and destruction of the isolated lab, then separately approved the narrow temporary exemption described below. Price and budget queries are excluded from this run.
+The earlier run used the operator-selected admin Azure CLI profile and exact ownership checks. Its observed operations covered the isolated lab and temporary exemption described below. Historical execution scope is recorded here; current operating authorization is D22.
 
 Load the approved identity, CLI directory and exact group names from ignored `.local/environment.json`, copied from `config/environment.example.json`. Use `CSL_ENVIRONMENT_FILE` for an alternative private context path. Keep execution plans/validation state in ignored `.azure/` and raw evidence in `.local/`; public reports contain sanitized outcomes only. Run `tests/Test-Publication.ps1` before publishing.
 

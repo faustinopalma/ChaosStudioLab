@@ -48,12 +48,12 @@
     <text x="75" y="60" class="title">Private Linux App Service resilience lab</text>
     <text x="75" y="88" class="small">Spain Central workload | Sweden Central management/Chaos | six workers / three zones verified; suite blocked by external DB stop</text>
     <text x="75" y="165" class="heading">Operator PC</text>
-    <text x="75" y="195">Approved CLI / explicit stages</text>
-    <text x="75" y="220" class="small">Visible logs; manual group deletion</text>
+    <text x="75" y="195">Approved CLI / authorized stages</text>
+    <text x="75" y="220" class="small">Visible logs; lab retained after tests</text>
     <text x="75" y="325" class="heading">Modern Chaos Studio</text>
     <text x="75" y="355">Workspace: Sweden Central</text>
     <text x="75" y="385" class="small">Native process crash + DB failover</text>
-    <text x="75" y="415" class="small">Exact owned targets; explicit starts</text>
+    <text x="75" y="415" class="small">Exact owned targets; requested suite</text>
     <text x="500" y="170" class="heading">Managed Linux Web App / Premium plan - six fixed workers</text>
     <text x="500" y="195" class="small">Actual plan: reserved=true, zoneRedundant=true, maximumNumberOfZones &gt;= 3, perSiteScaling=false</text>
     <text x="520" y="245">spaincentral-az1</text><text x="870" y="245">spaincentral-az2</text><text x="1220" y="245">spaincentral-az3</text>

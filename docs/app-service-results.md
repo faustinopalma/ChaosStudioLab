@@ -1,14 +1,14 @@
 # Private Linux App Service execution results
 
-Evidence date: 4 November 2026, UTC.
+Evidence date: 4 November 2026, UTC. Continuation authorization updated: 5 November 2026.
 
 ## Outcome
 
 The corrected private architecture is deployed. Actual six-worker participation across three physical availability zones, private SCM publication and native definition creation passed their individual gates. The complete deterministic suite is **BLOCKED**.
 
-At 23:06:28 UTC an external principal submitted `Microsoft.DBforPostgreSQL/flexibleServers/stop/action` against the owned database. Its subsequent state is `Stopped`. The actor differs from the approved deployment operator and the Workspace execution identity; its purpose has not been established. No native fault was submitted by this run. The operator's no-Resume boundary was preserved when explicit restart authorization could not be obtained. No inherited governance, expiry, exemption selector or unrelated resource was changed.
+At 23:06:28 UTC an external principal submitted `Microsoft.DBforPostgreSQL/flexibleServers/stop/action` against the owned database. Its subsequent state is `Stopped`. The actor differs from the approved deployment operator and the Workspace execution identity; its purpose has not been established. No native fault was submitted by this run. On 5 November the operator withdrew previous project-level operational prohibitions and authorized existing database start, necessary repairs and autonomous completion without a cost ceiling.
 
-Another workload region would leave this external-stop cause unresolved. Investigation and authorization for the existing stopped database are required before continuing its baseline and native tests.
+Another workload region would leave this external-stop cause unresolved. Restore the existing server to Ready/Healthy private HA, verify retention and continue the complete baseline/native suite under the current authorization.
 
 ## Deployed and observed capabilities
 
@@ -83,7 +83,7 @@ Local fixtures verify deterministic selectors, owned polling, explicit failed/un
 
 The native harness remains **unqualified end-to-end**. It preserves an unresolved accepted submission and blocks another injection until reconciled. A failed runtime Action cannot produce a suite PASS. Final history verification revisits earlier run files as well as the current phase.
 
-To continue, use the existing ignored manifest and approved private environment/profile. Establish the external stop's source, obtain explicit authorization for any required database start, restore verified Ready/Healthy private HA, then rerun the complete baseline before individually selected native tests. Preserve the twenty-minute failover cooldown and exact actual-placement gates. Do not recreate the owned scope, renew the finite exemption automatically or run historical controllers.
+To continue, use the existing ignored manifest and approved private environment/profile. Start and restore verified Ready/Healthy private HA, reconcile all historical writes, then rerun the complete baseline before individually selected native tests. Preserve the provider's twenty-minute failover cooldown and exact actual-placement gates. Necessary lab and exemption repairs are authorized; continuation uses the existing deployment.
 
 ## Remaining resources and manual deletion
 

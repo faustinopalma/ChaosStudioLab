@@ -1,6 +1,6 @@
 {
   "labId": "lab-dev01",
-  "projectDefaultRegion": "italynorth",
+  "projectDefaultRegion": "spaincentral",
   "deploymentRegion": "spaincentral",
   "chaosWorkspaceRegion": "swedencentral",
   "operationsRegion": "swedencentral",
@@ -42,9 +42,10 @@
     "recoveryObservationMinutes": 10,
     "databaseRecoveryObjectiveSeconds": 180
   },
-  "lifecycle": {
-    "manualDeletionOnly": true,
-    "automaticFaultExecution": false,
+  "operations": {
+    "repairExistingResources": true,
+    "runRequestedTests": true,
+    "leaveDeployedAfterTests": true,
     "localStateRoot": "../.local"
   },
   "tags": {

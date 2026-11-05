@@ -76,10 +76,16 @@ try {
     $script:potentialChanges = @(@{resourceId=$script:previewChanges[0].resourceId})
     Expect-Rejected { Invoke-LabDeployment $m $temp $script:LabGroups[0] $name 'unused.bicep' @{} }
     $script:potentialChanges = @()
+    $ownedId = $script:previewChanges[0].resourceId
+    $m.resourceIds = @($ownedId)
     $script:previewChanges[0].changeType = 'Delete'
-    Expect-Rejected { Invoke-LabDeployment $m $temp $script:LabGroups[0] $name 'unused.bicep' @{} }
+    Invoke-LabDeployment $m $temp $script:LabGroups[0] $name 'unused.bicep' @{} | Out-Null
+    $m.resourceIds = @($ownedId)
     $script:previewChanges[0].changeType = 'Modify'
+    Invoke-LabDeployment $m $temp $script:LabGroups[0] $name 'unused.bicep' @{} | Out-Null
+    $script:previewChanges[0].resourceId += '-unrecorded'
     Expect-Rejected { Invoke-LabDeployment $m $temp $script:LabGroups[0] $name 'unused.bicep' @{} }
+    $script:previewChanges[0].resourceId = $ownedId
     $script:previewChanges[0].changeType = 'Unsupported'
     Expect-Rejected { Invoke-LabDeployment $m $temp $script:LabGroups[0] $name 'unused.bicep' @{} }
     $publicIpId = "/subscriptions/$script:LabSubscription/resourceGroups/$($script:LabGroups[0])/providers/Microsoft.Network/publicIPAddresses/pip-csl-hub-firewall"
@@ -93,8 +99,8 @@ try {
             }
         }
     })
-    Expect-Rejected { Invoke-LabDeployment $m $temp $script:LabGroups[0] $name 'unused.bicep' @{} }
-    if ($script:deployCalls -ne 2) { throw 'A forbidden preview reached deployment.' }
+    Invoke-LabDeployment $m $temp $script:LabGroups[0] $name 'unused.bicep' @{} | Out-Null
+    if ($script:deployCalls -ne 5) { throw 'Owned changes or platform-evaluated IP tags were incorrectly blocked.' }
     $publicIp = $script:previewChanges[0]
     $publicIp.after.properties.Remove('ipTags')
     Assert-LabPublicIpChanges @($publicIp)
@@ -108,13 +114,13 @@ try {
     Expect-Rejected { Assert-LabPublicIpChanges @($publicIp) }
     $publicIp.after = $validPayload
     foreach ($property in @('publicIPPrefix', 'customIPPrefix', 'ipAddress')) {
-        $publicIp.after.properties[$property] = 'forbidden'
-        Expect-Rejected { Assert-LabPublicIpChanges @($publicIp) }
+        $publicIp.after.properties[$property] = 'platform-validated'
+        Assert-LabPublicIpChanges @($publicIp)
         $publicIp.after.properties.Remove($property)
     }
     foreach ($prefixType in @('publicIPPrefixes', 'customIPPrefixes')) {
         $publicIp.resourceId = $publicIpId.Replace('publicIPAddresses', $prefixType)
-        Expect-Rejected { Assert-LabPublicIpChanges @($publicIp) }
+        Assert-LabPublicIpChanges @($publicIp)
     }
     $publicIp.resourceId = $publicIpId
     $publicIp.after.sku.name = 'Basic'
@@ -131,7 +137,7 @@ try {
     $publicIp.after.properties.ipAddress = '192.0.2.1'
     Assert-LabPublicIpChanges @($publicIp)
     $publicIp.after.properties.ipAddress = '192.0.2.2'
-    Expect-Rejected { Assert-LabPublicIpChanges @($publicIp) }
+    Assert-LabPublicIpChanges @($publicIp)
     $script:exemptionId = "$($m.groups[0].id)/providers/Microsoft.Authorization/policyExemptions/csl-test"
     function Invoke-LabAz([string[]] $Arguments) {
         if ($Arguments[0] -eq 'group' -and $Arguments[1] -eq 'exists') {
@@ -161,7 +167,7 @@ try {
     Expect-Rejected { Get-LabInventory $m }
     Remove-Item -LiteralPath (Join-Path (Split-Path $temp -Parent) "$name.what-if.json")
     Remove-Item -LiteralPath (Join-Path (Split-Path $temp -Parent) "$name.deployment.json")
-    Write-Output 'Ownership, exact-scope previews, and BYOIP-free public-IP contract tests passed.'
+    Write-Output 'Ownership, exact-scope previews, owned repairs and platform-evaluated public-IP payload tests passed.'
 } finally {
     Remove-Item -LiteralPath $temp -ErrorAction SilentlyContinue
     Remove-Item -LiteralPath $fixturePath

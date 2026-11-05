@@ -1,6 +1,8 @@
 # Development readiness assessment
 
-Assessment updated: 4 November 2026.
+Assessment updated: 5 November 2026.
+
+[D22](../DECISIONS-ACCEPTED.md#d22-autonomous-completion-and-withdrawn-operational-prohibitions) authorizes autonomous continuation without a cost ceiling, including the existing database start, necessary repairs, exemption maintenance and the requested suite. Historical operator-permission restrictions are superseded.
 
 ## Current App Service readiness
 
@@ -16,7 +18,7 @@ The [current specification](specification.md) and [D17-D19](../DECISIONS-ACCEPTE
 | Regional selection and allocation | Following D21's expanded search, Spain Central / P1v3 passes unchanged six-worker Linux AZ ARM validation and PostgreSQL HA eligibility. Keep the native Workspace in Sweden Central using documented cross-region targeting; preserve current group metadata/ownership and finite exemption. |
 | Fresh App Service deployment and qualification | Private SCM publication and all six application workers passed real health/business/checksum participation across three physical zones. PostgreSQL was Ready/Healthy with primary/standby in distinct zones before an external stop. The managed database is now Stopped; required readiness guards block further measurement/injection. |
 
-No downgrade to two zones is approved. A compatible region alone does not establish a three-zone App Service scale unit or actual application placement. Resolve the platform prerequisites before expensive bootstrap, and stop readiness explicitly when evidence is missing.
+A compatible region alone does not establish a three-zone App Service scale unit or actual application placement. Resolve the platform prerequisites before dependent bootstrap and report missing evidence explicitly.
 
 Use [Test-AppServicePreflight.ps1](../scripts/Test-AppServicePreflight.ps1) with the explicitly selected private environment, a new ignored state directory and the prior manifest path. It checks the approved CLI identity, exact old-group absence, a fresh resource baseline, PostgreSQL HA eligibility, native Action schemas, Linux runtime and required exemptions. It preserves old evidence and stops explicitly on unmet gates. A preflight PASS covers these read-only prerequisites; deployment readiness additionally requires the source refactor, local/ARM validation, exact-owned previews and actual private three-zone application evidence.
 
@@ -24,7 +26,7 @@ The missing exemption was resolved through explicit operator authorization. Its 
 
 BASE-001, HA-APP-001, HA-APP-ZONE-001, HA-DB-001 and HA-COMBINED-001 each remain BLOCKED by the externally stopped database and incomplete baseline. HA-AZ-001 additionally requires genuine correlated infrastructure-zone evidence. The real five-minute warmup passed: 6,001 business operations, 300 canary ticks, 100% success, p95 124 ms, no drops, and 1,506 issued writes reconciled. The first collection attempt failed on Bastion transport; evidence and durability were recovered in place. See [current execution results](app-service-results.md). These observations establish no native fault/recovery or full-baseline PASS.
 
-Linux remains the deployment baseline. The [OS comparison](research.md#linux-baseline-and-windows-test-coverage) records documented Windows advantages and unresolved Linux Action support. Blocked application/combined coverage prevents a complete-suite PASS; it does not authorize a Windows switch.
+Linux remains the deployment baseline. The [OS comparison](research.md#linux-baseline-and-windows-test-coverage) records documented Windows advantages and unresolved Linux Action support. Blocked application/combined coverage prevents a complete-suite PASS.
 
 ## Historical Container Apps assessment
 

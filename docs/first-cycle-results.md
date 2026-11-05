@@ -2,6 +2,8 @@
 
 Date: 4 November 2026. All execution timestamps below are UTC.
 
+This archived Container Apps result records the earlier run's actions and scope. Current operating authorization is [D22](../DECISIONS-ACCEPTED.md#d22-autonomous-completion-and-withdrawn-operational-prohibitions), with active [implementation contracts](implementation-contracts.md).
+
 This report starts with the latest measured results, followed by the chronological original failures and their corrections. Environment identifiers and full raw evidence remain in ignored local files.
 
 **Platform and coverage boundary:** this report records the earlier **Container Apps/PostgreSQL** cycle. Native App Service faults, application placement across three observed zones, the planned application-capacity test and the combined test were not qualified. The [current App Service specification](specification.md) supplies their new requirements. Final group deletion was handed to the operator; no independent final cleanup or purge certification is claimed here.

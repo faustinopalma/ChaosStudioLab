@@ -1,8 +1,10 @@
 # Implementation specification
 
-Updated: 4 November 2026.
+Updated: 5 November 2026.
 
-**Current target: private Linux Azure App Service deployed across three observed availability zones, with private PostgreSQL HA and operator-driven deployment.** The candidate private App Service source topology compiles; live workload deployment and native test qualification remain blocked. This specification supplies no App Service deployment or test verdict.
+**Current target: private Linux Azure App Service deployed across three observed availability zones, with private PostgreSQL HA and PC-driven execution.** The private architecture is deployed and six-worker/three-zone participation is verified. Full baseline and native-effect qualification remain unfinished; actual results are recorded separately.
+
+[D22](../DECISIONS-ACCEPTED.md#d22-autonomous-completion-and-withdrawn-operational-prohibitions) records the operator's withdrawal of previous project-level operational prohibitions and autonomous completion without a cost ceiling. Existing database start, necessary lab repairs, exemption maintenance, regional alternatives and the complete requested suite are authorized.
 
 Apply [D17-D19](../DECISIONS-ACCEPTED.md#d17-private-azure-app-service-across-three-zones) over the superseded Container Apps and automatic-lifecycle decisions. The previous specification, implementation and diagrams are recoverable from Git tag `baseline-before-app-service-refactor`.
 
@@ -14,16 +16,16 @@ Use the native Chaos Studio experience to measure application availability, surv
 
 | ID | Requirement |
 | --- | --- |
-| R1 | Host the application on Linux Azure App Service, using a Web App and an App Service Plan. Qualify native Action/runtime support and document any evidenced Windows coverage advantage. Keep Linux unless the operator explicitly changes that decision. |
+| R1 | Host the operator-selected Linux baseline on Azure App Service, using a Web App and an App Service Plan. Qualify native Action/runtime support and document any evidenced Windows coverage advantage. |
 | R2 | Retain Azure Database for PostgreSQL Flexible Server with managed zone-redundant HA and distinct primary/standby zones. |
 | R3 | Run the application across **three distinct observed physical availability zones** in one region. Verify the actual application's instance placement and health. A regional zone count, a plan capability or a configured worker count alone cannot close this requirement. |
 | R4 | Provide both App Service VNet Integration for outbound private dependency access and an App Service Private Endpoint for inbound private HTTPS. Disable public data-plane access to the application and database. |
 | R5 | Use Chaos Studio **Workspaces, Scenarios and Actions**. Avoid Experiments classic. Verify the regional Action catalog and preview contract before provisioning dependent resources. |
 | R6 | Run deployment orchestration from the operator's PC, with visible step progress, bounded waits and local logs. Use the private runner for operations requiring private network access. |
-| R7 | Let the operator start Chaos tests explicitly and delete the dedicated resource groups manually. Deployment must never automatically execute faults or delete resources after success, failure, cancellation or session loss. |
+| R7 | Execute the complete requested suite under the current operator authorization, report each verdict and leave the final environment available for subsequent operator teardown. |
 | R8 | Remove the Automation Account, Hybrid Workers, two lifecycle-worker VMs, lifecycle control store, automatic suspension, Suspend/Resume workflow and random-chaos scheduler from the active architecture. |
 | R9 | Retain authenticated access, managed identities, TLS validation, private DNS, NSGs, exact ownership boundaries and independently collected raw measurements. |
-| R10 | Exclude Azure Firewall, BYOIP, public IP prefixes, supplied public addresses, public-IP `ipTags` and feature registration. Retain operations NAT/Bastion only for the required private management path. |
+| R10 | Provide the required private management path through operations NAT/Bastion. Qualify effective network payloads and policy responses against the deployed topology. |
 | R11 | Preserve unrelated subscription resources. Keep real environment identifiers, authentication state and raw evidence in ignored local paths. |
 
 Three application zones and PostgreSQL HA are separate placement contracts. PostgreSQL retains its service-managed primary/standby topology; record the service-managed WAL role separately where observable.
@@ -69,7 +71,7 @@ GET https://management.azure.com/subscriptions/{subscriptionId}/resourceGroups/{
 
 Keep actual identifiers and responses in ignored local evidence. Bicep configuration alone cannot supply this runtime inventory.
 
-If the plan supports only two zones, zone values are missing, or the app is observed in fewer than three zones, stop readiness and report the unmet gate explicitly. Preserve the owned resources for diagnosis. Do not silently accept two zones, guess placement, change region or claim successful three-zone deployment.
+If the plan supports only two zones, zone values are missing, or the app is observed in fewer than three zones, report the unmet gate explicitly. Preserve the owned resources for diagnosis or select and qualify another capable region. Successful three-zone deployment requires actual evidence.
 
 ### Private networking and management
 
@@ -149,13 +151,13 @@ The Action catalog lists Kill process, Restart and instance/zone selectors. The 
 
 For each application test, record the OS/runtime, Action/schema, selector, eligibility evidence, actual effect and verdict. If Linux is unsupported, report BLOCKED with the exact source/provider reason and document whether Windows has a supported equivalent. An absent Linux support statement alone establishes an unqualified capability; it does not prove a Windows-only Action.
 
-Keep the lab on Linux. Do not silently substitute Windows, classic Experiments, custom Automation runbooks or a manually simulated fault. Report supported-test results individually and state that the full suite remains incomplete if a required application or combined test is blocked.
+Test the selected Linux/native implementation and report supported-test results individually. A required application or combined test that lacks qualifying evidence leaves the full suite incomplete. Any changed implementation is recorded and requalified against the requested test semantics.
 
 A zone-selected process crash exercises application failure effects on those instances. It does not establish a sustained infrastructure-zone outage. The former five-minute Container Apps readiness-withdrawal adapter is superseded; no custom runbook or new application fault-control route is required by this initial native-Action design.
 
 Use the exact PostgreSQL target, forced failover, no automatic failback and no skipped ineligible servers. Resolve serialized values and canonical identifiers from the pinned regional schema. Require at least twenty minutes between failovers and a Healthy standby.
 
-Give the Workspace discovery identity Reader only on the owned discovery scope, and execution permissions only on its exact application/database targets. Never target DNS, networking, runners, identities, monitoring or unrelated resources.
+Give the Workspace discovery identity Reader on the owned discovery scope and execution permissions on its exact application/database targets. The deterministic suite records those exact targets.
 
 ## 5. Workload, procedure, and measurements
 
@@ -163,7 +165,7 @@ Preserve the open-arrival-rate k6 workload: twenty business operations per secon
 
 1. Run explicit preflight: private DNS, application and SCM access, authentication, three-zone placement, database HA, capacity, monitoring and exact fault targets.
 2. Warm up for five minutes and establish a ten-minute baseline. A failed baseline prevents injection.
-3. Start the selected Scenario only on an explicit operator action. Save request, acceptance and observed-effect timestamps separately.
+3. Start the selected Scenario under the current suite authorization. Save request, acceptance and observed-effect timestamps separately.
 4. Measure native process crashes as discrete events. For app-only faults, record at least five minutes of post-effect observation; this replaces the previous five-minute held-readiness fault.
 5. Observe database or combined recovery for at least ten minutes after injection, extending observation to obtain a continuous five-minute stable post-fault period.
 6. Re-read all unique issued writes, resolve uncertain outcomes, verify acknowledged-write checksums and recapture app placement/database HA.
@@ -236,10 +238,10 @@ The old Destroy, Suspend/Resume, automatic-cycle and controller contracts are su
 
 1. Complete documentation correction; distinguish current requirements from historical Container Apps evidence.
 2. Refactor source and regression tests without deploying the old architecture.
-3. Verify current App Service native Actions, Linux runtime/selector support, plan/scale-unit three-zone capability, private SCM publication, VNet Integration and PostgreSQL HA eligibility. Document Windows alternatives without an automatic OS switch.
-4. Compile/validate Bicep and inspect exact-owned effective previews. Preserve governance guards and manual missing/expired-exemption guidance.
+3. Verify current App Service native Actions, Linux runtime/selector support, plan/scale-unit three-zone capability, private SCM publication, VNet Integration and PostgreSQL HA eligibility. Document evidenced Windows alternatives.
+4. Compile/validate Bicep and inspect exact-owned effective previews. Verify required exemptions and repair absence/expiry before continuing.
 5. Deploy only after the agreed implementation scope is ready. Require three-zone runtime evidence and both private network paths before readiness.
-6. Let the operator explicitly run each Chaos Scenario. Report every acceptance gate independently.
+6. Execute each requested Chaos Scenario under the current authorization. Report every acceptance gate independently.
 
 The previous cycle's 38.624-second recovery and 3,558 retained acknowledged writes describe the earlier Container Apps/PostgreSQL run. They supply no App Service or three-zone application qualification. Its final manual group deletion remains operator-verified.
 
@@ -247,7 +249,7 @@ The previous cycle's 38.624-second recovery and 3,558 retained acknowledged writ
 
 Keep subscription/tenant IDs, real group names, accounts, authentication paths, policy details, secrets and raw evidence out of publishable sources. Use ignored local configuration and run the publication guard before commits or publication.
 
-Preserve exact ownership and unrelated resources. No PIM, price/budget queries, broad exemption, feature registration, background environment monitoring or automatic deletion is included in this documentation correction.
+Preserve exact ownership, unrelated resources and independently verified Azure authentication/authorization, effective policy, platform capabilities and evidence. Current operating authorization is defined in [implementation contracts](implementation-contracts.md).
 
 The [earlier architecture guide and diagrams](architecture-guide.md) describe the superseded Container Apps/controller design until explicitly redrawn. The current specification and D17-D19 control the App Service refactor.
 

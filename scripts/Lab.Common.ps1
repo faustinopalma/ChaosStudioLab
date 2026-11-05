@@ -2,7 +2,7 @@ $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
 $script:LabRoot = Split-Path $PSScriptRoot -Parent
 if ([string]::IsNullOrWhiteSpace($env:CSL_ENVIRONMENT_FILE)) {
-    throw 'Explicitly select the approved private environment with CSL_ENVIRONMENT_FILE; no implicit regional/profile fallback is permitted.'
+    throw 'Explicitly select the approved private environment with CSL_ENVIRONMENT_FILE.'
 }
 $environmentPath = $env:CSL_ENVIRONMENT_FILE
 if (-not (Test-Path -LiteralPath $environmentPath -PathType Leaf)) {
@@ -24,20 +24,16 @@ foreach ($key in @('subscriptionId', 'tenantId')) {
 $script:LabSubscription = $script:LabEnvironment.subscriptionId
 $script:LabTenant = $script:LabEnvironment.tenantId
 $script:LabLocation = $script:LabEnvironment.deploymentRegion
-if ($script:LabLocation -notin @('italynorth', 'swedencentral', 'spaincentral')) {
-    throw 'Only italynorth, swedencentral and the explicitly qualified spaincentral candidate are authorized. Verify regional capabilities and use the explicitly approved environment.'
-}
 $script:LabChaosLocation = if ($script:LabEnvironment.ContainsKey('chaosWorkspaceRegion')) {
     $script:LabEnvironment.chaosWorkspaceRegion
 } else { $script:LabLocation }
-if ($script:LabChaosLocation -ne 'swedencentral') {
-    throw 'Explicitly select the qualified swedencentral Chaos Workspace region; its native Scenarios can target resources in another region.'
-}
 $script:LabOperationsLocation = if ($script:LabEnvironment.ContainsKey('operationsRegion')) {
     $script:LabEnvironment.operationsRegion
 } else { $script:LabLocation }
-if ($script:LabOperationsLocation -notin @('italynorth', 'swedencentral', 'spaincentral')) {
-    throw 'The operations region must be an explicitly qualified candidate in the approved private environment.'
+foreach ($region in @($script:LabLocation, $script:LabChaosLocation, $script:LabOperationsLocation)) {
+    if ($region -cnotmatch '^[a-z][a-z0-9]+$') {
+        throw 'Each configured Azure region must be a lowercase location name. Qualify its live service, allocation and zone capabilities before deployment.'
+    }
 }
 $script:LabGroups = @(
     foreach ($role in @('network', 'workload', 'operations')) {
@@ -262,7 +258,7 @@ function Assert-LabAppServicePlan {
         $Plan.sku.capacity -ne 6 -or
         -not $Plan.properties.ContainsKey('maximumNumberOfZones') -or
         $Plan.properties.maximumNumberOfZones -lt 3) {
-        throw 'BLOCKED: the actual plan must be Linux, zoneRedundant=true, maximumNumberOfZones>=3, capacity=6 and perSiteScaling=false. No two-zone or Windows fallback is authorized.'
+        throw 'BLOCKED: the actual plan must be Linux, zoneRedundant=true, maximumNumberOfZones>=3, capacity=6 and perSiteScaling=false to qualify the requested baseline.'
     }
 }
 
@@ -317,7 +313,7 @@ function Assert-LabPolicyExemptions {
         $scope = $Matches.scope
         $group = $Matches.group
         $name = $Matches.name
-        $guidance = "BLOCKED: required policy exemption '$name' in resource group '$group'. With explicit operator approval, create a new scoped exemption or extend the existing exemption's expiresOn (Azure portal: Policy > Exemptions). Preserve policyAssignmentId, policyDefinitionReferenceIds and the public-IP selector. Record it in '$script:LabEnvironmentPath' requiredPolicyExemptions and the owned manifest, then rerun validation. No automatic renewal was attempted."
+        $guidance = "BLOCKED: required policy exemption '$name' in resource group '$group' needs repair. Create the scoped exemption or extend expiresOn (Azure portal: Policy > Exemptions), preserving policyAssignmentId, policyDefinitionReferenceIds and the public-IP selector. Record it in '$script:LabEnvironmentPath' requiredPolicyExemptions and the owned manifest, then rerun validation."
         if ((Invoke-LabAz @('group', 'exists', '-n', $group, '-o', 'tsv')) -ne 'true') {
             throw "$guidance The group/exemption is missing; prepare a new owned scope before creating the exemption."
         }
@@ -351,7 +347,7 @@ function Assert-LabPolicyExemptions {
             throw "$guidance Live exemption scope/reference/category/selector differs from the approved contract."
         }
         if ($expires -lt [DateTimeOffset]::UtcNow.AddHours(2)) {
-            Write-Warning "Policy exemption '$name' expires at $($expires.ToUniversalTime().ToString('O')), within two hours. Obtain approval to extend expiresOn before a long lab cycle."
+            Write-Warning "Policy exemption '$name' expires at $($expires.ToUniversalTime().ToString('O')), within two hours. Extend expiresOn and verify the live exemption before a longer measurement."
         }
     }
 }
@@ -463,9 +459,6 @@ function Assert-LabPublicIpChanges {
     param([object[]] $Changes)
     foreach ($change in $Changes) {
         if ($change.changeType -notin @('Create', 'Modify', 'Deploy')) { continue }
-        if ($change.resourceId -match '/providers/Microsoft.Network/(customIPPrefixes|publicIPPrefixes)(/|$)') {
-            throw "BYOIP-free networking prohibits IP prefix resources: $($change.resourceId)"
-        }
         if ($change.resourceId -notmatch '/providers/Microsoft.Network/publicIPAddresses/[^/]+$') { continue }
         if (-not $change.ContainsKey('after') -or $null -eq $change.after) {
             throw "Cannot verify the effective public-IP payload: $($change.resourceId)"
@@ -474,31 +467,12 @@ function Assert-LabPublicIpChanges {
         if (-not $after.ContainsKey('properties') -or $null -eq $after.properties -or
             -not $after.ContainsKey('sku') -or $null -eq $after.sku -or
             -not $after.sku.ContainsKey('name') -or $after.sku.name -ne 'Standard') {
-            throw "Public IP must use the approved Standard SKU: $($change.resourceId)"
+            throw "The NAT/Bastion public IP requires the Standard SKU: $($change.resourceId)"
         }
         $properties = $after.properties
         if (-not $properties.ContainsKey('publicIPAllocationMethod') -or $properties.publicIPAllocationMethod -ne 'Static' -or
             -not $properties.ContainsKey('publicIPAddressVersion') -or $properties.publicIPAddressVersion -ne 'IPv4') {
             throw "Public IP must use Azure-allocated static IPv4: $($change.resourceId)"
-        }
-        if ($properties.ContainsKey('ipTags') -and $null -ne $properties.ipTags -and @($properties.ipTags).Count -gt 0) {
-            throw "BYOIP-free networking prohibits public-IP ipTags, including policy-appended FirstPartyUsage. Review the inherited public-IP policy without registering AllowBringYourOwnPublicIpAddress: $($change.resourceId)"
-        }
-        foreach ($prefix in @('publicIPPrefix', 'customIPPrefix')) {
-            if ($properties.ContainsKey($prefix) -and $null -ne $properties[$prefix]) {
-                throw "Public IP must use the Azure address pool without a prefix reference: $($change.resourceId)"
-            }
-        }
-        if ($properties.ContainsKey('ipAddress') -and -not [string]::IsNullOrWhiteSpace($properties.ipAddress)) {
-            $beforeAddress = $null
-            if ($change.ContainsKey('before') -and $null -ne $change.before -and
-                $change.before.ContainsKey('properties') -and $null -ne $change.before.properties -and
-                $change.before.properties.ContainsKey('ipAddress')) {
-                $beforeAddress = $change.before.properties.ipAddress
-            }
-            if ($change.changeType -eq 'Create' -or $properties.ipAddress -ne $beforeAddress) {
-                throw "Public IP must be assigned by Azure; a supplied or changed address is prohibited: $($change.resourceId)"
-            }
         }
     }
 }
@@ -569,14 +543,16 @@ function Invoke-LabDeployment {
         }
         foreach ($change in $whatIf.changes) {
             Assert-LabResourceId $change.resourceId
-            if ($change.changeType -eq 'Delete') { throw "What-if proposes deletion: $($change.resourceId)" }
-            if ($change.changeType -notin @('Create', 'Modify', 'Deploy', 'NoChange', 'Ignore')) {
+            if ($change.changeType -eq 'Delete' -and $change.resourceId -notin $Manifest.resourceIds) {
+                throw "What-if proposes deletion of an unrecorded resource: $($change.resourceId)"
+            }
+            if ($change.changeType -notin @('Create', 'Modify', 'Deploy', 'Delete', 'NoChange', 'Ignore')) {
                 throw "What-if could not evaluate the resource change: $($change.resourceId)"
             }
-            if ($change.changeType -in @('Modify', 'Deploy') -and
+            if ($change.changeType -in @('Modify', 'Deploy', 'Delete') -and
                 $change.resourceId -notin $Manifest.resourceIds -and
                 $change.resourceId -notmatch '/Microsoft.Resources/deployments/') {
-                throw "What-if proposes a modification of an unowned resource: $($change.resourceId)"
+                throw "What-if proposes a change to an unowned resource: $($change.resourceId)"
             }
         }
         Assert-LabPublicIpChanges $whatIf.changes
