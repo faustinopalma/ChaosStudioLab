@@ -7,6 +7,8 @@ param privateDnsZoneIds array
 param workloadAddressPrefix string
 param appServiceIntegrationSubnetPrefix string
 param privateEndpointsSubnetPrefix string
+@description('Separate outbound integration subnet for the Windows native process-crash comparison app.')
+param windowsAppServiceIntegrationSubnetPrefix string = '10.81.1.0/24'
 param deploymentInstanceId string
 param migrationPrincipalId string
 @secure()
@@ -47,6 +49,20 @@ resource workloadVnet 'Microsoft.Network/virtualNetworks@2024-05-01' = {
         name: 'app-service-integration'
         properties: {
           addressPrefix: appServiceIntegrationSubnetPrefix
+          delegations: [
+            {
+              name: 'app-service'
+              properties: {
+                serviceName: 'Microsoft.Web/serverFarms'
+              }
+            }
+          ]
+        }
+      }
+      {
+        name: 'app-service-integration-windows'
+        properties: {
+          addressPrefix: windowsAppServiceIntegrationSubnetPrefix
           delegations: [
             {
               name: 'app-service'

@@ -11,11 +11,17 @@ param deploymentInstanceId string
   'P2v3'
 ])
 param planSku string = 'P1v3'
+@description('Operating system of the six-worker plan. Windows exists because Linux App Service does not implement native process termination.')
+@allowed([
+  'linux'
+  'windows'
+])
+param platform string = 'linux'
 
 resource plan 'Microsoft.Web/serverfarms@2025-03-01' = {
-  name: 'asp-csl-linux-baseline'
+  name: 'asp-csl-${platform}-baseline'
   location: location
-  kind: 'linux'
+  kind: platform == 'linux' ? 'linux' : 'app'
   tags: {
     project: 'ChaosStudioLab'
     labId: 'lab-dev01'
@@ -29,7 +35,7 @@ resource plan 'Microsoft.Web/serverfarms@2025-03-01' = {
     capacity: 6
   }
   properties: {
-    reserved: true
+    reserved: platform == 'linux'
     zoneRedundant: true
     perSiteScaling: false
   }

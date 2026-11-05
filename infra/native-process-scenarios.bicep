@@ -10,6 +10,19 @@ param instanceId string
   '3'
 ])
 param logicalZone string
+@description('Linux scenarios name the dotnet worker. Windows omits ProcessName so the Action selects the documented main w3wp worker instead of the SCM w3wp.')
+@allowed([
+  'linux'
+  'windows'
+])
+param platform string = 'linux'
+
+var processNameParameters = platform == 'linux' ? [
+  {
+    key: 'ProcessName'
+    value: 'dotnet'
+  }
+] : []
 
 resource workspace 'Microsoft.Chaos/workspaces@2026-08-01-preview' existing = {
   name: workspaceName
@@ -17,12 +30,12 @@ resource workspace 'Microsoft.Chaos/workspaces@2026-08-01-preview' existing = {
 
 var selections = [
   {
-    name: 'linux-exact-instance-process-crash'
+    name: '${platform}-exact-instance-process-crash'
     instanceIds: [instanceId]
     zones: []
   }
   {
-    name: 'linux-verified-zone-process-crash'
+    name: '${platform}-verified-zone-process-crash'
     instanceIds: []
     zones: [logicalZone]
   }
@@ -32,19 +45,15 @@ resource scenarios 'Microsoft.Chaos/workspaces/scenarios@2026-08-01-preview' = [
   parent: workspace
   name: selection.name
   properties: {
-    description: 'Operator-selected native discrete Linux process crash; independent instance/process evidence is required.'
+    description: 'Operator-selected native discrete ${platform} process crash; independent instance/process evidence is required.'
     parameters: []
     actions: [
       {
         name: 'native-main-process-crash'
         actionId: 'urn:csci:microsoft:appservice:killprocess/1.0.0'
-        description: 'Kill the main Linux worker process using an explicit instance or verified logical-zone selector.'
+        description: 'Kill the main ${platform} worker process using an explicit instance or verified logical-zone selector.'
         duration: 'PT1M'
-        parameters: [
-          {
-            key: 'ProcessName'
-            value: 'dotnet'
-          }
+        parameters: concat(processNameParameters, [
           {
             key: 'InstanceIds'
             value: string(selection.instanceIds)
@@ -53,7 +62,7 @@ resource scenarios 'Microsoft.Chaos/workspaces/scenarios@2026-08-01-preview' = [
             key: 'Zones'
             value: string(selection.zones)
           }
-        ]
+        ])
       }
     ]
   }
@@ -77,3 +86,4 @@ output instanceConfigurationId string = configurations[0].id
 output zoneConfigurationId string = configurations[1].id
 output selectedInstanceId string = instanceId
 output selectedLogicalZone string = logicalZone
+output platform string = platform
