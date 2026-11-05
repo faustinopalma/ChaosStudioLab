@@ -1,8 +1,16 @@
 # Private Linux App Service execution results
 
-Evidence date: 5 November 2026, UTC. Measurements, complete-history reconciliation and the eight-region Workspace comparison have finished.
+Evidence date: 5 November 2026, UTC. Earlier measurements, complete-history reconciliation and the eight-region Workspace comparison are preserved below.
 
-## Outcome
+## Repaired Linux runtime qualification
+
+The same business sources and dependency versions on Linux `DOTNETCORE|9.0` restored ARM process listing (HTTP200) and both exact-instance and verified-zone native validation at approximately11:42UTC. Actual main runtime9.0.22, stable monitor9.0.6, six authenticated business/health participants and three physical zones are independently verified. Earlier .NET10 used monitor10.0.0-rc.1 and returned SCM/ARM409 plus native internal error-1; a monitor opt-in flag, operational restart and omitted optional ProcessName each failed to repair it. The exact platform implementation defect remains unproven.
+
+The publication CLI reported startup-tracking failure. Successful completed SCM deployment(status4), the exact active ZIP checksum and independent private runtime/business/health evidence establish successful publication separately; the original tracker failure remains recorded. The [runtime investigation](research.md#current-app-service-facts-three-zone-and-native-fault-gates) contains the detailed evidence boundary.
+
+Runtime9 is catalogued `Near`, ending **10 November 2026**. The source selects this bounded laboratory runtime and every measurement enforces future support expiry and actual configuration. Earlier baseline validity was explicitly invalidated. A fresh repaired-package baseline started11:55UTC; actual crash and combined measurements must independently qualify their effects. No diagnostic restart/publication is counted as a Chaos injection.
+
+## Earlier completed outcome
 
 The corrected private Linux architecture and complete **BASE-001 are PASS**. Six actual workers participated across three physical zones before and after the baseline. Required application/combined coverage is **BLOCKED** by actual native provider target-validation failures, so the complete suite has no PASS.
 

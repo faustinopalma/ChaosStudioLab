@@ -179,12 +179,7 @@ function Invoke-AppServicePreflight {
             $runtimes = @(Invoke-PreflightAz @('webapp', 'list-runtimes', '--os', 'linux', '-o', 'json') |
                 ConvertFrom-Json -AsHashtable)
             Write-LabJson (Join-Path $root 'linux-runtimes.json') $runtimes
-            $qualified = @($runtimes | Where-Object {
-                ($_ -is [string] -and $_ -in @('DOTNETCORE:10.0', 'DOTNETCORE|10.0')) -or
-                ($_ -is [hashtable] -and $_.ContainsKey('config') -and $_.config -eq 'DOTNETCORE|10.0' -and
-                    $_.os -eq 'Linux' -and $_.support -eq 'Active')
-            })
-            if ($qualified.Count -ne 1) { throw 'The required Linux DOTNETCORE|10.0 runtime is missing or ambiguous.' }
+            Assert-LabLinuxRuntime $runtimes
         }
         'required-policy-exemptions' = {
             # Reuse the existing missing/expired/drift guard with bounded read-only transport.

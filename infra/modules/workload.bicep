@@ -2,7 +2,6 @@ targetScope = 'resourceGroup'
 
 param location string
 param resourceNames object
-@allowed(['swedencentral'])
 param chaosWorkspaceLocation string = 'swedencentral'
 param privateDnsZoneIds array
 param workloadAddressPrefix string

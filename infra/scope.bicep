@@ -1,6 +1,5 @@
 targetScope = 'subscription'
 
-@allowed(['italynorth', 'swedencentral', 'spaincentral'])
 param location string
 param deploymentInstanceId string
 @minLength(3)

@@ -301,6 +301,29 @@ function Assert-LabRegionalCapabilities {
     }
 }
 
+function Assert-LabLinuxRuntime {
+    param([object[]] $Runtimes)
+    $qualified = @($Runtimes | Where-Object {
+        $_ -is [hashtable] -and $_.ContainsKey('config') -and $_.config -eq 'DOTNETCORE|9.0' -and
+        $_.ContainsKey('os') -and $_.os -eq 'Linux' -and
+        $_.ContainsKey('support') -and $_.support -in @('Active', 'Near')
+    })
+    if ($qualified.Count -ne 1) {
+        throw 'BLOCKED: the qualified Linux DOTNETCORE|9.0 runtime is missing, unsupported or ambiguous.'
+    }
+    $runtime = $qualified[0]
+    $endOfLife = [DateTimeOffset]::MinValue
+    if (-not $runtime.ContainsKey('end_of_life') -or
+        -not [DateTimeOffset]::TryParse($runtime.end_of_life, [Globalization.CultureInfo]::InvariantCulture,
+            [Globalization.DateTimeStyles]::AssumeUniversal, [ref]$endOfLife) -or
+        $endOfLife -le [DateTimeOffset]::UtcNow) {
+        throw 'BLOCKED: the qualified Linux runtime needs a verified future catalog end_of_life date.'
+    }
+    if ($runtime.support -eq 'Near') {
+        Write-Warning "Bounded lab runtime DOTNETCORE|9.0 is Near end of support ($($runtime.end_of_life)); requalify a supported native-compatible runtime before that date."
+    }
+}
+
 function Assert-LabAppServicePlan {
     param([hashtable] $Plan)
     if ('linux' -notin @($Plan.kind -split ',') -or
@@ -319,6 +342,9 @@ function Assert-LabAppServiceConfiguration {
     if (-not $Configuration.ContainsKey('alwaysOn') -or
         $Configuration.alwaysOn -isnot [bool] -or $Configuration.alwaysOn -ne $true) {
         throw 'BLOCKED: actual App Service config/web must have alwaysOn=true to retain the six-worker baseline during idle periods.'
+    }
+    if (-not $Configuration.ContainsKey('linuxFxVersion') -or $Configuration.linuxFxVersion -cne 'DOTNETCORE|9.0') {
+        throw 'BLOCKED: actual App Service config/web must use the native-qualified Linux DOTNETCORE|9.0 runtime.'
     }
 }
 

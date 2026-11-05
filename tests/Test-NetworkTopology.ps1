@@ -16,10 +16,9 @@ function Assert([bool] $Condition, [string] $Message) {
     if (-not $Condition) { throw $Message }
 }
 $template = Compile 'infra\main.bicep'
-Assert ($template.parameters.location.allowedValues.Count -eq 3 -and
-    'italynorth' -in $template.parameters.location.allowedValues -and
-    'swedencentral' -in $template.parameters.location.allowedValues -and
-    'spaincentral' -in $template.parameters.location.allowedValues) 'Only the three explicitly selected workload candidates may reach ARM deployment.'
+foreach ($name in @('location','chaosWorkspaceLocation','operationsLocation')) {
+    Assert (-not $template.parameters[$name].ContainsKey('allowedValues')) 'Regional selection must retain live capability/ownership gates without a source allowlist.'
+}
 $workloadModule = @($template.resources | Where-Object name -eq 'csl-workload')[0]
 Assert ($template.parameters.chaosWorkspaceLocation.defaultValue -eq 'swedencentral' -and
     $workloadModule.properties.parameters.chaosWorkspaceLocation.value -eq "[parameters('chaosWorkspaceLocation')]") 'Workspace placement must be wired independently of the workload region.'
@@ -37,7 +36,7 @@ $p = $app[0].properties
 Assert ($p.reserved -and $p.publicNetworkAccess -eq 'Disabled' -and $p.httpsOnly -and
     -not $p.clientAffinityEnabled) 'Linux/private/HTTPS/non-affinity app contract drifted.'
 Assert ($p.virtualNetworkSubnetId -like '*/subnets/app-service-integration*' -and
-    $p.siteConfig.vnetRouteAllEnabled -and $p.siteConfig.linuxFxVersion -eq 'DOTNETCORE|10.0' -and
+    $p.siteConfig.vnetRouteAllEnabled -and $p.siteConfig.linuxFxVersion -eq 'DOTNETCORE|9.0' -and
     $p.siteConfig.healthCheckPath -eq '/health/live') 'Integration, runtime or liveness-based App Service Health Check drifted.'
 $settings = @{}
 foreach ($setting in $p.siteConfig.appSettings) { $settings[$setting.name] = $setting.value }

@@ -1,6 +1,6 @@
 $ErrorActionPreference = 'Stop'
 $root = Split-Path $PSScriptRoot -Parent
-$dll = Join-Path $root 'src\Demo.Api\bin\Release\net10.0\Demo.Api.dll'
+$dll = Join-Path $root 'src\Demo.Api\bin\Release\net9.0\Demo.Api.dll'
 if (-not (Test-Path -LiteralPath $dll)) { throw 'Build the API in Release before this runtime test.' }
 $listener = [Net.Sockets.TcpListener]::new([Net.IPAddress]::Loopback, 0)
 $listener.Start()

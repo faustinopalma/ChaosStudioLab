@@ -91,6 +91,9 @@ try {
     if (-not $build.Contains('timeout 1200 bash scripts/runner/bootstrap.sh') -or
         -not $build.Contains('if ($LASTEXITCODE -ne 0)') -or
         -not $bootstrap.Contains('az webapp deploy') -or
+        -not $bootstrap.Contains('--async false --track-status false') -or
+        -not $build.Contains('scripts/runner/verify.ps1') -or
+        -not $build.Contains('scripts/runner/qualify-app.ps1 -OutputPath results/publication-participation.json') -or
         -not $bootstrap.Contains('sha256sum --check') -or
         -not $bootstrap.Contains('"$API_FQDN" "$SCM_FQDN"') -or
         $bootstrap -match 'docker|az acr') {

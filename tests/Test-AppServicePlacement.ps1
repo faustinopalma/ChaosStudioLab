@@ -18,10 +18,12 @@ function Expect-Blocked([scriptblock] $Action) {
     if (-not $blocked) { throw 'A required exact placement/capability gate was bypassed.' }
 }
 $plan = @{kind='linux'; properties=@{reserved=$true;zoneRedundant=$true;perSiteScaling=$false;maximumNumberOfZones=3};sku=@{capacity=6}}
-Assert-LabAppServiceConfiguration @{alwaysOn=$true}
+Assert-LabAppServiceConfiguration @{alwaysOn=$true;linuxFxVersion='DOTNETCORE|9.0'}
 Expect-Blocked { Assert-LabAppServiceConfiguration @{alwaysOn=$false} }
 Expect-Blocked { Assert-LabAppServiceConfiguration @{} }
 Expect-Blocked { Assert-LabAppServiceConfiguration @{alwaysOn='true'} }
+Expect-Blocked { Assert-LabAppServiceConfiguration @{alwaysOn=$true} }
+Expect-Blocked { Assert-LabAppServiceConfiguration @{alwaysOn=$true;linuxFxVersion='DOTNETCORE|10.0'} }
 $instances = @(0..5 | ForEach-Object { @{name="instance-$_";properties=@{physicalZone="region-az$([int][Math]::Floor($_/2)+1)"}} })
 $observations = @($instances | ForEach-Object { @{instanceId=$_.name;status='live';businessSuccess=$true} })
 Assert-LabAppServicePlacement $plan $instances $observations

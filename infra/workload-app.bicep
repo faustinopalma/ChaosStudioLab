@@ -55,7 +55,7 @@ resource app 'Microsoft.Web/sites@2025-03-01' = {
     virtualNetworkSubnetId: '${vnetId}/subnets/app-service-integration'
     keyVaultReferenceIdentity: runtime.id
     siteConfig: {
-      linuxFxVersion: 'DOTNETCORE|10.0'
+      linuxFxVersion: 'DOTNETCORE|9.0'
       alwaysOn: true
       appCommandLine: 'dotnet Demo.Api.dll'
       healthCheckPath: '/health/live'

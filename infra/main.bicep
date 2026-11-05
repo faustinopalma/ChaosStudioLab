@@ -1,17 +1,10 @@
 targetScope = 'resourceGroup'
 
 @description('Validated deployment location; subscription-level PostgreSQL zone-redundant HA eligibility is required.')
-@allowed([
-  'italynorth'
-  'swedencentral'
-  'spaincentral'
-])
 param location string = 'spaincentral'
 
-@allowed(['swedencentral'])
 param chaosWorkspaceLocation string = 'swedencentral'
 
-@allowed(['italynorth', 'swedencentral', 'spaincentral'])
 param operationsLocation string = 'swedencentral'
 
 @description('Approved subscription containing the three lab resource groups.')

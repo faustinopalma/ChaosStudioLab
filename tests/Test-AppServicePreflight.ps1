@@ -106,7 +106,7 @@ if ($env:CSL_PREFLIGHT_TEST_MODE -eq 'error') {
     $env:CSL_PREFLIGHT_TEST_MODE = $originalMode
     $common = [Management.Automation.Language.Parser]::ParseFile(
         (Join-Path $PSScriptRoot '..\scripts\Lab.Common.ps1'), [ref]$tokens, [ref]$errors)
-    foreach ($name in @('Assert-LabResourceId', 'Assert-LabPolicyExemptions')) {
+    foreach ($name in @('Assert-LabResourceId', 'Assert-LabPolicyExemptions', 'Assert-LabLinuxRuntime')) {
         $definition = @($common.FindAll({
             param($node)
             $node -is [Management.Automation.Language.FunctionDefinitionAst] -and $node.Name -eq $name
@@ -114,6 +114,27 @@ if ($env:CSL_PREFLIGHT_TEST_MODE -eq 'error') {
         if ($definition.Count -ne 1) { throw "Missing shared production guard $name." }
         . ([scriptblock]::Create($definition[0].Extent.Text))
     }
+    $future = [DateTimeOffset]::UtcNow.AddDays(2).ToString('O')
+    $runtime = @{config='DOTNETCORE|9.0';os='Linux';support='Active';end_of_life=$future}
+    Assert-LabLinuxRuntime @($runtime)
+    $runtime.support = 'Near'
+    Assert-LabLinuxRuntime @($runtime)
+    Expect-Rejected { Assert-LabLinuxRuntime @($runtime,$runtime) } '*ambiguous*'
+    $runtime.end_of_life = [DateTimeOffset]::UtcNow.AddDays(-1).ToString('O')
+    Expect-Rejected { Assert-LabLinuxRuntime @($runtime) } '*future catalog end_of_life*'
+    $runtime.end_of_life = 'unknown'
+    Expect-Rejected { Assert-LabLinuxRuntime @($runtime) } '*future catalog end_of_life*'
+    $runtime.Remove('end_of_life')
+    Expect-Rejected { Assert-LabLinuxRuntime @($runtime) } '*future catalog end_of_life*'
+    $runtime.end_of_life = $future
+    $runtime.config = 'DOTNETCORE|10.0'
+    Expect-Rejected { Assert-LabLinuxRuntime @($runtime) } '*missing, unsupported or ambiguous*'
+    $runtime.config = 'DOTNETCORE|9.0'
+    $runtime.support = 'Expired'
+    Expect-Rejected { Assert-LabLinuxRuntime @($runtime) } '*missing, unsupported or ambiguous*'
+    $runtime.support = 'Active'
+    $runtime.os = 'Windows'
+    Expect-Rejected { Assert-LabLinuxRuntime @($runtime) } '*missing, unsupported or ambiguous*'
     $oldContent = '{"deploymentInstanceId":"old-evidence-must-remain-unchanged"}'
     Set-Content -LiteralPath $PreviousManifestPath -Value $oldContent -NoNewline
     function git { $global:LASTEXITCODE = 0 }
@@ -129,7 +150,7 @@ if ($env:CSL_PREFLIGHT_TEST_MODE -eq 'error') {
             'account show' { @{id = $script:LabSubscription; tenantId = $script:LabTenant; user = @{name = 'test@example.invalid'}} }
             'group exists' { return 'false' }
             'resource list' { @() }
-            'webapp list-runtimes' { @(@{config = 'DOTNETCORE|10.0'; os = 'Linux'; support = 'Active'}) }
+            'webapp list-runtimes' { @(@{config = 'DOTNETCORE|9.0'; os = 'Linux'; support = 'Near'; end_of_life = $future}) }
             'rest --method' {
                 if ($Arguments[4] -like '*/capabilities?*') { @{value = @(@{restricted = 'Disabled'; zoneRedundantHaSupported = 'Enabled'})} }
                 else { $script:fixtureCatalog }

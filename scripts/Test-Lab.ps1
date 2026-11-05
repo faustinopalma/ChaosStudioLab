@@ -280,6 +280,8 @@ try {
         $postgres.highAvailability.state -ne 'Healthy' -or $postgres.network.publicNetworkAccess -ne 'Disabled') {
         throw "BLOCKED: PostgreSQL state=$($postgres.state), HA state=$($postgres.highAvailability.state); require private Ready/Healthy zone-redundant primary/standby before measurement or injection."
     }
+    Assert-LabLinuxRuntime @(Invoke-LabAz @('webapp','list-runtimes','--os','linux','-o','json') |
+        ConvertFrom-Json -AsHashtable)
     $plan=Invoke-LabAz @('rest','--method','get','--url',
         "https://management.azure.com$($w.applicationId -replace '/sites/[^/]+$','/serverfarms/asp-csl-linux-baseline')?api-version=2025-03-01",'-o','json') | ConvertFrom-Json -AsHashtable
     Write-LabJson (Join-Path $caseRoot 'actual-plan.json') $plan

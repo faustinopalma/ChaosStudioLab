@@ -45,8 +45,8 @@ for host in "$API_FQDN" "$SCM_FQDN"; do
   fi
 done
 az webapp deploy --resource-group "$APP_RESOURCE_GROUP" --name "$APP_NAME" \
-  --src-path application.zip --type zip --timeout 600000 --async false --track-status true --output none
+  --src-path application.zip --type zip --timeout 600000 --async false --track-status false --output none
 az rest --method post \
   --url "https://management.azure.com/subscriptions/$SUBSCRIPTION_ID/resourceGroups/$APP_RESOURCE_GROUP/providers/Microsoft.Web/sites/$APP_NAME/config/configreferences/appsettings/refresh?api-version=2022-03-01" \
   --output none
-echo 'Private database migration and checksummed Linux SCM package publication completed.'
+echo 'Private database migration and checksummed Linux SCM package publication completed; private startup/participation qualification follows in PC orchestration.'

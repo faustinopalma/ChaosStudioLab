@@ -1,6 +1,5 @@
 targetScope = 'resourceGroup'
 
-@allowed(['italynorth', 'swedencentral', 'spaincentral'])
 param location string
 param deploymentInstanceId string
 @allowed([

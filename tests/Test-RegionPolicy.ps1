@@ -10,7 +10,7 @@ $config = @{
 }
 try {
     $env:CSL_ENVIRONMENT_FILE = $fixture
-    foreach ($region in @('italynorth', 'swedencentral', 'spaincentral', 'francecentral', 'switzerlandnorth', 'invalid-region', 'Spain Central', '')) {
+    foreach ($region in @('italynorth', 'swedencentral', 'spaincentral', 'francecentral', 'switzerlandnorth', 'eastus2', 'australiaeast', 'invalid-region', 'Spain Central', '')) {
         $config.deploymentRegion = $region
         $config | ConvertTo-Json | Set-Content -LiteralPath $fixture
         $rejected = $false
@@ -40,6 +40,12 @@ try {
     if ($lab.projectDefaultRegion -ne 'spaincentral' -or $lab.deploymentRegion -ne 'spaincentral' -or
         $lab.chaosWorkspaceRegion -ne 'swedencentral') {
         throw 'Preferred region or current evidenced fallback drifted.'
+    }
+    foreach ($template in @('main.bicep','scope.bicep','validation.bicep','modules\app-service-plan.bicep','modules\workload.bicep')) {
+        $source = Get-Content (Join-Path $PSScriptRoot "..\infra\$template") -Raw
+        if ($source -match '(?s)@allowed\([^)]*\)\s*param\s+(?:location|[A-Za-z]+Location)\s+string') {
+            throw "A Bicep location allowlist contradicts unrestricted qualified regional selection: $template"
+        }
     }
     'Region selection is unrestricted by a project allowlist; valid names, independent placements and explicit profile selection are verified.'
 } finally {

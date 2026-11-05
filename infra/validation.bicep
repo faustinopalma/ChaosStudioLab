@@ -6,13 +6,9 @@ param runnerSshPublicKey string
 param deploymentInstanceId string
 param prerequisitePrincipalIds object
 param sourceRevision string
-@allowed(['italynorth', 'swedencentral', 'spaincentral'])
 param location string = 'spaincentral'
-@allowed(['italynorth', 'swedencentral', 'spaincentral'])
 param resourceGroupLocation string = location
-@allowed(['swedencentral'])
 param chaosWorkspaceLocation string = 'swedencentral'
-@allowed(['italynorth', 'swedencentral', 'spaincentral'])
 param operationsLocation string = 'swedencentral'
 param networkResourceGroupName string
 param workloadResourceGroupName string
