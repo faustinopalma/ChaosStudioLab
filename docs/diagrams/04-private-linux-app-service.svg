@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape" width="1600" height="1080" viewBox="0 0 1600 1080">
   <title>Private Linux App Service resilience lab - deployed architecture</title>
-  <desc>Spain Central workload: all six workers served real health and authenticated checksum-verified business traffic in three physical zones. Separate outbound Integration and inbound Private Endpoint subnets and private PostgreSQL HA. One private runner and operations VNet/NAT/Bastion remain in Sweden Central with global VNet peering. The Sweden Central modern Chaos Workspace discovered both exact targets. The database was externally stopped; the complete baseline and native suite remain blocked.</desc>
+  <desc>Spain Central workload: all six workers served actual health and checksum-verified business traffic in three physical zones. Separate outbound Integration and inbound Private Endpoint subnets and restored private PostgreSQL HA. One private runner and operations VNet/NAT/Bastion remain in Sweden Central with global VNet peering. Complete baseline passed. Native application validation fails through Sweden Central and an additional Switzerland North Workspace; required application and combined coverage remains blocked.</desc>
   <defs>
     <marker id="arrow-blue" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth"><path d="M0,0 L0,6 L9,3 z" fill="#0078d4"/></marker>
     <marker id="arrow-green" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth"><path d="M0,0 L0,6 L9,3 z" fill="#107c10"/></marker>
@@ -46,7 +46,7 @@
   </g>
   <g id="labels" inkscape:groupmode="layer" inkscape:label="Labels">
     <text x="75" y="60" class="title">Private Linux App Service resilience lab</text>
-    <text x="75" y="88" class="small">Spain Central workload | Sweden Central management/Chaos | six workers / three zones verified; suite blocked by external DB stop</text>
+    <text x="75" y="88" class="small">Spain Central workload | Sweden Central management/Chaos | six workers / three zones and complete baseline PASS</text>
     <text x="75" y="165" class="heading">Operator PC</text>
     <text x="75" y="195">Approved CLI / authorized stages</text>
     <text x="75" y="220" class="small">Visible logs; lab retained after tests</text>
@@ -73,6 +73,6 @@
     <text x="500" y="830" class="small">Blue: private ingress / SCM     Green: application data path     Purple dashed: native control-plane fault targeting</text>
     <text x="500" y="895" class="heading">Private PostgreSQL Flexible Server - public data plane disabled</text>
     <text x="525" y="955">Configured primary - zone 1</text><text x="1075" y="955">Configured HA standby - zone 2</text>
-    <text x="50" y="1045" class="small">Database externally stopped; fault measurements blocked. Resources remain deployed for operator-managed deletion.</text>
+    <text x="50" y="1045" class="small">Native app validation blocked in two Workspace regions. Resources remain deployed for operator-managed deletion.</text>
   </g>
 </svg>
