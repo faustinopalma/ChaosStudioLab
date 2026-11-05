@@ -38,6 +38,7 @@ builder.Services.AddSingleton<NpgsqlDataSource>(services =>
         Timeout = 3,
         CommandTimeout = 3,
         KeepAlive = 30,
+        MinPoolSize = DatabaseWarmupService.PrefilledConnections,
         MaxPoolSize = 50
     };
     var dataSource = new NpgsqlDataSourceBuilder(connection.ConnectionString);
@@ -78,6 +79,7 @@ builder.Services.AddSingleton<IOrderRepository, NpgsqlOrderRepository>();
 builder.Services.AddSingleton<OrderService>();
 builder.Services.AddSingleton<DatabaseHealthProbe>();
 builder.Services.AddSingleton<DatabaseOpenDiagnostics>();
+builder.Services.AddHostedService<DatabaseWarmupService>();
 
 var app = builder.Build();
 var processStartedAtUtc = new DateTimeOffset(
