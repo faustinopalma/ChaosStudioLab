@@ -87,7 +87,7 @@ function Get-LabNativeActionUrn {
 
 function Complete-LabNativeExecution {
     param([hashtable] $Intent,[hashtable] $Manifest,[string] $ManifestPath,[string] $EvidencePrefix,
-        [hashtable] $Scenario,[string] $TargetId,[string] $PrincipalId)
+        [hashtable] $Scenario,[string] $TargetId,[string] $PrincipalId,[string[]] $ExpectedInstanceIds=@())
     $result=Wait-LabNativeOperation $Intent.pollUri $EvidencePrefix -AllowFailedTerminal
     Write-LabJson "$EvidencePrefix-terminal.json" $result
     $Intent.status=if($result.properties.status -eq 'Succeeded') { 'TERMINAL_UNVERIFIED' } else { 'FAILED_RECONCILED' }
@@ -115,7 +115,11 @@ function Complete-LabNativeExecution {
     if(@($result.properties.errors | Where-Object { $null -ne $_ }).Count -gt 0 -or @($result.properties.scenarioRunSummary).Count -ne 1 -or
         $result.properties.scenarioRunSummary[0].state -ne 'Succeeded') { throw 'Native execution lacks clean successful Action-level evidence.' }
     if($result.properties.managedIdentityPrincipalId -ine $PrincipalId) {
-        Confirm-LabNativePostgresIdentity $result $Scenario $TargetId $PrincipalId $EvidencePrefix
+        if($TargetId -match '/providers/Microsoft\.Web/sites/[^/]+$') {
+            Confirm-LabNativeAppServiceIdentity $result $Scenario $TargetId $PrincipalId $EvidencePrefix -ExpectedInstanceIds $ExpectedInstanceIds
+        } else {
+            Confirm-LabNativePostgresIdentity $result $Scenario $TargetId $PrincipalId $EvidencePrefix
+        }
     }
     $Intent.status='SUCCEEDED'
     Write-LabJson $ManifestPath $Manifest
@@ -188,6 +192,86 @@ function Confirm-LabNativePostgresIdentity {
         started=$started[0].eventTimestamp;completed=$completed.eventTimestamp
     }
     Write-Warning 'Native principal metadata differs; the successful PostgreSQL operation was independently authenticated to the declared Workspace identity using correlated Azure Activity Log caller/object claims. Exact proof is retained privately; no role was granted.'
+}
+
+function Confirm-LabNativeAppServiceIdentity {
+    param([hashtable] $Result,[hashtable] $Scenario,[string] $TargetId,[string] $PrincipalId,[string] $EvidencePrefix,
+        [string[]] $ExpectedInstanceIds=@(),[ValidateRange(0,900)][int] $AuditTimeoutSeconds=900)
+    Assert-LabResourceId $TargetId
+    if($TargetId -notmatch '/providers/Microsoft\.Web/sites/[^/]+$' -or
+        (Get-LabNativeActionUrn $Scenario.properties.actions[0].actionId) -cne 'urn:csci:microsoft:appservice:killprocess/1.0.0') {
+        throw 'Native execution identity differs from the verified configuration; no qualified independent identity audit exists for this Action.'
+    }
+    $expected=@($ExpectedInstanceIds | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | ForEach-Object { $_.ToLowerInvariant() } | Sort-Object -Unique)
+    if($expected.Count -lt 1) { throw 'Native App Service identity audit requires the explicit expected target instances.' }
+    $start=[DateTimeOffset]$Result.properties.startTime
+    $end=[DateTimeOffset]$Result.properties.endTime
+    if($end -le $start) { throw 'Native identity audit requires an explicit positive execution interval.' }
+    $completionDeadline=$end.AddMinutes(15)
+    $deadline=[DateTimeOffset]::UtcNow.AddSeconds($AuditTimeoutSeconds)
+    $pattern='^'+[regex]::Escape($TargetId)+'/instances/(?<instance>[^/]+)/processes/(?<process>[^/]+)$'
+    $attempt=0
+    do {
+        $events=@(Invoke-LabAz @('monitor','activity-log','list','--resource-id',$TargetId,
+            '--start-time',$start.UtcDateTime.ToString('yyyy-MM-ddTHH:mm:ssZ'),
+            '--end-time',$completionDeadline.AddSeconds(1).UtcDateTime.ToString('yyyy-MM-ddTHH:mm:ssZ'),
+            '--max-events','200','-o','json') | ConvertFrom-Json -AsHashtable)
+        Write-LabJson "$EvidencePrefix-identity-activity-$($attempt.ToString('D3')).json" $events
+        Write-LabJson "$EvidencePrefix-identity-activity.json" $events
+        $attempt++
+        if($events.Count -ge 200) { throw 'Native identity audit may be truncated; execution remains unverified.' }
+        $operations=@($events | Where-Object {
+            $_.resourceId -imatch $pattern -and
+            $_.operationName.value -ieq 'Microsoft.Web/sites/instances/processes/delete' -and
+            [DateTimeOffset]$_.eventTimestamp -ge $start -and [DateTimeOffset]$_.eventTimestamp -le $completionDeadline
+        })
+        $success=@($operations | Where-Object { $_.status.value -eq 'Succeeded' })
+        $succeededInstances=@($success | ForEach-Object { if($_.resourceId -imatch $pattern) { $Matches.instance.ToLowerInvariant() } } | Sort-Object -Unique)
+        if(@($expected | Where-Object { $_ -notin $succeededInstances }).Count -eq 0) { break }
+        $remaining=($deadline-[DateTimeOffset]::UtcNow).TotalSeconds
+        if($remaining -le 0) { throw 'Native identity audit visibility deadline expired without a successful process deletion on every selected instance; execution remains unverified.' }
+        Write-Information "Waiting for delayed App Service Activity Log ingestion; $([Math]::Ceiling($remaining)) seconds remain. The native fault is not resubmitted." -InformationAction Continue
+        Start-Sleep -Seconds ([Math]::Min(15,[Math]::Ceiling($remaining)))
+    } while($true)
+    if(@($succeededInstances | Where-Object { $_ -notin $expected }).Count -gt 0) {
+        throw 'Native identity audit found a process deletion outside the selected instances.'
+    }
+    $records=@()
+    foreach($instance in $expected) {
+        $completedEvents=@($success | Where-Object { $_.resourceId -imatch $pattern -and $Matches.instance -ieq $instance })
+        if($completedEvents.Count -ne 1) { throw 'Native identity audit requires exactly one successful process deletion per selected instance.' }
+        $completed=$completedEvents[0]
+        $started=@($operations | Where-Object {
+            $_.status.value -eq 'Started' -and $_.correlationId -eq $completed.correlationId -and
+            $_.resourceId -ieq $completed.resourceId -and [DateTimeOffset]$_.eventTimestamp -le $end
+        })
+        if($started.Count -ne 1 -or -not $completed.correlationId -or
+            -not $started[0].ContainsKey('httpRequest') -or -not $started[0].httpRequest.clientRequestId -or
+            ($completed.ContainsKey('httpRequest') -and $null -ne $completed.httpRequest -and
+                $started[0].httpRequest.clientRequestId -cne $completed.httpRequest.clientRequestId) -or
+            [DateTimeOffset]$started[0].eventTimestamp -ge [DateTimeOffset]$completed.eventTimestamp) {
+            throw 'Native identity audit lacks one ordered, correlated request start and successful completion.'
+        }
+        foreach($event in @($started[0],$completed)) {
+            if(-not $event.ContainsKey('caller') -or $event.caller -ine $PrincipalId -or
+                -not $event.ContainsKey('claims') -or $null -eq $event.claims -or
+                $event.claims['http://schemas.microsoft.com/identity/claims/objectidentifier'] -ine $PrincipalId) {
+                throw 'Native identity audit caller or authenticated object claim differs from the declared Workspace identity.'
+            }
+        }
+        $null=$completed.resourceId -imatch $pattern
+        $records+=@{instanceId=$instance;processId=$Matches.process;resourceId=$completed.resourceId
+            correlationId=$completed.correlationId;clientRequestId=$started[0].httpRequest.clientRequestId
+            started=$started[0].eventTimestamp;completed=$completed.eventTimestamp}
+    }
+    Write-LabJson "$EvidencePrefix-identity-proof.json" @{
+        status='PASS';source='Azure Activity Log';targetId=$TargetId;expectedPrincipalId=$PrincipalId
+        reportedPrincipalId=$Result.properties.managedIdentityPrincipalId
+        executionStartedAtUtc=$start.ToString('O');executionEndedAtUtc=$end.ToString('O')
+        completionEvidenceDeadlineUtc=$completionDeadline.ToString('O')
+        activityQueries=$attempt;expectedInstanceIds=$expected;processDeletions=$records
+    }
+    Write-Warning 'Native principal metadata differs; every selected instance process deletion was independently authenticated to the declared Workspace identity using correlated Azure Activity Log caller/object claims. Exact proof is retained privately; no role was granted.'
 }
 
 function Find-LabNativeTargets {

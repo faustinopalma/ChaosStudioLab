@@ -102,8 +102,9 @@ function Invoke-SelectedNative([hashtable]$Definition) {
     Start-LabNativeExecution $Definition.configuration.id $m $ManifestPath (Join-Path $caseRoot $Definition.kind)
 }
 function Complete-SelectedNative([hashtable]$Intent,[hashtable]$Definition) {
+    $expectedInstances=if($Definition.kind -eq 'postgres') { @() } else { @($report.targetInstanceIds) }
     $result=Complete-LabNativeExecution $Intent $m $ManifestPath (Join-Path $caseRoot $Definition.kind) `
-        $Definition.scenario $Definition.targetId $nativePrincipal
+        $Definition.scenario $Definition.targetId $nativePrincipal $expectedInstances
     if($Definition.kind -eq 'postgres') {
         $m.lastPostgresFaultFinishedAtUtc=[DateTimeOffset]::UtcNow.ToString('O')
         Write-LabJson $ManifestPath $m

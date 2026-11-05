@@ -235,5 +235,45 @@ try {
     Expect-Rejected { Complete-LabNativeExecution $intent $manifest $path (Join-Path $fixture 'ambiguous-pg') $pgScenario $pgId $principal }
     $nativeFixture.activityEvents=@($nativeFixture.activityEvents[1])
     Expect-Rejected { Complete-LabNativeExecution $intent $manifest $path (Join-Path $fixture 'missing-pg-start') $pgScenario $pgId $principal }
+    $appCompiled=@{actions=@{kill=@{properties=@{faultUrn=(Get-LabNativeActionUrn $scenario.properties.actions[0].actionId)
+        faultParameters=$parameters;targetResources=@(@{fullyQualifiedIdentifier=$appId})}}}}
+    $nativeFixture.response.body.properties=@{
+        status='Succeeded';managedIdentityPrincipalId='misreported';resources=@(@{id=$appId});errors=@()
+        startTime='2026-11-05T09:00:00Z';endTime='2026-11-05T09:00:10Z'
+        scenarioRunJson=($appCompiled | ConvertTo-Json -Depth 15 -Compress);scenarioRunSummary=@(@{state='Succeeded'})
+    }
+    function New-ProcessDeleteEvent([string]$Instance,[string]$Status,[string]$Timestamp,[string]$Correlation) {
+        @{resourceId="$appId/instances/$Instance/processes/2800";operationName=@{value='Microsoft.Web/sites/instances/processes/delete'}
+            eventTimestamp=$Timestamp;status=@{value=$Status};correlationId=$Correlation
+            httpRequest=@{clientRequestId="request-$Correlation"};caller=$principal
+            claims=@{'http://schemas.microsoft.com/identity/claims/objectidentifier'=$principal}}
+    }
+    $nativeFixture.activityDelay=0
+    $nativeFixture.activityEvents=@(
+        (New-ProcessDeleteEvent 'instance-a' 'Started' '2026-11-05T09:00:07.6Z' 'kill-a'),
+        (New-ProcessDeleteEvent 'instance-a' 'Succeeded' '2026-11-05T09:00:07.9Z' 'kill-a'))
+    Complete-LabNativeExecution $intent $manifest $path (Join-Path $fixture 'audited-app') $scenario $appId $principal @('instance-a') | Out-Null
+    $proof=Get-Content (Join-Path $fixture 'audited-app-identity-proof.json') -Raw | ConvertFrom-Json
+    if($intent.status -ne 'SUCCEEDED' -or $proof.processDeletions.Count -ne 1 -or $proof.processDeletions[0].processId -ne '2800') {
+        throw 'Independently authenticated native App Service process deletion was not reconciled.'
+    }
+    Expect-Rejected { Complete-LabNativeExecution $intent $manifest $path (Join-Path $fixture 'app-without-selection') $scenario $appId $principal }
+    Expect-Rejected { Confirm-LabNativeAppServiceIdentity $nativeFixture.response.body $scenario $appId $principal (Join-Path $fixture 'app-missing-instance') -ExpectedInstanceIds @('instance-a','instance-b') -AuditTimeoutSeconds 0 }
+    $zoneEvents=$nativeFixture.activityEvents+@(
+        (New-ProcessDeleteEvent 'instance-b' 'Started' '2026-11-05T09:00:08.1Z' 'kill-b'),
+        (New-ProcessDeleteEvent 'instance-b' 'Succeeded' '2026-11-05T09:00:08.4Z' 'kill-b'))
+    $nativeFixture.activityEvents=$zoneEvents
+    Confirm-LabNativeAppServiceIdentity $nativeFixture.response.body $scenario $appId $principal (Join-Path $fixture 'app-zone') -ExpectedInstanceIds @('instance-a','instance-b') -AuditTimeoutSeconds 0
+    Expect-Rejected { Confirm-LabNativeAppServiceIdentity $nativeFixture.response.body $scenario $appId $principal (Join-Path $fixture 'app-outside-selection') -ExpectedInstanceIds @('instance-a') -AuditTimeoutSeconds 0 }
+    $nativeFixture.activityEvents=@($zoneEvents[0],$zoneEvents[1])
+    $nativeFixture.activityEvents[1].caller='other'
+    Expect-Rejected { Confirm-LabNativeAppServiceIdentity $nativeFixture.response.body $scenario $appId $principal (Join-Path $fixture 'app-wrong-caller') -ExpectedInstanceIds @('instance-a') -AuditTimeoutSeconds 0 }
+    $nativeFixture.activityEvents[1].caller=$principal
+    $nativeFixture.activityEvents[0].eventTimestamp='2026-11-05T09:00:08Z'
+    Expect-Rejected { Confirm-LabNativeAppServiceIdentity $nativeFixture.response.body $scenario $appId $principal (Join-Path $fixture 'app-unordered') -ExpectedInstanceIds @('instance-a') -AuditTimeoutSeconds 0 }
+    $nativeFixture.activityEvents[0].eventTimestamp='2026-11-05T09:00:07.6Z'
+    $nativeFixture.activityEvents=@($nativeFixture.activityEvents[1])
+    Expect-Rejected { Confirm-LabNativeAppServiceIdentity $nativeFixture.response.body $scenario $appId $principal (Join-Path $fixture 'app-missing-start') -ExpectedInstanceIds @('instance-a') -AuditTimeoutSeconds 0 }
+    Expect-Rejected { Confirm-LabNativeAppServiceIdentity $nativeFixture.response.body $pgScenario $appId $principal (Join-Path $fixture 'app-wrong-action') -ExpectedInstanceIds @('instance-a') -AuditTimeoutSeconds 0 }
     'Native exact targets, serialized non-random selectors, secure owned polling, explicit failures and uncertain submissions verified.'
 } finally { Remove-Item -LiteralPath $fixture -Recurse }
