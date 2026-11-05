@@ -99,9 +99,8 @@ function Complete-LabNativeExecution {
         Write-Warning "[$($Intent.finishedAtUtc)] Native execution ended as $($result.properties.status); exact provider errors are saved in $EvidencePrefix-terminal.json. The operation is reconciled; bounded measurement and write retention still complete."
         return $result
     }
-    if($result.properties.managedIdentityPrincipalId -ine $PrincipalId -or
-        @($result.properties.resources).Count -ne 1 -or $result.properties.resources[0].id -ine $TargetId) {
-        throw 'Native execution identity or actual target differs from the verified owned configuration.'
+    if(@($result.properties.resources).Count -ne 1 -or $result.properties.resources[0].id -ine $TargetId) {
+        throw 'Native execution actual target differs from the verified owned configuration.'
     }
     $compiled=$result.properties.scenarioRunJson | ConvertFrom-Json -AsHashtable
     if($compiled.actions.Count -ne 1) { throw 'Native execution compiled an unexpected Action count.' }
@@ -115,9 +114,62 @@ function Complete-LabNativeExecution {
     }
     if(@($result.properties.errors | Where-Object { $null -ne $_ }).Count -gt 0 -or @($result.properties.scenarioRunSummary).Count -ne 1 -or
         $result.properties.scenarioRunSummary[0].state -ne 'Succeeded') { throw 'Native execution lacks clean successful Action-level evidence.' }
+    if($result.properties.managedIdentityPrincipalId -ine $PrincipalId) {
+        Confirm-LabNativePostgresIdentity $result $Scenario $TargetId $PrincipalId $EvidencePrefix
+    }
     $Intent.status='SUCCEEDED'
     Write-LabJson $ManifestPath $Manifest
     return $result
+}
+
+function Confirm-LabNativePostgresIdentity {
+    param([hashtable] $Result,[hashtable] $Scenario,[string] $TargetId,[string] $PrincipalId,[string] $EvidencePrefix)
+    if($TargetId -notmatch '/providers/Microsoft.DBforPostgreSQL/flexibleServers/[^/]+$' -or
+        (Get-LabNativeActionUrn $Scenario.properties.actions[0].actionId) -cne 'urn:csci:microsoft:azurepostgresql:failover/1.0.0') {
+        throw 'Native execution identity differs from the verified configuration; no qualified independent identity audit exists for this Action.'
+    }
+    $start=[DateTimeOffset]$Result.properties.startTime
+    $end=[DateTimeOffset]$Result.properties.endTime
+    if($end -le $start) { throw 'Native identity audit requires an explicit positive execution interval.' }
+    $events=@(Invoke-LabAz @('monitor','activity-log','list','--resource-id',$TargetId,
+        '--start-time',$start.UtcDateTime.ToString('yyyy-MM-ddTHH:mm:ssZ'),
+        '--end-time',$end.AddSeconds(1).UtcDateTime.ToString('yyyy-MM-ddTHH:mm:ssZ'),
+        '--max-events','200','-o','json') | ConvertFrom-Json -AsHashtable)
+    Write-LabJson "$EvidencePrefix-identity-activity.json" $events
+    if($events.Count -ge 200) { throw 'Native identity audit may be truncated; execution remains unverified.' }
+    $operations=@($events | Where-Object {
+        $_.resourceId -ieq $TargetId -and
+        $_.operationName.value -ieq 'Microsoft.DBforPostgreSQL/flexibleServers/restart/action' -and
+        [DateTimeOffset]$_.eventTimestamp -ge $start -and [DateTimeOffset]$_.eventTimestamp -le $end
+    })
+    $success=@($operations | Where-Object { $_.status.value -eq 'Succeeded' })
+    if($success.Count -ne 1) { throw 'Native identity audit requires exactly one successful owned PostgreSQL restart/failover in the execution interval.' }
+    $completed=$success[0]
+    $started=@($operations | Where-Object {
+        $_.status.value -eq 'Started' -and $_.correlationId -eq $completed.correlationId
+    })
+    if($started.Count -ne 1 -or -not $completed.correlationId -or
+        -not $started[0].ContainsKey('httpRequest') -or -not $started[0].httpRequest.clientRequestId -or
+        ($completed.ContainsKey('httpRequest') -and $null -ne $completed.httpRequest -and
+            $started[0].httpRequest.clientRequestId -cne $completed.httpRequest.clientRequestId) -or
+        [DateTimeOffset]$started[0].eventTimestamp -ge [DateTimeOffset]$completed.eventTimestamp) {
+        throw 'Native identity audit lacks one ordered, correlated request start and successful completion.'
+    }
+    foreach($event in @($started[0],$completed)) {
+        if(-not $event.ContainsKey('caller') -or $event.caller -ine $PrincipalId -or
+            -not $event.ContainsKey('claims') -or $null -eq $event.claims -or
+            $event.claims['http://schemas.microsoft.com/identity/claims/objectidentifier'] -ine $PrincipalId) {
+            throw 'Native identity audit caller or authenticated object claim differs from the declared Workspace identity.'
+        }
+    }
+    Write-LabJson "$EvidencePrefix-identity-proof.json" @{
+        status='PASS';source='Azure Activity Log';targetId=$TargetId;expectedPrincipalId=$PrincipalId
+        reportedPrincipalId=$Result.properties.managedIdentityPrincipalId
+        executionStartedAtUtc=$start.ToString('O');executionEndedAtUtc=$end.ToString('O')
+        correlationId=$completed.correlationId;clientRequestId=$started[0].httpRequest.clientRequestId
+        started=$started[0].eventTimestamp;completed=$completed.eventTimestamp
+    }
+    Write-Warning 'Native principal metadata differs; the successful PostgreSQL operation was independently authenticated to the declared Workspace identity using correlated Azure Activity Log caller/object claims. Exact proof is retained privately; no role was granted.'
 }
 
 function Find-LabNativeTargets {

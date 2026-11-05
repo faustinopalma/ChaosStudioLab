@@ -69,6 +69,10 @@ function Invoke-LabArm {
     }
     return $nativeFixture.response
 }
+function Invoke-LabAz {
+    param([string[]] $Arguments)
+    return ConvertTo-Json -InputObject $nativeFixture.activityEvents -Depth 20
+}
 try {
     Wait-LabNativeOperation $poll (Join-Path $fixture 'operation') -TimeoutSeconds 1 | Out-Null
     $nativeFixture.response.body.properties.status='Failed'
@@ -111,5 +115,48 @@ try {
     $nativeFixture.response.body.properties.managedIdentityPrincipalId='wrong-principal'
     Expect-Rejected { Complete-LabNativeExecution $intent $manifest $path (Join-Path $fixture 'wrong-identity') $scenario $appId $principal }
     if($intent.status -ne 'TERMINAL_UNVERIFIED') { throw 'Unverified native success was incorrectly cleared for another fault.' }
+    $pgId="$scope/Microsoft.DBforPostgreSQL/flexibleServers/fixture"
+    $pgScenario=@{properties=@{actions=@(@{actionId='microsoft-azurepostgresql-failover/1.0';parameters=@(
+        @{key='FailoverMode';value='1'},@{key='RestoreOnStop';value='false'},@{key='SkipIneligibleServers';value='false'}
+    )})}}
+    $pgParameters=@{}
+    foreach($p in $pgScenario.properties.actions[0].parameters) { $pgParameters[$p.key]=$p.value }
+    $nativeFixture.response.body.properties=@{
+        status='Succeeded';managedIdentityPrincipalId='misreported';resources=@(@{id=$pgId});errors=@()
+        startTime='2026-11-05T08:00:00Z';endTime='2026-11-05T08:02:00Z'
+        scenarioRunJson=(@{actions=@{failover=@{properties=@{faultUrn='urn:csci:microsoft:azurepostgresql:failover/1.0.0'
+            faultParameters=$pgParameters;targetResources=@(@{fullyQualifiedIdentifier=$pgId})}}}} | ConvertTo-Json -Depth 15 -Compress)
+        scenarioRunSummary=@(@{state='Succeeded'})
+    }
+    $nativeFixture.activityEvents=@(
+        @{resourceId=$pgId;operationName=@{value='Microsoft.DBforPostgreSQL/flexibleServers/restart/action'}
+            eventTimestamp='2026-11-05T08:00:20Z';status=@{value='Started'};correlationId='same-operation'
+            httpRequest=@{clientRequestId='same-request'};caller=$principal
+            claims=@{'http://schemas.microsoft.com/identity/claims/objectidentifier'=$principal}},
+        @{resourceId=$pgId;operationName=@{value='Microsoft.DBforPostgreSQL/flexibleServers/restart/action'}
+            eventTimestamp='2026-11-05T08:01:00Z';status=@{value='Succeeded'};correlationId='same-operation'
+            httpRequest=@{clientRequestId='same-request'};caller=$principal
+            claims=@{'http://schemas.microsoft.com/identity/claims/objectidentifier'=$principal}}
+    )
+    Complete-LabNativeExecution $intent $manifest $path (Join-Path $fixture 'audited-pg') $pgScenario $pgId $principal | Out-Null
+    if($intent.status -ne 'SUCCEEDED' -or -not (Test-Path (Join-Path $fixture 'audited-pg-identity-proof.json'))) {
+        throw 'Independently authenticated native PostgreSQL completion was not reconciled.'
+    }
+    $nativeFixture.activityEvents[1].Remove('httpRequest')
+    Complete-LabNativeExecution $intent $manifest $path (Join-Path $fixture 'audited-pg-without-terminal-http') $pgScenario $pgId $principal | Out-Null
+    $nativeFixture.activityEvents[1].httpRequest=@{clientRequestId='same-request'}
+    $nativeFixture.activityEvents[1].caller='other'
+    Expect-Rejected { Complete-LabNativeExecution $intent $manifest $path (Join-Path $fixture 'wrong-pg-caller') $pgScenario $pgId $principal }
+    $nativeFixture.activityEvents[1].caller=$principal
+    $nativeFixture.activityEvents[1].claims['http://schemas.microsoft.com/identity/claims/objectidentifier']='other'
+    Expect-Rejected { Complete-LabNativeExecution $intent $manifest $path (Join-Path $fixture 'wrong-pg-claim') $pgScenario $pgId $principal }
+    $nativeFixture.activityEvents[1].claims['http://schemas.microsoft.com/identity/claims/objectidentifier']=$principal
+    $nativeFixture.activityEvents[1].httpRequest.clientRequestId='different'
+    Expect-Rejected { Complete-LabNativeExecution $intent $manifest $path (Join-Path $fixture 'uncorrelated-pg') $pgScenario $pgId $principal }
+    $nativeFixture.activityEvents[1].httpRequest.clientRequestId='same-request'
+    $nativeFixture.activityEvents+=@($nativeFixture.activityEvents[1].Clone())
+    Expect-Rejected { Complete-LabNativeExecution $intent $manifest $path (Join-Path $fixture 'ambiguous-pg') $pgScenario $pgId $principal }
+    $nativeFixture.activityEvents=@($nativeFixture.activityEvents[1])
+    Expect-Rejected { Complete-LabNativeExecution $intent $manifest $path (Join-Path $fixture 'missing-pg-start') $pgScenario $pgId $principal }
     'Native exact targets, serialized non-random selectors, secure owned polling, explicit failures and uncertain submissions verified.'
 } finally { Remove-Item -LiteralPath $fixture -Recurse }
