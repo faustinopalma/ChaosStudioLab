@@ -1,3 +1,4 @@
+[CmdletBinding()]
 param([string] $AcknowledgedAttemptsPath, [switch] $VerifyAllRuns)
 $ErrorActionPreference = 'Stop'
 $config = Get-Content (Join-Path $PSScriptRoot '..\..\runner-config.json') -Raw | ConvertFrom-Json

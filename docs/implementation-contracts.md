@@ -24,9 +24,11 @@ Ownership uses the existing deployment GUID, exact resource-group IDs, deployed 
 
 ## Publication and execution
 
-The package is built from current source, checksummed, transferred to the single runner and published through private SCM. App/SCM and dependency DNS resolve through private zones. Actual application responses establish runtime and business readiness.
+The package is built from current source, checksummed, transferred to the single runner and published through private SCM. App/SCM and dependency DNS resolve through private zones. Actual application responses establish runtime and business readiness. Publication and every test read `config/web` directly and require `alwaysOn=true`; a configured six-worker plan alone does not keep an idle application resident.
 
 PC orchestration uses visible stage logs and bounded command deadlines. Each measurement has a fresh RunId, identified load owner, recorded start/end times and separate private observation. Provisioning, troubleshooting and measurement timings are reported separately.
+
+Every baseline and native case synchronizes the current runner/load/observer/durability tools in one package and verifies every private source checksum before qualification or load. Reports retain those hashes. An older publication bundle therefore cannot silently run an obsolete verifier or canary.
 
 Active source implements the App Service workflow. The obsolete cycle, Automation/Hybrid Worker, lifecycle control-store, Suspend/Resume and registry/image interfaces have been removed.
 

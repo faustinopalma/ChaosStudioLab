@@ -139,6 +139,9 @@ try {
             "https://management.azure.com$($w.applicationId)/instances?api-version=2025-03-01", '-o', 'json') |
             ConvertFrom-Json -AsHashtable
         Assert-LabAppServicePlacement $plan $instances.value $participation.observations
+        $configuration=(Invoke-LabArm GET "https://management.azure.com$($w.applicationId)/config/web?api-version=2025-03-01").body
+        Write-LabJson (Join-Path $root 'publication-app-configuration.json') $configuration
+        Assert-LabAppServiceConfiguration $configuration.properties
         $m.status = 'PRIVATE_APPLICATION_PUBLISHED'
         $m.applicationPublicationState = 'PRIVATE_PUBLICATION_VERIFIED'
     } elseif ($Step -eq 'NativeScenarios') {

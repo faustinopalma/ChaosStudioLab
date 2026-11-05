@@ -138,20 +138,6 @@ function Invoke-NativeCase {
             }
         }
     }
-    foreach($name in @('observe.ps1','verify.ps1')) {
-        & scp @sshOptions -P $TunnelPort (Join-Path $PSScriptRoot "runner\$name") "csloperator@127.0.0.1:csl/scripts/runner/$name"
-        if($LASTEXITCODE -ne 0) { throw 'Verified private observer/retention tooling transfer failed before injection.' }
-        $hash=(Get-FileHash (Join-Path $PSScriptRoot "runner\$name") -Algorithm SHA256).Hash.ToLowerInvariant()
-        $remote=& ssh @sshArgs "cd ~/csl && sha256sum scripts/runner/$name"
-        if($LASTEXITCODE -ne 0 -or ($remote -split '\s+')[0] -cne $hash) { throw 'Private test-tool source checksum mismatch.' }
-    }
-    $scenarioSource=Join-Path $script:LabRoot 'tests\load\scenario.js'
-    & scp @sshOptions -P $TunnelPort $scenarioSource 'csloperator@127.0.0.1:csl/tests/load/scenario.js'
-    if($LASTEXITCODE -ne 0) { throw 'Private canary attribution tooling transfer failed before injection.' }
-    $scenarioHash=(Get-FileHash $scenarioSource -Algorithm SHA256).Hash.ToLowerInvariant()
-    $remote=& ssh @sshArgs 'cd ~/csl && sha256sum tests/load/scenario.js'
-    if($LASTEXITCODE -ne 0 -or ($remote -split '\s+')[0] -cne $scenarioHash) { throw 'Private canary tooling checksum mismatch.' }
-    $report.loadScriptSha256=$scenarioHash
     $phase=switch($TestId) { 'HA-APP-001' {'app-instance'} 'HA-APP-ZONE-001' {'app-zone'} 'HA-DB-001' {'failover'} 'HA-COMBINED-001' {'combined'} }
     $duration=if($isDatabase) {'18m'} else {'12m'}
     $observerSeconds=if($isDatabase) {1200} else {840}
@@ -269,11 +255,16 @@ try {
         "https://management.azure.com$($w.applicationId -replace '/sites/[^/]+$','/serverfarms/asp-csl-linux-baseline')?api-version=2025-03-01",'-o','json') | ConvertFrom-Json -AsHashtable
     Write-LabJson (Join-Path $caseRoot 'actual-plan.json') $plan
     Assert-LabAppServicePlan $plan
+    $configuration=(Invoke-LabArm GET "https://management.azure.com$($w.applicationId)/config/web?api-version=2025-03-01").body
+    Write-LabJson (Join-Path $caseRoot 'actual-app-configuration.json') $configuration
+    Assert-LabAppServiceConfiguration $configuration.properties
     Wait-LabSsh $m $stateRoot $TunnelPort
     # Keep CLI tunnel session cleanup outside concurrent measurements and evidence collection.
     $managementSession=Start-PrivateCommand management $caseId 'timeout 7200 cat > /dev/null'
     Start-Sleep -Seconds 3
     if($managementSession.process.HasExited) { throw 'BLOCKED: persistent private management session exited before qualification.' }
+    $report.testTooling=Sync-LabTestTooling -ManifestPath $ManifestPath -TunnelPort $TunnelPort
+    $report.loadScriptSha256=@($report.testTooling.files | Where-Object path -eq 'tests/load/scenario.js')[0].sha256
     $before=Invoke-PrivateQualification before
     $report.physicalZones=@($before.instances.properties.physicalZone | Sort-Object -Unique)
     foreach($hostName in @($w.applicationFqdn,$w.scmFqdn)) {

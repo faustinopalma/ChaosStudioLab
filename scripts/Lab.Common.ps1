@@ -80,6 +80,49 @@ function Get-LabSshOptions {
         '-o', 'StrictHostKeyChecking=accept-new', '-o', "UserKnownHostsFile=$(Join-Path $StateRoot 'known-hosts')")
 }
 
+function Sync-LabTestTooling {
+    param([string] $ManifestPath, [int] $TunnelPort)
+    $manifest = Read-LabManifest $ManifestPath
+    $stateRoot = Split-Path $ManifestPath -Parent
+    $options = @(Get-LabSshOptions $manifest $stateRoot)
+    $id = [Guid]::NewGuid().ToString('N')
+    $archiveName = "test-tools-$id.zip"
+    $checksumName = "test-tools-$id.sha256"
+    $archivePath = Join-Path $stateRoot $archiveName
+    $started = [DateTimeOffset]::UtcNow
+    $files = @(
+        'scripts\runner\test.ps1', 'scripts\runner\verify.ps1'
+        'scripts\runner\qualify-app.ps1', 'scripts\runner\observe.ps1'
+        'tests\load\run.ps1', 'tests\load\scenario.js'
+        'tests\load\evaluate-durability.ps1', 'tests\load\evaluate-recovery.ps1'
+    )
+    $checksums = @()
+    try {
+        $archive = [IO.Compression.ZipFile]::Open($archivePath, [IO.Compression.ZipArchiveMode]::Create)
+        try {
+            foreach ($relative in $files) {
+                $path = Join-Path $script:LabRoot $relative
+                $entry = $relative.Replace('\', '/')
+                [IO.Compression.ZipFileExtensions]::CreateEntryFromFile($archive, $path, $entry) | Out-Null
+                $checksums += @{path=$entry;sha256=(Get-FileHash $path -Algorithm SHA256).Hash.ToLowerInvariant()}
+            }
+            $writer = [IO.StreamWriter]::new($archive.CreateEntry($checksumName).Open(), [Text.UTF8Encoding]::new($false))
+            try { $writer.Write(($checksums | ForEach-Object { "$($_.sha256)  $($_.path)" }) -join "`n") }
+            finally { $writer.Dispose() }
+        } finally { $archive.Dispose() }
+        $archiveHash = (Get-FileHash $archivePath -Algorithm SHA256).Hash.ToLowerInvariant()
+        Write-Information "[$($started.ToString('O'))] Synchronizing eight current private measurement/observer/retention tools and verifying every source checksum." -InformationAction Continue
+        & scp @options -P $TunnelPort $archivePath "csloperator@127.0.0.1:csl/$archiveName"
+        if ($LASTEXITCODE -ne 0) { throw 'Private measurement-tool package transfer failed.' }
+        & ssh @options -p $TunnelPort 'csloperator@127.0.0.1' "cd ~/csl && unzip -oq $archiveName && sha256sum --quiet --check $checksumName && rm -- $archiveName $checksumName"
+        if ($LASTEXITCODE -ne 0) { throw 'Private measurement-tool extraction or source checksum verification failed.' }
+        return @{startedAtUtc=$started.ToString('O');completedAtUtc=[DateTimeOffset]::UtcNow.ToString('O')
+            archiveSha256=$archiveHash;files=$checksums}
+    } finally {
+        if (Test-Path -LiteralPath $archivePath) { Remove-Item -LiteralPath $archivePath }
+    }
+}
+
 function Save-LabRunnerEvidence {
     param([string] $ManifestPath, [ValidateSet('warmup', 'baseline', 'app-instance', 'app-zone', 'failover', 'combined')][string] $Phase,
         [int] $TunnelPort, [switch] $Partial)
@@ -259,6 +302,14 @@ function Assert-LabAppServicePlan {
         -not $Plan.properties.ContainsKey('maximumNumberOfZones') -or
         $Plan.properties.maximumNumberOfZones -lt 3) {
         throw 'BLOCKED: the actual plan must be Linux, zoneRedundant=true, maximumNumberOfZones>=3, capacity=6 and perSiteScaling=false to qualify the requested baseline.'
+    }
+}
+
+function Assert-LabAppServiceConfiguration {
+    param([hashtable] $Configuration)
+    if (-not $Configuration.ContainsKey('alwaysOn') -or
+        $Configuration.alwaysOn -isnot [bool] -or $Configuration.alwaysOn -ne $true) {
+        throw 'BLOCKED: actual App Service config/web must have alwaysOn=true to retain the six-worker baseline during idle periods.'
     }
 }
 

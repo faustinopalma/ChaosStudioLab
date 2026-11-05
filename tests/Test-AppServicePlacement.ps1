@@ -5,7 +5,7 @@ $errors = $null
 $ast = [Management.Automation.Language.Parser]::ParseFile(
     (Join-Path $PSScriptRoot '..\scripts\Lab.Common.ps1'), [ref]$tokens, [ref]$errors)
 if ($errors.Count) { throw 'Common helper parsing failed.' }
-foreach ($name in @('Assert-LabAppServicePlan', 'Assert-LabAppServicePlacement')) {
+foreach ($name in @('Assert-LabAppServicePlan', 'Assert-LabAppServiceConfiguration', 'Assert-LabAppServicePlacement')) {
     $definitions = @($ast.FindAll({
         param($node)
         $node -is [Management.Automation.Language.FunctionDefinitionAst] -and $node.Name -eq $name
@@ -18,6 +18,10 @@ function Expect-Blocked([scriptblock] $Action) {
     if (-not $blocked) { throw 'A required exact placement/capability gate was bypassed.' }
 }
 $plan = @{kind='linux'; properties=@{reserved=$true;zoneRedundant=$true;perSiteScaling=$false;maximumNumberOfZones=3};sku=@{capacity=6}}
+Assert-LabAppServiceConfiguration @{alwaysOn=$true}
+Expect-Blocked { Assert-LabAppServiceConfiguration @{alwaysOn=$false} }
+Expect-Blocked { Assert-LabAppServiceConfiguration @{} }
+Expect-Blocked { Assert-LabAppServiceConfiguration @{alwaysOn='true'} }
 $instances = @(0..5 | ForEach-Object { @{name="instance-$_";properties=@{physicalZone="region-az$([int][Math]::Floor($_/2)+1)"}} })
 $observations = @($instances | ForEach-Object { @{instanceId=$_.name;status='live';businessSuccess=$true} })
 Assert-LabAppServicePlacement $plan $instances $observations
