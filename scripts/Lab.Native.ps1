@@ -123,7 +123,8 @@ function Complete-LabNativeExecution {
 }
 
 function Confirm-LabNativePostgresIdentity {
-    param([hashtable] $Result,[hashtable] $Scenario,[string] $TargetId,[string] $PrincipalId,[string] $EvidencePrefix)
+    param([hashtable] $Result,[hashtable] $Scenario,[string] $TargetId,[string] $PrincipalId,[string] $EvidencePrefix,
+        [ValidateRange(0,900)][int] $AuditTimeoutSeconds=900)
     Assert-LabResourceId $TargetId
     if($TargetId -notmatch '/providers/Microsoft.DBforPostgreSQL/flexibleServers/[^/]+$' -or
         (Get-LabNativeActionUrn $Scenario.properties.actions[0].actionId) -cne 'urn:csci:microsoft:azurepostgresql:failover/1.0.0') {
@@ -132,18 +133,29 @@ function Confirm-LabNativePostgresIdentity {
     $start=[DateTimeOffset]$Result.properties.startTime
     $end=[DateTimeOffset]$Result.properties.endTime
     if($end -le $start) { throw 'Native identity audit requires an explicit positive execution interval.' }
-    $events=@(Invoke-LabAz @('monitor','activity-log','list','--resource-id',$TargetId,
-        '--start-time',$start.UtcDateTime.ToString('yyyy-MM-ddTHH:mm:ssZ'),
-        '--end-time',$end.AddSeconds(1).UtcDateTime.ToString('yyyy-MM-ddTHH:mm:ssZ'),
-        '--max-events','200','-o','json') | ConvertFrom-Json -AsHashtable)
-    Write-LabJson "$EvidencePrefix-identity-activity.json" $events
-    if($events.Count -ge 200) { throw 'Native identity audit may be truncated; execution remains unverified.' }
-    $operations=@($events | Where-Object {
-        $_.resourceId -ieq $TargetId -and
-        $_.operationName.value -ieq 'Microsoft.DBforPostgreSQL/flexibleServers/restart/action' -and
-        [DateTimeOffset]$_.eventTimestamp -ge $start -and [DateTimeOffset]$_.eventTimestamp -le $end
-    })
-    $success=@($operations | Where-Object { $_.status.value -eq 'Succeeded' })
+    $deadline=[DateTimeOffset]::UtcNow.AddSeconds($AuditTimeoutSeconds)
+    $attempt=0
+    do {
+        $events=@(Invoke-LabAz @('monitor','activity-log','list','--resource-id',$TargetId,
+            '--start-time',$start.UtcDateTime.ToString('yyyy-MM-ddTHH:mm:ssZ'),
+            '--end-time',$end.AddSeconds(1).UtcDateTime.ToString('yyyy-MM-ddTHH:mm:ssZ'),
+            '--max-events','200','-o','json') | ConvertFrom-Json -AsHashtable)
+        Write-LabJson "$EvidencePrefix-identity-activity-$($attempt.ToString('D3')).json" $events
+        Write-LabJson "$EvidencePrefix-identity-activity.json" $events
+        $attempt++
+        if($events.Count -ge 200) { throw 'Native identity audit may be truncated; execution remains unverified.' }
+        $operations=@($events | Where-Object {
+            $_.resourceId -ieq $TargetId -and
+            $_.operationName.value -ieq 'Microsoft.DBforPostgreSQL/flexibleServers/restart/action' -and
+            [DateTimeOffset]$_.eventTimestamp -ge $start -and [DateTimeOffset]$_.eventTimestamp -le $end
+        })
+        $success=@($operations | Where-Object { $_.status.value -eq 'Succeeded' })
+        if($success.Count -gt 0) { break }
+        $remaining=($deadline-[DateTimeOffset]::UtcNow).TotalSeconds
+        if($remaining -le 0) { throw 'Native identity audit visibility deadline expired without a successful owned PostgreSQL operation; execution remains unverified.' }
+        Write-Information "Waiting for delayed PostgreSQL Activity Log ingestion; $([Math]::Ceiling($remaining)) seconds remain. The native fault is not resubmitted." -InformationAction Continue
+        Start-Sleep -Seconds ([Math]::Min(15,[Math]::Ceiling($remaining)))
+    } while($true)
     if($success.Count -ne 1) { throw 'Native identity audit requires exactly one successful owned PostgreSQL restart/failover in the execution interval.' }
     $completed=$success[0]
     $started=@($operations | Where-Object {
@@ -167,6 +179,7 @@ function Confirm-LabNativePostgresIdentity {
         status='PASS';source='Azure Activity Log';targetId=$TargetId;expectedPrincipalId=$PrincipalId
         reportedPrincipalId=$Result.properties.managedIdentityPrincipalId
         executionStartedAtUtc=$start.ToString('O');executionEndedAtUtc=$end.ToString('O')
+        activityQueries=$attempt
         correlationId=$completed.correlationId;clientRequestId=$started[0].httpRequest.clientRequestId
         started=$started[0].eventTimestamp;completed=$completed.eventTimestamp
     }

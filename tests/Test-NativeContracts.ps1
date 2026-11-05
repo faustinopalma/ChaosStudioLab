@@ -66,7 +66,7 @@ foreach($address in @($poll.Replace('https:','http:'),$poll.Replace('management.
 }
 $fixture=Join-Path ([IO.Path]::GetTempPath()) "csl-native-contract-$([Guid]::NewGuid().ToString('N'))"
 New-Item -ItemType Directory -Path $fixture | Out-Null
-$nativeFixture=@{response=@{statusCode=200;headers=@{};body=@{properties=@{status='Succeeded'}}};fail=$false;activityQueries=0}
+$nativeFixture=@{response=@{statusCode=200;headers=@{};body=@{properties=@{status='Succeeded'}}};fail=$false;activityQueries=0;activityDelay=0;auditSleeps=0}
 function Invoke-LabArm {
     param($Method,$Uri,$Body)
     if($nativeFixture.fail) { throw 'Fixture native submission transport uncertainty.' }
@@ -78,7 +78,15 @@ function Invoke-LabArm {
 function Invoke-LabAz {
     param([string[]] $Arguments)
     $nativeFixture.activityQueries++
+    if($nativeFixture.activityDelay -gt 0) {
+        $nativeFixture.activityDelay--
+        return ConvertTo-Json -InputObject @($nativeFixture.activityEvents | Where-Object { $_.status.value -ne 'Succeeded' }) -Depth 20
+    }
     return ConvertTo-Json -InputObject $nativeFixture.activityEvents -Depth 20
+}
+function Start-Sleep {
+    param([int] $Seconds)
+    $nativeFixture.auditSleeps++
 }
 try {
     Wait-LabNativeOperation $poll (Join-Path $fixture 'operation') -TimeoutSeconds 1 | Out-Null
@@ -149,6 +157,24 @@ try {
     if($intent.status -ne 'SUCCEEDED' -or -not (Test-Path (Join-Path $fixture 'audited-pg-identity-proof.json'))) {
         throw 'Independently authenticated native PostgreSQL completion was not reconciled.'
     }
+    $queryCount=$nativeFixture.activityQueries
+    $sleepCount=$nativeFixture.auditSleeps
+    $nativeFixture.activityDelay=1
+    Complete-LabNativeExecution $intent $manifest $path (Join-Path $fixture 'delayed-pg') $pgScenario $pgId $principal | Out-Null
+    if($nativeFixture.activityQueries -ne $queryCount+2 -or $nativeFixture.auditSleeps -ne $sleepCount+1 -or
+        -not (Test-Path (Join-Path $fixture 'delayed-pg-identity-activity-000.json')) -or
+        -not (Test-Path (Join-Path $fixture 'delayed-pg-identity-activity-001.json'))) {
+        throw 'Delayed Activity Log completion was not boundedly retried with both original snapshots retained.'
+    }
+    $savedEvents=$nativeFixture.activityEvents
+    $nativeFixture.activityEvents=@()
+    $queryCount=$nativeFixture.activityQueries
+    $sleepCount=$nativeFixture.auditSleeps
+    Expect-Rejected { Confirm-LabNativePostgresIdentity $nativeFixture.response.body $pgScenario $pgId $principal (Join-Path $fixture 'expired-pg-audit') -AuditTimeoutSeconds 0 }
+    if($nativeFixture.activityQueries -ne $queryCount+1 -or $nativeFixture.auditSleeps -ne $sleepCount) {
+        throw 'Expired audit visibility deadline did not fail closed after its final query.'
+    }
+    $nativeFixture.activityEvents=$savedEvents
     $nativeFixture.activityEvents[1].Remove('httpRequest')
     Complete-LabNativeExecution $intent $manifest $path (Join-Path $fixture 'audited-pg-without-terminal-http') $pgScenario $pgId $principal | Out-Null
     $foreignPgId=$pgId -replace '/resourceGroups/[^/]+/','/resourceGroups/foreign/'
