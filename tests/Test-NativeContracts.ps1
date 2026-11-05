@@ -64,12 +64,26 @@ $nativeFixture=@{response=@{statusCode=200;headers=@{};body=@{properties=@{statu
 function Invoke-LabArm {
     param($Method,$Uri,$Body)
     if($nativeFixture.fail) { throw 'Fixture native submission transport uncertainty.' }
+    if($Method -eq 'Post' -and $Uri -match '/validate\?') {
+        return @{statusCode=202;headers=@{Location=$poll};body=$null}
+    }
     return $nativeFixture.response
 }
 try {
     Wait-LabNativeOperation $poll (Join-Path $fixture 'operation') -TimeoutSeconds 1 | Out-Null
     $nativeFixture.response.body.properties.status='Failed'
     Expect-Rejected { Wait-LabNativeOperation $poll (Join-Path $fixture 'failed') -TimeoutSeconds 1 }
+    $nativeFixture.response.body.properties=@{status='Succeeded';resources=@(@{id=$appId});errors=@();validationErrors=$null}
+    Confirm-LabNativeValidation $configuration.id $appId (Join-Path $fixture 'validation') | Out-Null
+    $nativeFixture.response.body.properties.resources[0].id="$scope/Microsoft.Web/sites/other"
+    Expect-Rejected { Confirm-LabNativeValidation $configuration.id $appId (Join-Path $fixture 'wrong-validation-target') }
+    $nativeFixture.response.body.properties.resources[0].id=$appId
+    $nativeFixture.response.body.properties.status='RequiresAttention'
+    Expect-Rejected { Confirm-LabNativeValidation $configuration.id $appId (Join-Path $fixture 'requires-attention') }
+    Expect-Rejected { Wait-LabNativeOperation $poll (Join-Path $fixture 'execution-requires-attention') -TimeoutSeconds 1 -AllowFailedTerminal }
+    $nativeFixture.response.body.properties.status='Succeeded'
+    $nativeFixture.response.body.properties.validationErrors=@{permission=@();resource=@(@{errorCode=-1})}
+    Expect-Rejected { Confirm-LabNativeValidation $configuration.id $appId (Join-Path $fixture 'validation-errors') }
     $manifest=@{}
     $path=Join-Path $fixture 'manifest.json'
     $nativeFixture.fail=$true

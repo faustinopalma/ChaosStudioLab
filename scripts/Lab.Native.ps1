@@ -19,7 +19,8 @@ function Wait-LabNativeOperation {
     param(
         [string] $PollUri, [string] $EvidencePrefix,
         [ValidateRange(1,900)][int] $TimeoutSeconds=900,
-        [switch] $AllowFailedTerminal
+        [switch] $AllowFailedTerminal,
+        [ValidateSet('Execution','Validation')][string] $OperationKind='Execution'
     )
     $deadline=[DateTimeOffset]::UtcNow.AddSeconds($TimeoutSeconds)
     $index=0
@@ -34,7 +35,8 @@ function Wait-LabNativeOperation {
             }
             $status=$response.body.properties.status
             if($status -eq 'Succeeded') { return $response.body }
-            if($status -in @('Failed','Canceled','Cancelled')) {
+            if($status -in @('Failed','Canceled','Cancelled') -or
+                ($OperationKind -eq 'Validation' -and $status -eq 'RequiresAttention')) {
                 if($AllowFailedTerminal) { return $response.body }
                 throw "Native operation ended as $($response.body.properties.status): $($response.body.properties | ConvertTo-Json -Depth 30 -Compress)"
             }
@@ -44,6 +46,30 @@ function Wait-LabNativeOperation {
         if([DateTimeOffset]::UtcNow -lt $deadline) { Start-Sleep -Seconds 5 }
     } while([DateTimeOffset]::UtcNow -lt $deadline)
     throw 'Native operation exceeded its bounded foreground deadline; retain its polling URL and reconcile in place.'
+}
+
+function Confirm-LabNativeValidation {
+    param([string] $ConfigurationId,[string] $TargetId,[string] $EvidencePrefix)
+    Assert-LabResourceId $ConfigurationId
+    Assert-LabResourceId $TargetId
+    $acceptance=Invoke-LabArm Post "https://management.azure.com$ConfigurationId/validate?api-version=2026-08-01-preview"
+    Write-LabJson "$EvidencePrefix-acceptance.json" $acceptance
+    if($acceptance.statusCode -notin @(200,202)) { throw "Native validation returned HTTP $($acceptance.statusCode)." }
+    $result=Wait-LabNativeOperation (Get-LabNativePollUri $acceptance) $EvidencePrefix -TimeoutSeconds 300 `
+        -AllowFailedTerminal -OperationKind Validation
+    Write-LabJson "$EvidencePrefix-terminal.json" $result
+    $properties=$result.properties
+    if($properties.status -ne 'Succeeded') {
+        throw "BLOCKED: native non-fault validation ended as $($properties.status): $($properties | ConvertTo-Json -Depth 30 -Compress)"
+    }
+    if(@($properties.resources).Count -ne 1 -or $properties.resources[0].id -ine $TargetId -or
+        @($properties.errors | Where-Object { $null -ne $_ }).Count -gt 0 -or
+        ($null -ne $properties.validationErrors -and
+            (@($properties.validationErrors.permission).Count -gt 0 -or @($properties.validationErrors.resource).Count -gt 0))) {
+        throw 'BLOCKED: native validation lacks clean evidence for the exact owned target.'
+    }
+    Write-Information "[$([DateTimeOffset]::UtcNow.ToString('O'))] Native non-fault validation passed for the exact owned target." -InformationAction Continue
+    return $result
 }
 
 function Get-LabNativeActionUrn {
@@ -67,7 +93,10 @@ function Complete-LabNativeExecution {
     $Intent.finishedAtUtc=[DateTimeOffset]::UtcNow.ToString('O')
     $Intent.terminalEvidencePath="$EvidencePrefix-terminal.json"
     Write-LabJson $ManifestPath $Manifest
-    if($result.properties.status -ne 'Succeeded') { return $result }
+    if($result.properties.status -ne 'Succeeded') {
+        Write-Warning "[$($Intent.finishedAtUtc)] Native execution ended as $($result.properties.status); exact provider errors are saved in $EvidencePrefix-terminal.json. The operation is reconciled; bounded measurement and write retention still complete."
+        return $result
+    }
     if($result.properties.managedIdentityPrincipalId -ine $PrincipalId -or
         @($result.properties.resources).Count -ne 1 -or $result.properties.resources[0].id -ine $TargetId) {
         throw 'Native execution identity or actual target differs from the verified owned configuration.'

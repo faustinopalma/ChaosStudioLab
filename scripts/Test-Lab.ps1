@@ -151,6 +151,11 @@ function Invoke-NativeCase {
             }
         }
     }
+    foreach($definition in @($applicationDefinition,$databaseDefinition)) {
+        if($null -eq $definition) { continue }
+        Confirm-LabNativeValidation $definition.configuration.id $definition.targetId `
+            (Join-Path $caseRoot "$($definition.kind)-preflight") | Out-Null
+    }
     $phase=switch($TestId) { 'HA-APP-001' {'app-instance'} 'HA-APP-ZONE-001' {'app-zone'} 'HA-DB-001' {'failover'} 'HA-COMBINED-001' {'combined'} }
     $duration=if($isDatabase) {'18m'} else {'12m'}
     $observerSeconds=if($isDatabase) {1200} else {840}
