@@ -133,12 +133,13 @@ function Confirm-LabNativePostgresIdentity {
     $start=[DateTimeOffset]$Result.properties.startTime
     $end=[DateTimeOffset]$Result.properties.endTime
     if($end -le $start) { throw 'Native identity audit requires an explicit positive execution interval.' }
+    $completionDeadline=$end.AddMinutes(15)
     $deadline=[DateTimeOffset]::UtcNow.AddSeconds($AuditTimeoutSeconds)
     $attempt=0
     do {
         $events=@(Invoke-LabAz @('monitor','activity-log','list','--resource-id',$TargetId,
             '--start-time',$start.UtcDateTime.ToString('yyyy-MM-ddTHH:mm:ssZ'),
-            '--end-time',$end.AddSeconds(1).UtcDateTime.ToString('yyyy-MM-ddTHH:mm:ssZ'),
+            '--end-time',$completionDeadline.AddSeconds(1).UtcDateTime.ToString('yyyy-MM-ddTHH:mm:ssZ'),
             '--max-events','200','-o','json') | ConvertFrom-Json -AsHashtable)
         Write-LabJson "$EvidencePrefix-identity-activity-$($attempt.ToString('D3')).json" $events
         Write-LabJson "$EvidencePrefix-identity-activity.json" $events
@@ -147,7 +148,7 @@ function Confirm-LabNativePostgresIdentity {
         $operations=@($events | Where-Object {
             $_.resourceId -ieq $TargetId -and
             $_.operationName.value -ieq 'Microsoft.DBforPostgreSQL/flexibleServers/restart/action' -and
-            [DateTimeOffset]$_.eventTimestamp -ge $start -and [DateTimeOffset]$_.eventTimestamp -le $end
+            [DateTimeOffset]$_.eventTimestamp -ge $start -and [DateTimeOffset]$_.eventTimestamp -le $completionDeadline
         })
         $success=@($operations | Where-Object { $_.status.value -eq 'Succeeded' })
         if($success.Count -gt 0) { break }
@@ -156,10 +157,11 @@ function Confirm-LabNativePostgresIdentity {
         Write-Information "Waiting for delayed PostgreSQL Activity Log ingestion; $([Math]::Ceiling($remaining)) seconds remain. The native fault is not resubmitted." -InformationAction Continue
         Start-Sleep -Seconds ([Math]::Min(15,[Math]::Ceiling($remaining)))
     } while($true)
-    if($success.Count -ne 1) { throw 'Native identity audit requires exactly one successful owned PostgreSQL restart/failover in the execution interval.' }
+    if($success.Count -ne 1) { throw 'Native identity audit requires exactly one successful owned PostgreSQL restart/failover in its bounded lifecycle interval.' }
     $completed=$success[0]
     $started=@($operations | Where-Object {
-        $_.status.value -eq 'Started' -and $_.correlationId -eq $completed.correlationId
+        $_.status.value -eq 'Started' -and $_.correlationId -eq $completed.correlationId -and
+        [DateTimeOffset]$_.eventTimestamp -le $end
     })
     if($started.Count -ne 1 -or -not $completed.correlationId -or
         -not $started[0].ContainsKey('httpRequest') -or -not $started[0].httpRequest.clientRequestId -or
@@ -179,6 +181,8 @@ function Confirm-LabNativePostgresIdentity {
         status='PASS';source='Azure Activity Log';targetId=$TargetId;expectedPrincipalId=$PrincipalId
         reportedPrincipalId=$Result.properties.managedIdentityPrincipalId
         executionStartedAtUtc=$start.ToString('O');executionEndedAtUtc=$end.ToString('O')
+        completionEvidenceDeadlineUtc=$completionDeadline.ToString('O')
+        providerCompletionLagSeconds=([DateTimeOffset]$completed.eventTimestamp-$end).TotalSeconds
         activityQueries=$attempt
         correlationId=$completed.correlationId;clientRequestId=$started[0].httpRequest.clientRequestId
         started=$started[0].eventTimestamp;completed=$completed.eventTimestamp

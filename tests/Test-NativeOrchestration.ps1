@@ -16,6 +16,21 @@ $deadline=& ([scriptblock]::Create($deadlines[0].Right.Extent.Text))
 if(($deadline-$now).TotalSeconds -lt 360 -or ($deadline-$now).TotalSeconds -gt 361) {
     throw 'Combined control-plane startup must allow six minutes independently of the 180-second recovery objective.'
 }
+$disruption=@($ast.FindAll({
+    param($node)
+    $node -is [Management.Automation.Language.AssignmentStatementAst] -and
+        $node.Left.Extent.Text -eq '$observed' -and $node.Right.Extent.Text -match '\$events'
+},$true))
+if($disruption.Count -ne 1) { throw 'Expected one independent combined disruption gate.' }
+$gate=[scriptblock]::Create($disruption[0].Right.Extent.Text)
+$dbIntent=@{requestedAtUtc='2026-11-05T08:00:00Z'}
+$events=@(@{requestedAtUtc='2026-11-05T07:59:59Z';kind='dependencies';statusCode=503
+    processId=101;dependencyStatus='unavailable'})
+if(& $gate) { throw 'A stale pre-submission dependency failure qualified combined application injection.' }
+$events[0].requestedAtUtc='2026-11-05T08:00:01Z'
+if(-not (& $gate)) { throw 'An authenticated post-submission dependency failure did not qualify injection.' }
+$events[0].processId=$null
+if(& $gate) { throw 'A generic frontend error qualified combined application injection.' }
 $fixture=Join-Path ([IO.Path]::GetTempPath()) "csl-native-entrypoint-$([Guid]::NewGuid().ToString('N'))"
 New-Item -ItemType Directory -Path (Join-Path $fixture 'scripts') -Force | Out-Null
 Copy-Item (Join-Path $root 'scripts\Test-Lab.ps1') (Join-Path $fixture 'scripts')

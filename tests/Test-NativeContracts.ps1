@@ -175,6 +175,18 @@ try {
         throw 'Expired audit visibility deadline did not fail closed after its final query.'
     }
     $nativeFixture.activityEvents=$savedEvents
+    $nativeFixture.activityEvents[1].eventTimestamp='2026-11-05T08:02:35Z'
+    Complete-LabNativeExecution $intent $manifest $path (Join-Path $fixture 'later-provider-completion') $pgScenario $pgId $principal | Out-Null
+    $proof=Get-Content (Join-Path $fixture 'later-provider-completion-identity-proof.json') -Raw|ConvertFrom-Json
+    if($proof.providerCompletionLagSeconds -ne 35) { throw 'The separately correlated provider completion lag was not retained.' }
+    $nativeFixture.activityEvents[0].eventTimestamp='2026-11-05T08:02:00.001Z'
+    Expect-Rejected { Confirm-LabNativePostgresIdentity $nativeFixture.response.body $pgScenario $pgId $principal (Join-Path $fixture 'late-start') -AuditTimeoutSeconds 0 }
+    $nativeFixture.activityEvents[0].eventTimestamp='2026-11-05T08:00:20Z'
+    $nativeFixture.activityEvents[1].eventTimestamp='2026-11-05T08:17:00Z'
+    Confirm-LabNativePostgresIdentity $nativeFixture.response.body $pgScenario $pgId $principal (Join-Path $fixture 'completion-boundary') -AuditTimeoutSeconds 0
+    $nativeFixture.activityEvents[1].eventTimestamp='2026-11-05T08:17:00.001Z'
+    Expect-Rejected { Confirm-LabNativePostgresIdentity $nativeFixture.response.body $pgScenario $pgId $principal (Join-Path $fixture 'expired-completion') -AuditTimeoutSeconds 0 }
+    $nativeFixture.activityEvents[1].eventTimestamp='2026-11-05T08:01:00Z'
     $nativeFixture.activityEvents[1].Remove('httpRequest')
     Complete-LabNativeExecution $intent $manifest $path (Join-Path $fixture 'audited-pg-without-terminal-http') $pgScenario $pgId $principal | Out-Null
     $foreignPgId=$pgId -replace '/resourceGroups/[^/]+/','/resourceGroups/foreign/'

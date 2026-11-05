@@ -184,6 +184,7 @@ function Invoke-NativeCase {
                     if($LASTEXITCODE -ne 0) { throw 'Independent overlap observer retrieval failed.' }
                     $events=@($lines | Where-Object { $_ } | ForEach-Object { $_ | ConvertFrom-Json })
                     $observed=@($events | Where-Object {
+                        $_.requestedAtUtc -and [DateTimeOffset]$_.requestedAtUtc -ge [DateTimeOffset]$dbIntent.requestedAtUtc -and
                         $_.kind -eq 'dependencies' -and $_.statusCode -eq 503 -and $_.processId -and
                         $_.dependencyStatus -in @('unavailable','timeout')
                     }).Count -gt 0
