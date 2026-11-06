@@ -2,10 +2,10 @@
 
 ## Current target and evidence contract
 
-- [Private Linux App Service target architecture](04-private-linux-app-service.svg): managed six-worker plan, required three-zone participation, separate outbound Integration/inbound PE subnets, private application/SCM/database paths and one runner.
+- [Private App Service target architecture](04-private-linux-app-service.svg): managed six-worker plan, required three-zone participation, separate outbound Integration/inbound PE subnets, private application/SCM/database paths and one runner. The same shape serves the Linux baseline and the Windows comparison variant.
 - [Deterministic native suite evidence contract](05-native-chaos-evidence.svg): independent baseline, exact-instance, zone-selected, database, combined and real-zone verdicts, including effect overlap and all-write durability.
 
-These are editable SVG sources with generic labeled components. Actual six-worker/three-zone participation, private SCM publication and fresh BASE-001 have passed. Linux9 repairs native validation, but actual application Actions fail internally; required application/combined coverage remains BLOCKED. Latest database recovery/durability passed by reconciliation at 32.288 s; full-phase availability separately failed. All 38,918 measurement and 23 smoke writes were retained/checksummed. Runtime9 has bounded support through 10 November 2026. The diagrams distinguish placement/baseline evidence from native fault/recovery evidence. Open the sources in Inkscape; export a PNG only when a preview is needed.
+These are editable SVG sources with generic labeled components. On Linux, App Service rejects native process deletion, so the Linux application and combined cases remain BLOCKED. On the [Windows comparison variant](../app-service-results.md#windows-comparison-variant-complete-native-suite-6-november), BASE-001, HA-APP-001, HA-APP-ZONE-001, HA-DB-001 and HA-COMBINED-001 passed recovery and durability on 6 November 2026. Database and combined full-phase availability failed separately at about 97.3%, and HA-AZ-001 remains BLOCKED. All 92,616 acknowledged measurement writes across 31 runs were retained with checksums. The .NET 9 stacks have bounded support through 10 November 2026. Open the sources in Inkscape; export a PNG only when a preview is needed.
 
 ## Historical drawings
 

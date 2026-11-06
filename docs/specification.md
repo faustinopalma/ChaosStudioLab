@@ -155,6 +155,8 @@ For each application test, record the OS/runtime, Action/schema, selector, eligi
 
 Test the selected Linux/native implementation and report supported-test results individually. A required application or combined test that lacks qualifying evidence leaves the full suite incomplete. Any changed implementation is recorded and requalified against the requested test semantics.
 
+Linux process deletion failed on every tested stack. [D23](../DECISIONS-ACCEPTED.md#d23-explicit-windows-comparison-variant-for-native-process-crash) therefore adds an explicit Windows comparison variant with the same private three-zone architecture, database and Workspace. Windows Scenarios omit `processName` because Windows validation rejects explicit values. Linux and Windows verdicts are reported separately.
+
 A zone-selected process crash exercises application failure effects on those instances. It does not establish a sustained infrastructure-zone outage. The former five-minute Container Apps readiness-withdrawal adapter is superseded; no custom runbook or new application fault-control route is required by this initial native-Action design.
 
 Use the exact PostgreSQL target, forced failover, no automatic failback and no skipped ineligible servers. Resolve serialized values and canonical identifiers from the pinned regional schema. Require at least twenty minutes between failovers and a Healthy standby.

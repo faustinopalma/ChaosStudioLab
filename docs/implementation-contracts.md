@@ -61,7 +61,7 @@ Activity Log ingestion can also lag completion. The PostgreSQL identity audit ha
 
 Actual execution identity, target IDs, canonical Action, compiled parameters and Action summary must match the selected configuration. Process crashes have discrete semantics. HA-AZ-001 retains a separate verdict based on genuine infrastructure-zone evidence.
 
-Linux runtime/selector support is verified against the actual Action and endpoint. The [Windows comparison](research.md#linux-baseline-and-windows-test-coverage) records the documented Windows-only cache-stampede template and any observed runtime advantage. Unavailable or unqualified required coverage receives an explicit BLOCKED verdict.
+Linux runtime/selector support is verified against the actual Action and endpoint. The [Windows comparison](research.md#linux-baseline-and-windows-test-coverage) records the documented Windows-only cache-stampede template and the measured Windows process-crash coverage. Unavailable or unqualified required coverage receives an explicit BLOCKED verdict. The Windows comparison variant uses `windows-application.bicep` and Scenarios that omit `processName`, which Windows validation rejects.
 
 ## Measurements and durability
 

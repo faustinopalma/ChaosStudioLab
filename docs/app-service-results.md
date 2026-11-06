@@ -1,6 +1,91 @@
-# Private Linux App Service execution results
+# Private App Service execution results
 
-Evidence date: 5 November 2026, UTC. Earlier measurements, complete-history reconciliation and the eight-region Workspace comparison are preserved below.
+Latest evidence date: 6 November 2026, UTC. The Windows comparison variant completed every required application, database and combined case. The Linux results, complete-history reconciliation and the eight-region Workspace comparison of 5 November are preserved below.
+
+## Windows comparison variant: complete native suite, 6 November
+
+[D23](../DECISIONS-ACCEPTED.md#d23-explicit-windows-comparison-variant-for-native-process-crash) records why the suite runs on a Windows App Service variant. On Linux, every tested stack failed App Service process deletion; where listing worked, deletion returned HTTP 400 `This runtime stack is not yet supported on Linux`. The variant keeps the same private architecture:
+
+- Spain Central P1v3 plan with `zoneRedundant=true`, `maximumNumberOfZones=3` and six workers.
+- Public network access disabled, with Private Endpoint ingress and VNet Integration egress.
+- Private SCM publication from the single runner.
+- The same private PostgreSQL zone-redundant HA server.
+- The same modern Chaos Workspace.
+
+The application runs `dotnet|9` with out-of-process hosting. Every case observed READY workers balanced two per physical zone across `spaincentral-az1`, `spaincentral-az2` and `spaincentral-az3`.
+
+| Test | Verdict | Native effect and recovery evidence |
+| --- | --- | --- |
+| BASE-001 | **PASS** | Five-minute warmup and ten-minute baseline: 100% success, zero errors and zero drops; exact package and six-instance set recorded |
+| HA-APP-001 | **PASS** | Kill process accepted for one exact instance. Its dotnet worker was replaced, and the new process started 12.7 s after acceptance and was observed live 29 s after acceptance. Zero failed business operations, drops or canary failures |
+| HA-APP-ZONE-001 | **PASS** | Zone `spaincentral-az1` selected. Both of its workers' dotnet processes were replaced 11–13 s after acceptance. Zero failed business operations, drops or canary failures |
+| HA-DB-001 | **PASS** (recovery and durability) | Forced failover; disruption observed 140 s after acceptance. Recovery took **36.359 s**, followed by a 60-second qualifying window and a five-minute stable window. Primary/standby zones swapped |
+| HA-DB-001 full-phase availability | **FAIL** (reported separately) | 97.347% business success across the 18-minute phase; failover errors are concentrated in the disruption interval |
+| HA-COMBINED-001 | **PASS** (recovery, durability and overlap) | Database disruption was observed first. The application kill was then submitted, and the replacement process started while dependency failures were still occurring. Every replacement was bracketed by independently observed database failures with no healthy sample in between. Recovery took **34.989 s**, followed by a 60-second qualifying window and a five-minute stable window. Primary/standby zones swapped from 1/2 to 2/1 |
+| HA-COMBINED-001 full-phase availability | **FAIL** (reported separately) | 97.324% business success across the 18-minute phase |
+| HA-AZ-001 | **BLOCKED** | Explicit guard. Discrete process crashes do not establish a sustained correlated infrastructure-zone outage, and no qualifying real-zone injection exists |
+
+Every native deletion was authenticated through correlated Activity Log caller and object claims as the declared Workspace identity. No additional role was granted. The process crashes are discrete effects: App Service restarted each worker process in place, and the instance stayed in its zone.
+
+| Phase | Successful business ops | Failed | Dropped (scheduled/canary) | Canaries ok/failed | Business success | Successful p95 | Phase writes retained |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| Warmup, 5 min | 6,001 | 0 | 0/0 | 301/0 | 100% | 125 ms | 1,507 |
+| Baseline, 10 min | 12,001 | 0 | 0/0 | 600/0 | 100% | 123 ms | 3,006 |
+| Exact instance, 12 min | 14,401 | 0 | 0/0 | 721/0 | 100% | 122 ms | 3,607 |
+| Verified zone, 12 min | 14,401 | 0 | 0/0 | 721/0 | 100% | 121 ms | 3,607 |
+| Database failover, 18 min | 21,028 | 414 | 159/27 | 1,044/10 | 97.347% | 123 ms | 5,348 |
+| Combined, 18 min | 21,023 | 429 | 149/28 | 1,043/10 | 97.324% | 121 ms | 5,349 |
+
+During the first five minutes after each application kill, the instance and zone cases reached 100% success with zero canary-failure seconds.
+
+The final complete-history reconciliation verified **92,616 of 92,616** issued and acknowledged measurement writes across **31 runs**, including all earlier Linux and Windows runs, with matching checksums and zero acknowledged loss.
+
+### Root cause of earlier Windows 503 responses
+
+Earlier Windows baseline attempts failed with sporadic `database_deadline_exceeded` 503 responses on cold processes. The diagnostics timed each stage of a cold connection privately from the runner:
+
+| Stage | Before the fix | After the fix |
+| --- | --- | --- |
+| DNS | 0.2–0.8 s | Unchanged |
+| TCP and TLS | 0.2–0.8 s | Unchanged |
+| Entra token | 0.2–0.8 s | Unchanged |
+| Npgsql physical open | **4.7–5.1 s** | **0.22–0.60 s** |
+
+Npgsql 10 defaults to `GSS Encryption Mode=Prefer`, which probes Kerberos/SSPI credentials before each physical connection. On Windows App Service that probe stalls for seconds and can exceed the three-second database deadline.
+
+The application now sets `GssEncryptionMode.Disable`. Connections still use `VerifyFull` TLS and Entra token authentication. The variant was then republished, and the complete suite above ran on that package.
+
+### Windows execution history and operational findings
+
+The earlier runs keep their original verdicts:
+
+| Run | Verdict | Cause |
+| --- | --- | --- |
+| BASE-001 | **FAIL** | Revision mismatch after a republish |
+| BASE-001 | **PASS** | Superseded by a later instance-set change |
+| HA-APP-001 | **BLOCKED** | Platform zone rebalancing replaced one baseline instance before injection, so the exact-instance-set gate stopped the case |
+| BASE-001 | **FAIL** | Smoke write returned 503 during a cold database open; this led to the GSS root-cause fix |
+
+- **Windows ProcessName:** native validation rejects every explicit `processName` value on Windows. The Windows scenarios therefore omit the parameter. Under out-of-process hosting, the measured default target is the dotnet application worker. The SCM site runs in a separate `w3wp` process and is excluded from targeting.
+- **External nightly sweep:** between about 23:00 and 23:50 UTC, a subscription-wide automation stopped PostgreSQL, set Always On to off, downgraded the plan to P1v2 and deallocated the runner VM. The lab restored each one before measurement. Plan and site settings were restored by redeploying the Windows application stage, followed by republishing. Check these four settings before any run that spans that window.
+- **Zone rebalancing:** the platform can replace an instance at any time. The baseline gate requires an exact instance-set match, so a swap requires a new baseline.
+- **Private log queries:** application telemetry is read through the Azure Monitor Private Link Scope from the runner. Public Log Analytics query access stays disabled.
+
+### Windows elapsed time
+
+| Stage | Elapsed |
+| --- | ---: |
+| Application republish after the GSS fix (troubleshooting) | 229 s |
+| BASE-001 (measurement) | 1,700 s |
+| HA-APP-001 (measurement; includes 1,298 s full-history reconciliation) | 2,772 s |
+| HA-APP-ZONE-001 (measurement; includes 1,284 s reconciliation) | 2,732 s |
+| HA-DB-001 (measurement; includes 1,412 s reconciliation) | 3,355 s |
+| HA-COMBINED-001 (measurement; includes 1,453 s reconciliation) | 3,480 s |
+| HA-AZ-001 guard | 2 s |
+
+The measured suite took **14,041 s (about 3 h 54 min)** of foreground time. Earlier Windows provisioning, ProcessName qualification, sweep restoration and 503 diagnosis are troubleshooting time. That time was spread across several sessions and is not summed into the measurement total.
+
+The Windows `dotnet|9` stack reaches end of support on **10 November 2026**. Requalify a supported stack before any further run.
 
 ## Repaired Linux runtime qualification
 
@@ -10,7 +95,7 @@ The publication CLI reported startup-tracking failure. Successful completed SCM 
 
 Runtime9 is catalogued `Near`, ending **10 November 2026**. The source selects this bounded diagnostic laboratory runtime and every measurement enforces future support expiry and actual configuration. Earlier baseline validity was explicitly invalidated. Fresh package-specific baseline, instance, zone, database and combined cases completed. No diagnostic restart/publication is counted as a Chaos injection. Requalify a supported native-compatible runtime before that date.
 
-## Latest measured outcome on Linux9
+## Linux .NET 9 outcome, 5 November
 
 The fresh baseline is **PASS**. Native PostgreSQL recovery/durability is **PASS by explicit reconciliation**, with **32.288 s** recovery, a complete sixty-second qualifying window and five-minute stable window. Full-phase database availability separately **FAILS at 97.620481%**. Required application/combined coverage remains **BLOCKED** by actual Action runtime failures after successful validation.
 
@@ -173,6 +258,8 @@ The active harness synchronizes and checksums all eight private measurement tool
 
 ## Remaining resources and manual deletion
 
-The final exact-owned inventory contains **65 ARM-listed entries**: network **26**, workload **29** and operations **10**. This includes eight Workspaces, sixteen private-DNS VNet links and one VM extension; additional nested native definitions, DNS records and roles remain recorded separately in the private manifest. Resources include the six-worker plan/application, private HA database, one private runner, Bastion/NAT/public IPs, VNets/peering, Private Endpoints/DNS, vault/identities/monitoring and modern Chaos definitions. Untagged managed disk/VM-extension entries match exact manifest IDs. The finite public-IP exemption expires at **18:44:21.6507576 UTC, 5 November 2026**.
+After the Windows suite on 6 November 2026, the owned groups contain **82 ARM-listed entries**: network **26**, workload **46** and operations **10**. Beyond the Linux inventory, the workload group holds the Windows plan and application with their Private Endpoint and network interface, two stack-probe plans, ten Linux runtime/container probe applications and one Windows probe application. Nested Workspace Scenarios used for selector isolation and Windows `processName` qualification are not ARM-listed and remain with their Workspace. These diagnostic resources stay in place for operator deletion with the groups. The Linux plan and application remain deployed beside the Windows variant. The finite public-IP exemption now expires at **17:45 UTC, 8 November 2026**.
+
+The earlier Linux inventory contained **65 ARM-listed entries**: network **26**, workload **29** and operations **10**. This includes eight Workspaces, sixteen private-DNS VNet links and one VM extension; additional nested native definitions, DNS records and roles remain recorded separately in the private manifest. Resources include the six-worker plan/application, private HA database, one private runner, Bastion/NAT/public IPs, VNets/peering, Private Endpoints/DNS, vault/identities/monitoring and modern Chaos definitions. Untagged managed disk/VM-extension entries match exact manifest IDs.
 
 No automatic deletion, Destroy, Suspend/Resume or purge occurred. The private operator report records exact current group names, profile, expiry, inventory and **unexecuted** deletion commands. When ready, the operator deletes the owned **workload -> operations -> network** groups. Azure-retained vault/backup/audit records can outlive group deletion; no purge or retention-policy change is implied.

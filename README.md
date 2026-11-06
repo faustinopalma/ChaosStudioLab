@@ -1,14 +1,27 @@
 # Azure Chaos Studio resilience lab
 
-The current target is a **private Linux Azure App Service application running across three observed availability zones**, backed by private Azure Database for PostgreSQL Flexible Server with zone-redundant HA.
+The current target is a **private Azure App Service application running across three observed availability zones**, backed by private Azure Database for PostgreSQL Flexible Server with zone-redundant HA. Linux is the selected baseline; an explicit Windows comparison variant runs the native process-crash tests.
 
 **Region selection:** The deployed workload uses **Spain Central / P1v3**, with six Linux workers and actual `maximumNumberOfZones: 3`. All six workers served successful health and authenticated checksum-verified business requests across `spaincentral-az1`, `spaincentral-az2` and `spaincentral-az3`. The single private runner/operations VNet/NAT/Bastion and modern **Chaos Workspace remain in Sweden Central**, using global VNet peering and documented cross-region native targeting. [D21](DECISIONS-ACCEPTED.md#d21-expanded-regional-qualification-and-cross-region-workspaces) records the selection. Any region can be configured and live-qualified.
 
 **Current authorization:** [D22](DECISIONS-ACCEPTED.md#d22-autonomous-completion-and-withdrawn-operational-prohibitions) records autonomous completion without a cost ceiling, including the existing database start, necessary lab repairs, exemption maintenance and the full requested tests. Active project-level operational prohibitions and extra restart-approval requirements have been removed.
 
-**Latest execution, 5 November:** Linux `DOTNETCORE|9.0` repaired process listing and both native selector validations. The fresh baseline passed with 100% success, zero errors/drops and p95 **124 ms**. Native PostgreSQL recovery/durability passed by explicit reconciliation at **32.288 s**; full-phase availability separately failed at **97.620481%**. Actual instance, zone and combined application Actions still fail internally after validation, including a separate Switzerland North Workspace comparison. Complete-suite PASS remains **BLOCKED**. All **38,918 measurement + 23 smoke writes** were retained/checksummed. Resources remain deployed; PC helpers are stopped. See [current execution results](docs/app-service-results.md).
+**Latest execution, 6 November (Windows comparison variant):** every tested Linux stack fails App Service process deletion, so [D23](DECISIONS-ACCEPTED.md#d23-explicit-windows-comparison-variant-for-native-process-crash) adds an explicit Windows App Service variant with the same private six-worker, three-zone architecture, database and Workspace. On that variant the complete native suite ran:
 
-**Bounded diagnostic runtime:** the deployed .NET9 stack reaches catalog end of support on **10 November 2026**. It supports the reproduced process-management/validation differential; actual native crash coverage remains unqualified. Preflight and measurement gates reject expired support. Requalify a supported native-compatible runtime before that date. See [runtime evidence](docs/research.md#current-app-service-facts-three-zone-and-native-fault-gates).
+| Test | Verdict |
+| --- | --- |
+| BASE-001 | **PASS**: 100% success, zero errors/drops, p95 123 ms |
+| HA-APP-001 | **PASS**: exact-instance dotnet worker replaced, zero failed operations |
+| HA-APP-ZONE-001 | **PASS**: both workers in the selected physical zone replaced, zero failed operations |
+| HA-DB-001 | **PASS**: recovery and durability, 36.359 s recovery. Full-phase availability **FAIL** separately at 97.347% |
+| HA-COMBINED-001 | **PASS**: recovery, durability and independently evidenced overlap, 34.989 s recovery. Full-phase availability **FAIL** separately at 97.324% |
+| HA-AZ-001 | **BLOCKED**: no qualifying sustained real-zone injection |
+
+All **92,616** acknowledged measurement writes across 31 runs were retained with matching checksums. A Npgsql GSS-probing stall on Windows was root-caused and fixed first. Resources remain deployed for operator deletion. See [current execution results](docs/app-service-results.md#windows-comparison-variant-complete-native-suite-6-november).
+
+**Linux execution, 5 November:** Linux `DOTNETCORE|9.0` repaired process listing and both native selector validations. The fresh baseline passed with 100% success, zero errors/drops and p95 **124 ms**. Native PostgreSQL recovery/durability passed by explicit reconciliation at **32.288 s**; full-phase availability separately failed at **97.620481%**. Actual instance, zone and combined application Actions fail on Linux, so those Linux verdicts remain **BLOCKED**. See [Linux results](docs/app-service-results.md#linux-net-9-outcome-5-november).
+
+**Bounded diagnostic runtime:** the deployed .NET 9 stacks (Linux and Windows) reach catalog end of support on **10 November 2026**. Preflight and measurement gates reject expired support. Requalify a supported stack before that date. See [runtime evidence](docs/research.md#current-app-service-facts-three-zone-and-native-fault-gates).
 
 **Earlier completed measurements:** private infrastructure, private SCM publication and actual six-worker/three-zone participation are verified. Complete **BASE-001 passed** with 100% success, zero errors/drops and p95 122 ms. Native PostgreSQL recovery/durability **passed by explicit reconciliation**, with **34.601 s** recovery; its full-phase availability separately **failed at 97.481598%**. All **16,486 measurement + 12 smoke writes** were retained/checksummed. A real exact-instance submission and both selectors' validation fail provider target validation through **all eight advertised Workspace regions**, against the same Spain Central app. Required application/combined coverage remains **BLOCKED**, preventing a complete-suite PASS. Resources remain deployed. See [current execution results](docs/app-service-results.md).
 
@@ -18,7 +31,7 @@ The [foreground App Service preflight](scripts/Test-AppServicePreflight.ps1) is 
 
 ## Required architecture
 
-- Linux App Service Web App and compatible zone-redundant Premium plan, initially using six workers.
+- Linux App Service Web App and compatible zone-redundant Premium plan, initially using six workers. An explicit Windows comparison variant with the same plan shape and private paths runs native process-crash tests that Linux App Service rejects.
 - Three-zone readiness requires the actual plan's `maximumNumberOfZones >= 3` and healthy application-instance/traffic evidence from three distinct observed `physicalZone` values.
 - Inbound App Service Private Endpoint and outbound regional VNet Integration, using separate subnets.
 - Private DNS for application, SCM/Kudu publication, PostgreSQL and required supporting services; public application/database data-plane access disabled.

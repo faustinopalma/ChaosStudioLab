@@ -41,3 +41,11 @@ The current workload is Spain Central / P1v3, with six participating Linux worke
 On 5 November 2026 the operator withdrew all previous project-level operational prohibitions and requested autonomous completion without a cost ceiling. Existing database start, necessary lab repairs, policy-exemption maintenance, regional alternatives and the complete requested tests are authorized directly.
 
 Active source/docs/configuration use this authorization. Obsolete prohibition-only entrypoints and regional allowlists are removed. Actual Azure authentication, authorization, policy responses, ownership, platform capability, private connectivity and measurable acceptance are verified during execution. Historical results and stopped-database guards retain their evidence meaning.
+
+## D23. Explicit Windows comparison variant for native process crash
+
+On 6 November 2026 the operator directed that the complete App Service HA suite be made to work, including new deployments where needed. Linux App Service process deletion failed on every tested stack. Where process listing worked (.NET 8, .NET 9 and Node.js 22), deletion returned HTTP 400 `This runtime stack is not yet supported on Linux`. .NET 10 and 11 listing returned 409 (dotnet-monitor), Python 3.13, Java 21 and container listing returned 400, and Node.js 24 listed no processes. Required application and combined coverage therefore cannot run on Linux.
+
+The suite therefore runs on a Windows App Service comparison variant beside the retained Linux deployment. The variant keeps the same requirements: six workers in a zone-redundant Premium plan across three observed physical zones, Private Endpoint ingress, VNet Integration egress, private SCM publication, disabled public access, the same private PostgreSQL HA server, the modern Workspace and native Actions. Windows native validation rejects an explicit `processName`, so the Windows Scenarios omit it. The measured default target under out-of-process hosting is the dotnet application worker.
+
+Linux results remain reported separately with their BLOCKED application verdicts. Windows results establish the Windows variant only and make no claim about Linux support. HA-AZ-001 remains a separate guard requiring genuine correlated infrastructure-zone evidence.
