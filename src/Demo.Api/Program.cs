@@ -35,6 +35,10 @@ builder.Services.AddSingleton<NpgsqlDataSource>(services =>
     var connection = new NpgsqlConnectionStringBuilder(connectionString)
     {
         SslMode = SslMode.VerifyFull,
+        // Npgsql 10 defaults to GSS Encryption Mode=Prefer, which probes Kerberos/SSPI credentials
+        // before every physical open. On Windows App Service that probe stalls for seconds and
+        // exceeds the connect timeout; the lab authenticates with Entra tokens over verified TLS.
+        GssEncryptionMode = GssEncryptionMode.Disable,
         Timeout = 3,
         CommandTimeout = 3,
         KeepAlive = 30,
