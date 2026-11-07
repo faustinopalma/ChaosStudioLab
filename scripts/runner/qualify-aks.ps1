@@ -21,7 +21,8 @@ $deployment=& kubectl -n csl get deployment api -o json|ConvertFrom-Json
 if($LASTEXITCODE -ne 0){throw 'Private application deployment inventory failed.'}
 $apiEnvironment=$deployment.spec.template.spec.containers[0].env
 if(@($apiEnvironment|Where-Object {$_.name -eq 'Kestrel__EndpointDefaults__Protocols' -and $_.value -eq 'Http1'}).Count -ne 1 -or
-    @($apiEnvironment|Where-Object {$_.name -eq 'Orders__CacheImmutableReads' -and $_.value -eq 'true'}).Count -ne 1){
+    @($apiEnvironment|Where-Object {$_.name -eq 'Orders__CacheImmutableReads' -and $_.value -eq 'true'}).Count -ne 1 -or
+    @($apiEnvironment|Where-Object {$_.name -eq 'Orders__SharedCacheHost' -and $_.value -eq $config.SHARED_CACHE_HOST}).Count -ne 1){
     throw 'Actual AKS workload must enable the qualified HTTP/1.1 ingress and immutable confirmed-order read cache.'
 }
 $affinity=$deployment.spec.template.spec.PSObject.Properties['affinity']
@@ -79,7 +80,7 @@ try{
                 throw 'Actual application health/source/process identity is inconsistent.'
             }
             if($kind -eq 'business' -and ($body.payloadSha256 -cne $seed.expectedChecksum -or $body.operationId -ne $seed.operationId)){throw 'Private business checksum participation failed.'}
-            if($kind -eq 'read-cache' -and (-not $body.enabled -or $body.entries -lt 0 -or $body.entries -gt 10000 -or
+            if($kind -eq 'read-cache' -and (-not $body.enabled -or $body.entries -lt 0 -or $body.entries -gt 10000 -or $body.compactions -lt 0 -or
                 $null -eq $body.PSObject.Properties['shared'] -or -not $body.shared.enabled -or -not $body.shared.connected)){
                 throw 'Actual per-pod immutable read-cache configuration/capacity is unqualified.'
             }
