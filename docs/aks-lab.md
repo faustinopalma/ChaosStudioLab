@@ -111,6 +111,8 @@ Application HTTP responses and persisted SQL verification retain their existing 
 
 Private qualification verifies actual Deployment flags, HTTP/1.1 traffic and authenticated cache counters on every pod. Load evidence now includes negotiated protocol and transport error codes. Unit tests cover outage reads, missing rows, cancelled reads and write/health operations that continue to require the database. The .NET test project follows the API's optional `LabTargetFramework`, preserving its default .NET 9 target while validating the current AKS .NET 10 runtime.
 
+The AKS retention verifier captures a separate direct PostgreSQL snapshot of order IDs and stored checksums using the existing migration managed identity, VerifyFull TLS and a bounded read-only query. Every issued/acknowledged operation is reconciled against that SQL snapshot, with source and snapshot hash retained in each verdict. Cached API reads continue to test business behavior; they provide no substitute for independent SQL retention evidence. Missing acknowledged rows, changed hashes, malformed snapshots or SQL failures explicitly fail verification.
+
 ### Workload readiness and qualification
 
 The workload readiness probe checks process liveness, retaining application endpoints during transient database failure. This permits the API to handle bounded dependency errors and reconnect without withdrawing every endpoint solely because the shared database is failing.
@@ -246,4 +248,3 @@ Provisioning, configuration repair, measurement, reconciliation and cleanup have
 - [Resources supported by Chaos Workspaces](https://learn.microsoft.com/en-us/azure/chaos-studio/chaos-studio-workspaces-supported-resources)
 - [AKS Standard Load Balancer](https://learn.microsoft.com/en-us/azure/aks/load-balancer-standard)
 - [Azure cloud-provider custom load-balancer health probes](https://cloud-provider-azure.sigs.k8s.io/topics/loadbalancer/#custom-load-balancer-health-probe)
-The AKS retention verifier captures a separate direct PostgreSQL snapshot of order IDs and stored checksums using the existing migration managed identity, VerifyFull TLS and a bounded read-only query. Every issued/acknowledged operation is reconciled against that SQL snapshot, with source and snapshot hash retained in each verdict. Cached API reads continue to test business behavior; they provide no substitute for independent SQL retention evidence. Missing acknowledged rows, changed hashes, malformed snapshots or SQL failures explicitly fail verification.

@@ -127,7 +127,7 @@ function Sync-LabTestTooling {
 }
 
 function Save-LabRunnerEvidence {
-    param([string] $ManifestPath, [ValidateSet('warmup', 'baseline', 'app-instance', 'app-zone', 'failover', 'combined')][string] $Phase,
+    param([string] $ManifestPath, [ValidateSet('warmup', 'baseline', 'app-instance', 'app-zone', 'failover', 'combined', 'durability')][string] $Phase,
         [int] $TunnelPort, [switch] $Partial)
     $manifest = Read-LabManifest $ManifestPath
     $stateRoot = Split-Path $ManifestPath -Parent
