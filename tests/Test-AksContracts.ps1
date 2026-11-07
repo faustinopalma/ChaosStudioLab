@@ -37,6 +37,12 @@ Reject {Assert-AksNativeDefinition $config $scenario $targets zone}
 $tokens=$null;$errors=$null
 $ast=[Management.Automation.Language.Parser]::ParseFile((Join-Path $PSScriptRoot '..\scripts\Test-AksLab.ps1'),[ref]$tokens,[ref]$errors)
 if($errors){throw 'AKS orchestration parsing failed.'}
+$zoneGuard=@($ast.FindAll({param($node)
+    $node -is [Management.Automation.Language.IfStatementAst] -and $node.Extent.Text.StartsWith("if(`$TestId -eq 'HA-AZ-001')")
+},$true))
+if($zoneGuard.Count -ne 1 -or -not $zoneGuard[0].Extent.Text.Contains('throw "BLOCKED:') -or $zoneGuard[0].Extent.Text.Contains('return')){
+    throw 'Unqualified real-zone evidence must persist BLOCKED and produce a nonzero process outcome.'
+}
 $assignment=@($ast.FindAll({param($node)
     $node -is [Management.Automation.Language.AssignmentStatementAst] -and
     $node.Left -is [Management.Automation.Language.VariableExpressionAst] -and $node.Left.VariablePath.UserPath -eq 'targetVms'

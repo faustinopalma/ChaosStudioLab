@@ -98,7 +98,7 @@ try{
     if($TestId -eq 'HA-AZ-001'){
         $report.status='BLOCKED'
         $report.reason='The AKS compute-zone shutdown affects selected tenant node VMs. No physical Azure-zone disaster encompassing managed control plane, networking, storage and other zonal platform services was injected.'
-        return
+        throw "BLOCKED: $($report.reason)"
     }
     Assert-LabPolicyExemptions $m
     if($m.ContainsKey('activeNativeOperations') -and @($m.activeNativeOperations|Where-Object {$_.status -notin @('SUCCEEDED','FAILED_RECONCILED')}).Count){
