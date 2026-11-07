@@ -7,15 +7,15 @@ This repository compares recovery and acknowledged-write durability under contro
 ## Current status — 7 November 2026
 
 - **App Service experiments are historical.** Their dedicated groups were deleted on 6 November at 09:43 UTC; seven unrelated groups and 24 resources were verified unchanged. Original results remain available.
-- **AKS execution and final qualification are complete.** Final checks passed nine Ready Azure Linux nodes, six distinct Ready user workers across three physical zones, private API access and Healthy zone-redundant PostgreSQL. All four owned groups remain active until an operator stop/delete order.
+- **The original AKS series is complete; architectural reruns are in progress.** Original final checks passed nine Ready Azure Linux nodes, six distinct Ready user workers across three physical zones, private API access and Healthy zone-redundant PostgreSQL. The later repair deploys a bounded immutable-read cache and HTTP/1.1 ingress on the existing private architecture.
 - **The requested resilience suite has no complete PASS.** Baselines passed; every measured fault case failed a required availability, stability or placement gate, and physical full-zone coverage remains BLOCKED. Recovery and retention PASS remain separately reported.
 - **All 37,659 of 37,659 acknowledged AKS writes across ten history runs were retained**, with zero lost writes or checksum mismatch. [Final AKS results](docs/aks-results.md) preserve earlier node failures, observer interruptions, setup corrections and independent combined-overlap proof.
 - **Scope guard FAIL: one extra governance-managed telemetry resource.** Original 24 unrelated IDs/complete returned metadata are unchanged; inventory is 25 after a default regional Log Analytics workspace appeared at 10:56:57 UTC outside the four owned groups. Correlated Activity Log writes independently prove creation by the subscription's Defender for Containers managed identity, and AKS Defender references it. Public ingestion/query are Enabled. The external group remains untouched for operator review; qualified private workload paths do not establish all-security-telemetry privacy.
-- **The new lab remains active after execution.** Deployment, necessary repairs and tests are authorized autonomously; resource groups remain available until the operator orders stop or deletion. [D24](DECISIONS-ACCEPTED.md#d24-private-aks-comparative-architecture-and-operator-authorization) records the comparison and operating scope.
+- **Teardown is authorized after successful native tests.** The later operator instruction supersedes the initial leave-running order. Preserve all failures and the physical full-zone BLOCKED boundary; delete only experiment-owned resources after qualified success. [D24](DECISIONS-ACCEPTED.md#d24-private-aks-comparative-architecture-and-operator-authorization) records the comparison and operating scope.
 
-All Azure lab resources remain running/active; only the temporary PC Bastion tunnel helper was stopped. The ignored operator report at `.local\<run>\OPERATOR-RESULTS.md` contains exact group names/inventory, private-access restart instructions and manual deletion steps. Public docs intentionally omit those private identifiers.
+Resources remain active during repair measurements; the temporary private management tunnel is reopened for bounded stages. The ignored operator report at `.local\<run>\OPERATOR-RESULTS.md` contains exact group names/inventory, private-access restart instructions and manual deletion steps. Public docs intentionally omit those private identifiers.
 
-## Final AKS outcomes
+## Original AKS outcomes
 
 | Test | Overall verdict and required failure |
 | --- | --- |

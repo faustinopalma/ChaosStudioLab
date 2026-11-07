@@ -12,7 +12,9 @@ The operator's later 7 November instruction authorizes architectural corrections
 
 The fresh in-place repair run uses the existing four owned groups and one private runner. Read-only diagnosis confirms healthy private AKS/PostgreSQL and six distinct application workers before publication. The proposed [immutable-read cache and ingress protocol repair](aks-lab.md#immutable-read-cache-and-ingress-protocol-repair) retains SQL commit/checksum guarantees and original load/acceptance criteria.
 
-Initial local validation passes: 15 API tests against the actual .NET 10 target, load/drop/token-redaction fixtures, exact native target/zone contracts and private AKS Bicep/infrastructure fixtures. These checks establish source prerequisites. Live rollout, fresh baseline and all four native fault reruns require their own evidence; the original suite has no complete PASS.
+Initial local validation passes: 15 API tests on both actual .NET 9 and .NET 10 targets, load/drop/token-redaction fixtures, exact native target/zone contracts and private AKS Bicep/infrastructure fixtures. Exact-source private Linux container build and owned Kubernetes server dry-run/diff pass.
+
+Application-only rollout completed at **16:08:06 UTC**, taking approximately **440 seconds**. Checkpoint `10d18f3` runs on the existing six workers; TLS/authentication secrets and the private Service remain unchanged. Pre-load qualification at **16:11 UTC** passed authenticated health/business/cache participation on all six pods, actual HTTP/1.1 and node zones 1/2/3 with the previously qualified physical-zone mapping. Fresh baseline and all four native fault reruns require their own evidence; the original suite has no complete PASS.
 
 Teardown is conditional on qualified native tests. The external Defender-created workspace remains outside the manifest and the pre-existing default group remains protected. Publish any residual retained data/resource exception independently; successful workload tests alone cannot turn its scope/privacy finding into PASS.
 

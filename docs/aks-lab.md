@@ -10,7 +10,7 @@ Final evidence date: 7 November 2026. Baselines and final private qualification 
 
 Reuse the current application's committed-write/checksum model to compare private AKS service behavior with the measured App Service history. Add controlled infrastructure-node loss and sustained selected-zone compute loss, retaining separate availability, recovery, overlap and durability verdicts.
 
-The operator authorized autonomous implementation, deployment, necessary repairs and testing. Work is orchestrated from the PC in bounded foreground stages with visible progress and logs. One private Ubuntu runner uses managed identity for publication and measurement. Leave the new resource groups active until the operator orders stop or deletion; preserve unrelated resources and ownership checks.
+The operator authorized autonomous implementation, deployment, necessary repairs and testing. Work is orchestrated from the PC in bounded foreground stages with visible progress and logs. One private Ubuntu runner uses managed identity for publication and measurement. The later operator instruction authorizes exact-owned teardown after successful native-suite reruns; preserve unrelated resources and ownership checks.
 
 ## Regional and platform qualification
 
@@ -213,13 +213,13 @@ Keep raw identities, resource names, accounts and lab measurement evidence under
 
 The original node case's completed native Action passed independent caller/object-claim auditing against the declared Workspace user-assigned managed identity, while provider-reported principal metadata disagreed. At least 300.292 s sustained power-off and all-history retention passed independently. Offline evaluation separately passed recovery at 47.434 s into the qualifying 60-second window and 300-second stability. Availability and six-worker restoration failed. Preserve the discrepancy and every original per-gate outcome.
 
-## Final state and operator boundary
+## Original final state and current operator boundary
 
 Final private qualification passed nine Ready Azure Linux nodes, six Ready distinct user workers across three physical zones, AKS Running/private API/public FQDN disabled, and PostgreSQL Ready/Healthy zone-redundant HA with primary zone 1, standby zone 2 and public access Disabled. Complete-history reconciliation retained all 37,659 acknowledged writes across ten runs with zero loss/checksum mismatch.
 
 Final owned inventory records 87 resource/definition/exemption IDs: network 17, workload 42, operations 11 and AKS-managed nodes 17. These categories include definitions/exemptions; do not interpret them as 87 top-level service resources. Four owned groups are left active.
 
-All Azure lab resources remain running/active. Only the temporary PC Bastion tunnel helper was stopped after execution. Restore private management access using the ignored `.local\<run>\OPERATOR-RESULTS.md`; exact group names/87 IDs and restart instructions stay private.
+The original series left all Azure lab resources running/active and stopped only the temporary PC Bastion helper. The subsequent repair reopens private management; teardown is now authorized after successful native-suite reruns. Restore private management access using the ignored `.local\<run>\OPERATOR-RESULTS.md`; exact group names/87 IDs and restart instructions stay private.
 
 Original 24 unrelated IDs/complete returned metadata remain unchanged plus the proven Defender-created external workspace. Strict scope delta remains FAIL; public managed security telemetry is disclosed. No external cleanup or governance changes were performed. HA-AZ-001's final guard remains BLOCKED and exits 1 without a fault or Azure mutation.
 
