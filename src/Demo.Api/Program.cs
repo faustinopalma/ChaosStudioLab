@@ -79,7 +79,14 @@ builder.Services.AddSingleton<NpgsqlDataSource>(services =>
 
     return dataSource.Build();
 });
-builder.Services.AddSingleton<IOrderRepository, NpgsqlOrderRepository>();
+builder.Services.AddSingleton<NpgsqlOrderRepository>();
+builder.Services.AddSingleton<IOrderRepository>(services =>
+{
+    var repository = services.GetRequiredService<NpgsqlOrderRepository>();
+    return builder.Configuration.GetValue<bool>("Orders:CacheImmutableReads")
+        ? new CachedOrderRepository(repository)
+        : repository;
+});
 builder.Services.AddSingleton<OrderService>();
 builder.Services.AddSingleton<DatabaseHealthProbe>();
 builder.Services.AddSingleton<DatabaseOpenDiagnostics>();
@@ -135,6 +142,12 @@ app.MapGet("/diagnostics/db-open", async (
     revision = Revision(),
     stages = await diagnostics.RunAsync(context.RequestAborted)
 })).RequireAuthorization();
+
+app.MapGet("/diagnostics/read-cache", (IOrderRepository repository) =>
+    repository is CachedOrderRepository cache
+        ? Results.Ok(new { enabled = true, hits = cache.Hits, misses = cache.Misses, entries = cache.Entries })
+        : Results.Ok(new { enabled = false, hits = 0L, misses = 0L, entries = 0 }))
+    .RequireAuthorization();
 
 app.MapGet("/health/dependencies", async (
     DatabaseHealthProbe database,

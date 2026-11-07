@@ -52,7 +52,7 @@ Linux results remain reported separately with their BLOCKED application verdicts
 
 ## D24. Private AKS comparative architecture and operator authorization
 
-On 7 November 2026 the operator authorized autonomous implementation, deployment, necessary repairs and testing of a new private AKS/PostgreSQL comparison. Keep the new resource groups active until the operator orders stop or deletion. Orchestrate bounded foreground stages from the PC with visible progress and logs; use one private Ubuntu managed-identity runner for publication and measurement. Preserve ownership checks, unrelated resources and every acknowledged write.
+On 7 November 2026 the operator authorized autonomous implementation, deployment, necessary repairs and testing of a new private AKS/PostgreSQL comparison. The later instruction authorizes teardown of the experiment's owned resources after successful native tests, superseding the initial leave-running instruction. Orchestrate bounded foreground stages from the PC with visible progress and logs; use one private Ubuntu managed-identity runner for publication and measurement. Preserve ownership checks, unrelated resources and every acknowledged write.
 
 Choose **AKS Standard without Node Auto Provisioning (NAP)**. Chaos Studio guidance supports the node VM scale-set fault path for this configuration and excludes NAP-enabled clusters. Sweden Central was selected after live qualification found `Standard_D4ds_v5` unrestricted in zones 1, 2 and 3 and PostgreSQL zone-redundant HA enabled; the initial Italy North VM candidate was restricted. Kubernetes 1.35.9 was checked in the supported catalog. Catalog qualification remains distinct from successful provisioning and baseline acceptance.
 

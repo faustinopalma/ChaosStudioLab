@@ -73,7 +73,7 @@
   <g inkscape:groupmode="layer" inkscape:label="Zonal nodes and pods" id="zonal-compute">
     <rect x="460" y="410" width="870" height="360" rx="8" class="subnet"/>
     <text x="480" y="437" class="label">Node subnet 10.91.0.0/22 | pod overlay 10.92.0.0/16</text>
-    <text x="480" y="460" class="body">Local LB routing; /healthz probes every 5 s, two failures | required hostname pod anti-affinity</text>
+    <text x="480" y="460" class="body">Local routing / 5 s probes / distinct workers | HTTP/1.1 + bounded confirmed-read cache</text>
     <g id="zone-1">
       <rect x="480" y="480" width="260" height="270" rx="6" class="zone"/>
       <text x="495" y="508" class="label">Observed physical AZ 1</text>

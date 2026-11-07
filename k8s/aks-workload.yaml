@@ -82,6 +82,10 @@ spec:
               value: https://+:8443
             - name: ASPNETCORE_Kestrel__Certificates__Default__Path
               value: /tls/server.pfx
+            - name: Kestrel__EndpointDefaults__Protocols
+              value: Http1
+            - name: Orders__CacheImmutableReads
+              value: "true"
             - name: ConnectionStrings__Postgres
               value: "Host=__POSTGRES_HOST__;Database=csl;Username=id-csl-runtime"
             - name: Diagnostics__Token

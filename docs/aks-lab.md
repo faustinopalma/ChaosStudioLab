@@ -98,6 +98,19 @@ The prepared configuration passed Bicep/private invariants, native contracts and
 
 The qualifier guards actual Service and anti-affinity configuration. Server dry-run/diff preceded rollout and remains separate from live qualification. Corrected-node sustained outage and automatic placement passed. The completed eighteen-minute case also qualified stability, while its exact first-five-minute availability failed.
 
+### Immutable read cache and ingress protocol repair
+
+The 7 November follow-up keeps the private load-balancer topology, six distinct workers, PostgreSQL commit acknowledgements and all measurement thresholds. Its two application-path changes are enabled only by the AKS Deployment:
+
+- `Orders__CacheImmutableReads=true` enables a bounded per-pod cache of up to 10,000 confirmed immutable order records, with one-hour expiry. Positive reads and successfully committed writes populate it. Missing rows, failed writes and unknown outcomes are never cached. Every write/replay still reaches PostgreSQL; dependency health checks remain uncached.
+- `Kestrel__EndpointDefaults__Protocols=Http1` selects HTTP/1.1 for AKS TLS ingress. Live read-only diagnosis confirmed the previous path negotiated HTTP/2. Standard Load Balancer withdraws unhealthy backends for new connections while established TCP flows retain their separate lifetime. The repair tests whether HTTP/1.1 request cancellation/reconnection removes the recurring eight-second transport failures observed during node loss; the causal comparison requires new measured runs.
+
+The immutable read model avoids a PostgreSQL round trip for repeatedly requested confirmed orders. Cache misses and writes preserve the existing five-second server deadline and explicit transient-error handling. The client retains its original request mix, eight-second HTTP attempts, 180-second bounded write reconciliation, offered rates and VU caps. Failed attempts and dropped operations remain visible.
+
+Application HTTP responses and persisted SQL verification retain their existing contracts. The cache supplies process-local availability for immutable reads; committed SQL remains the durable authority. Eviction, a cold pod or an uncached ID still requires database availability. The default App Service variant leaves the cache disabled and retains its existing protocol configuration.
+
+Private qualification verifies actual Deployment flags, HTTP/1.1 traffic and authenticated cache counters on every pod. Load evidence now includes negotiated protocol and transport error codes. Unit tests cover outage reads, missing rows, cancelled reads and write/health operations that continue to require the database. The .NET test project follows the API's optional `LabTargetFramework`, preserving its default .NET 9 target while validating the current AKS .NET 10 runtime.
+
 ### Workload readiness and qualification
 
 The workload readiness probe checks process liveness, retaining application endpoints during transient database failure. This permits the API to handle bounded dependency errors and reconnect without withdrawing every endpoint solely because the shared database is failing.

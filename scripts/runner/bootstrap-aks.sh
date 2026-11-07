@@ -60,6 +60,14 @@ IMAGE_DIGEST="$digest" pwsh -NoLogo -NoProfile -Command '
   foreach($p in @{RUNTIME_CLIENT_ID=$c.RUNTIME_CLIENT_ID;POSTGRES_HOST=$c.POSTGRES_HOST;SOURCE_REVISION=$c.SOURCE_REVISION;IMAGE_DIGEST=$env:IMAGE_DIGEST}.GetEnumerator()){$t=$t.Replace("__"+$p.Key+"__",$p.Value)}
   $t|Set-Content ./k8s/rendered.yaml'
 kubectl apply --dry-run=server -f k8s/rendered.yaml
+set +e
+kubectl diff -f k8s/rendered.yaml > k8s/application-preview.diff
+preview_status=$?
+set -e
+if [[ "$preview_status" -gt 1 ]]; then
+  printf 'Owned application preview failed: %s\n' "$preview_status" >&2
+  exit "$preview_status"
+fi
 kubectl apply -f k8s/rendered.yaml
 kubectl -n csl rollout status deployment/api --timeout=600s
 curl --fail --silent --show-error --connect-timeout 5 --max-time 15 \

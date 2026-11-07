@@ -102,6 +102,16 @@ try {
             & scp @options -P $TunnelPort $archive csloperator@127.0.0.1:aks-source.zip
             if($LASTEXITCODE -ne 0){throw 'Source bundle transfer failed.'}
             Invoke-AksPrivate $m $root "printf '%s  aks-source.zip\n' '$($m.sourceBundleSha256)' | sha256sum -c; mkdir -p ~/csl; unzip -oq aks-source.zip -d ~/csl; cd ~/csl; timeout 1800 bash scripts/runner/bootstrap-aks.sh" $TunnelPort
+            & scp @options -P $TunnelPort csloperator@127.0.0.1:csl/image-digest.txt "$root\image-digest.txt"
+            if($LASTEXITCODE -ne 0){throw 'Actual deployed application digest retrieval failed.'}
+            $digest=(Get-Content "$root\image-digest.txt" -Raw).Trim()
+            if($digest -notmatch ('^'+[regex]::Escape($w.registryHost)+'/csl-api@sha256:[0-9a-f]{64}$')){
+                throw 'Actual deployed image digest is not from the exact private registry/repository.'
+            }
+            $m.applicationImageDigest=$digest
+            $m.Remove('lastBaseline')
+            & scp @options -P $TunnelPort csloperator@127.0.0.1:csl/k8s/application-preview.diff "$root\application-preview.diff"
+            if($LASTEXITCODE -ne 0){throw 'Exact owned Kubernetes application preview retrieval failed.'}
         } elseif ($Step -eq 'Native') {
             $w=$m.outputs.infrastructure.workload.value
             $sets=Invoke-LabAz @('vmss','list','-g',$script:LabGroups[3],'-o','json')|ConvertFrom-Json -AsHashtable

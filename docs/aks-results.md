@@ -2,9 +2,19 @@
 
 [Lab guide](lab-guide.md) · [AKS design and tests](aks-lab.md) · [Experiment limits](experiment-limits.md) · [Historical App Service results](app-service-results.md)
 
-Final evidence date: 7 November 2026, read-only verification completed at **14:29:18.8910812 UTC**. **The requested suite has no complete PASS:** baselines passed, every measured fault case failed a required gate, and HA-AZ-001 remains BLOCKED. Combined effect/overlap/recovery/stability/retention/placement passed while full-phase availability failed. Final private qualification passed; all **37,659 of 37,659** acknowledged writes/ten runs were retained. Four owned groups are left active, with strict external scope delta FAIL.
+Final evidence date for the original architecture: 7 November 2026, read-only verification completed at **14:29:18.8910812 UTC**. **The original requested suite has no complete PASS:** baselines passed, every measured fault case failed a required gate, and HA-AZ-001 remains BLOCKED. Combined effect/overlap/recovery/stability/retention/placement passed while full-phase availability failed. Final private qualification passed; all **37,659 of 37,659** acknowledged writes/ten runs were retained. Four owned groups are left active, with strict external scope delta FAIL.
 
 Separately, external scope delta remains **FAIL**: original 24 unrelated IDs/complete returned metadata are unchanged, but one extra default Log Analytics workspace exists outside owned groups. Creation by the subscription's Defender for Containers managed identity is independently proven. Public ingestion/query remain Enabled; no all-security-telemetry-private verdict is established.
+
+## Follow-up architecture repair and conditional teardown
+
+The operator's later 7 November instruction authorizes architectural corrections, unchanged native-suite reruns and teardown of this experiment's owned resources **after successful tests**. This supersedes the original leave-running instruction. Original FAIL results and the genuine whole-zone HA-AZ BLOCKED boundary remain preserved.
+
+The fresh in-place repair run uses the existing four owned groups and one private runner. Read-only diagnosis confirms healthy private AKS/PostgreSQL and six distinct application workers before publication. The proposed [immutable-read cache and ingress protocol repair](aks-lab.md#immutable-read-cache-and-ingress-protocol-repair) retains SQL commit/checksum guarantees and original load/acceptance criteria.
+
+Initial local validation passes: 15 API tests against the actual .NET 10 target, load/drop/token-redaction fixtures, exact native target/zone contracts and private AKS Bicep/infrastructure fixtures. These checks establish source prerequisites. Live rollout, fresh baseline and all four native fault reruns require their own evidence; the original suite has no complete PASS.
+
+Teardown is conditional on qualified native tests. The external Defender-created workspace remains outside the manifest and the pre-existing default group remains protected. Publish any residual retained data/resource exception independently; successful workload tests alone cannot turn its scope/privacy finding into PASS.
 
 ## Live qualification and provisioning history
 

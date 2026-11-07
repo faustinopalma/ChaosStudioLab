@@ -27,8 +27,10 @@ try {
     if ($pods -notmatch '(?s)podAntiAffinity:\s+requiredDuringSchedulingIgnoredDuringExecution:\s+- labelSelector:\s+matchLabels:\s+app: csl-api\s+topologyKey: kubernetes.io/hostname' -or
         $pods -notmatch 'externalTrafficPolicy: Local' -or
         $pods -notmatch 'azure-load-balancer-health-probe-interval: "5"' -or
-        $pods -notmatch 'azure-load-balancer-health-probe-num-of-probe: "2"') {
-        throw 'Distinct recovered workers and node-local private load-balancer health probes are required.'
+        $pods -notmatch 'azure-load-balancer-health-probe-num-of-probe: "2"' -or
+        $pods -notmatch '(?s)name: Kestrel__EndpointDefaults__Protocols\s+value: Http1' -or
+        $pods -notmatch '(?s)name: Orders__CacheImmutableReads\s+value: "true"') {
+        throw 'Distinct workers, node-local probes, HTTP/1.1 and confirmed immutable-read caching are required.'
     }
     foreach ($type in @('Microsoft.KeyVault/vaults','Microsoft.ContainerRegistry/registries','Microsoft.DBforPostgreSQL/flexibleServers')) {
         $resource = @($w.resources | Where-Object type -EQ $type)[0]

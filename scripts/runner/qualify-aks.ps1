@@ -19,6 +19,11 @@ $services=& kubectl -n csl get service api -o json|ConvertFrom-Json
 if($LASTEXITCODE -ne 0){throw 'Private application service inventory failed.'}
 $deployment=& kubectl -n csl get deployment api -o json|ConvertFrom-Json
 if($LASTEXITCODE -ne 0){throw 'Private application deployment inventory failed.'}
+$apiEnvironment=$deployment.spec.template.spec.containers[0].env
+if(@($apiEnvironment|Where-Object {$_.name -eq 'Kestrel__EndpointDefaults__Protocols' -and $_.value -eq 'Http1'}).Count -ne 1 -or
+    @($apiEnvironment|Where-Object {$_.name -eq 'Orders__CacheImmutableReads' -and $_.value -eq 'true'}).Count -ne 1){
+    throw 'Actual AKS workload must enable the qualified HTTP/1.1 ingress and immutable confirmed-order read cache.'
+}
 $affinity=$deployment.spec.template.spec.PSObject.Properties['affinity']
 if($null -eq $affinity -or @($affinity.Value.podAntiAffinity.requiredDuringSchedulingIgnoredDuringExecution|Where-Object {
     $_.topologyKey -eq 'kubernetes.io/hostname' -and $_.labelSelector.matchLabels.app -eq 'csl-api'
@@ -53,11 +58,16 @@ $observations=[Collections.Generic.List[object]]::new()
 $deadline=[DateTimeOffset]::UtcNow.AddMinutes(5)
 try{
     do{
-        foreach($kind in @('health','business')){
-            $url=if($kind -eq 'health'){"https://$($config.API_FQDN)/health/live"}else{"https://$($config.API_FQDN)/api/orders/$($seed.operationId)"}
+        foreach($kind in @('health','business','read-cache')){
+            $url=switch($kind){
+                'health' {"https://$($config.API_FQDN)/health/live"}
+                'business' {"https://$($config.API_FQDN)/api/orders/$($seed.operationId)"}
+                'read-cache' {"https://$($config.API_FQDN)/diagnostics/read-cache"}
+            }
             $args=@{Uri=$url;TimeoutSec=10;Headers=@{Connection='close';'X-Run-Id'='aks-qualification'}}
-            if($kind -eq 'business'){$args.Headers.Authorization="Bearer $token"}
+            if($kind -ne 'health'){$args.Headers.Authorization="Bearer $token"}
             $response=Invoke-WebRequest @args
+            if($response.BaseResponse.Version.ToString() -ne '1.1'){throw 'Actual private application traffic did not use the qualified HTTP/1.1 protocol.'}
             $uid=[string]($response.Headers['X-Lab-Instance-Id']|Select-Object -First 1)
             $processId=[string]($response.Headers['X-Lab-Process-Id']|Select-Object -First 1)
             $processStart=[string]($response.Headers['X-Lab-Process-Start-Utc']|Select-Object -First 1)
@@ -69,9 +79,15 @@ try{
                 throw 'Actual application health/source/process identity is inconsistent.'
             }
             if($kind -eq 'business' -and ($body.payloadSha256 -cne $seed.expectedChecksum -or $body.operationId -ne $seed.operationId)){throw 'Private business checksum participation failed.'}
-            $observations.Add(@{kind=$kind;uid=$uid;processId=$processId;processStartedAtUtc=$processStart;observedAtUtc=[DateTimeOffset]::UtcNow.ToString('O')})
+            if($kind -eq 'read-cache' -and (-not $body.enabled -or $body.entries -lt 0 -or $body.entries -gt 10000)){
+                throw 'Actual per-pod immutable read-cache configuration/capacity is unqualified.'
+            }
+            $observations.Add(@{kind=$kind;uid=$uid;processId=$processId;processStartedAtUtc=$processStart
+                httpProtocol=$response.BaseResponse.Version.ToString();cache=if($kind -eq 'read-cache'){$body}else{$null};observedAtUtc=[DateTimeOffset]::UtcNow.ToString('O')})
         }
-        $complete=@($placement|Where-Object {$p=$_;@($observations|Where-Object {$_.uid -eq $p.uid -and $_.kind -eq 'health'}).Count -and @($observations|Where-Object {$_.uid -eq $p.uid -and $_.kind -eq 'business'}).Count}).Count -eq 6
+        $complete=@($placement|Where-Object {$p=$_;@($observations|Where-Object {$_.uid -eq $p.uid -and $_.kind -eq 'health'}).Count -and
+            @($observations|Where-Object {$_.uid -eq $p.uid -and $_.kind -eq 'business'}).Count -and
+            @($observations|Where-Object {$_.uid -eq $p.uid -and $_.kind -eq 'read-cache'}).Count}).Count -eq 6
     }while(-not $complete -and [DateTimeOffset]::UtcNow -lt $deadline)
     if(-not $complete){throw 'Five-minute participation qualification did not observe health and business traffic from every pod.'}
     @{status='PASS';placement=$placement;observations=$observations.ToArray();nodes=$nodes;pods=$pods;service=$services;deployment=$deployment;dns=$dns}|
