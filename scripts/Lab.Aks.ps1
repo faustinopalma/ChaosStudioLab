@@ -60,11 +60,19 @@ function Invoke-AksPrivate {
 
 function Assert-AksProtectedInventory {
     param([string] $StateRoot)
-    $before = Get-Content (Join-Path $StateRoot 'protected-resources-before.json') -Raw | ConvertFrom-Json -AsHashtable
+    $before = @(Get-Content (Join-Path $StateRoot 'protected-resources-before.json') -Raw | ConvertFrom-Json -AsHashtable)
     $after = Invoke-LabAz @('resource', 'list', '--subscription', $script:LabSubscription, '-o', 'json') | ConvertFrom-Json -AsHashtable
     $other = @($after | Where-Object resourceGroup -NotIn $script:LabGroups)
+    Write-LabJson (Join-Path $StateRoot 'protected-resources-after.json') $other
     if (@(Compare-Object @($before.id | Sort-Object) @($other.id | Sort-Object)).Count) {
         throw 'Other-project resource inventory changed; inspect before/after snapshots.'
     }
-    Write-LabJson (Join-Path $StateRoot 'protected-resources-after.json') $other
+    foreach ($resource in $before) {
+        $current = @($other | Where-Object id -EQ $resource.id)[0]
+        $expectedJson = [Newtonsoft.Json.Linq.JToken]::Parse(($resource | ConvertTo-Json -Depth 100 -Compress))
+        $currentJson = [Newtonsoft.Json.Linq.JToken]::Parse(($current | ConvertTo-Json -Depth 100 -Compress))
+        if (-not [Newtonsoft.Json.Linq.JToken]::DeepEquals($expectedJson, $currentJson)) {
+            throw 'Other-project resource metadata changed; inspect the preserved before/after snapshots.'
+        }
+    }
 }

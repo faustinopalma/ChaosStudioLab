@@ -160,8 +160,8 @@ try{
             Confirm-AksNativeValidation $definition.configuration.id $definition.targets "$caseRoot\$($definition.kind)-validation"|Out-Null
         }
         $phase=switch($TestId){'HA-NODE-001'{'app-instance'}'HA-ZONE-COMPUTE-001'{'app-zone'}'HA-DB-001'{'failover'}'HA-COMBINED-001'{'combined'}}
-        $duration=if($database){'18m'}else{'12m'}
-        $seconds=if($database){1200}else{840}
+        $duration='18m'
+        $seconds=1200
         $runId=[Guid]::NewGuid().ToString('N')
         $health=Start-Private health "cd ~/csl && timeout 1500 pwsh -NoProfile -File scripts/runner/observe.ps1 -RunId $runId -Seconds $seconds" "OBSERVER_READY:$runId"
         $topology=Start-Private topology "cd ~/csl && timeout 1500 pwsh -NoProfile -File scripts/runner/observe-aks.ps1 -RunId $runId -Seconds $seconds" "TOPOLOGY_READY:$runId"

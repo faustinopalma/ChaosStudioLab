@@ -2,9 +2,27 @@
 
 Recheck preview APIs, service limits, and regional availability before implementation.
 
-The [implementation specification](specification.md) defines the requirements and proposed acceptance thresholds. This document explains the platform behavior behind those choices.
+The [AKS design](aks-lab.md) defines the current deployment and acceptance thresholds. The [App Service reference specification](specification.md) preserves the previous variant. This document connects current findings with the historical platform investigations.
+
+## Current AKS findings and final App Service comparison
+
+Updated: 7 November 2026. The active laboratory uses private AKS and PostgreSQL in Sweden Central. [The navigation hub](lab-guide.md) connects the designs, measurements and evidence limits.
+
+- Actual private deployment qualification observed nine Ready Linux nodes, six Ready application pods on six distinct user workers, and authenticated health/checksum traffic across all three physical zones. API, application ingress, PostgreSQL, registry and vault access use their qualified private paths.
+- Modern native VMSS shutdown passed exact-node and zone-selector validation. An actual exact-node Action shut down its intended one-instance user scale set for an independently observed interval exceeding 300 seconds. Authenticated shutdown caller/object claims correlated to the exact declared Chaos Workspace identity. This supplies Linux support evidence for that Action and tenant-node target; application process-deletion support has its own runtime contract.
+- The first node run recovered service and acknowledged writes, but its first five-minute business success was 98.75%, below the required 99%. Kubernetes also restored six pods onto five distinct workers. Soft topology spread permits survivor-node co-location and does not automatically rebalance healthy pods onto a returned node.
+- The post-measurement correction requires hostname pod anti-affinity and `externalTrafficPolicy: Local` on the private LoadBalancer Service. Azure's actual HTTP `/healthz` node-local probe was verified with a five-second interval and two failed probes. Missing node replicas remain Pending while five/four survivors serve traffic, then return to their workers. This couples external private routing to node-local availability and preserves the six-distinct-worker baseline without a post-test rollout.
+- A fresh corrected baseline passed with 12,001 successful business operations, zero failures/drops, p95 11 ms and successful participation from every worker/zone. Corrected native node and remaining fault verdicts are maintained in [AKS results](aks-results.md).
+
+**Final App Service evidence, 6 November:** Linux process deletion returned HTTP 400, `This runtime stack is not yet supported on Linux`. The explicitly authorized Windows comparison executed exact-process and verified-zone process crashes plus combined application/database Actions. Windows Npgsql cold-open stalls were resolved by disabling GSS encryption probing while retaining VerifyFull TLS and Entra authentication. Application-only HA tests passed; database/combined recovery and retention passed with separately failed full-phase availability targets. Archived reconciliation covered 92,616 acknowledged writes across 31 runs with matching checksums. See [App Service results](app-service-results.md) and [experiment limits](experiment-limits.md).
+
+The documented Windows-only Cache Stampede with Process Crash template describes that template's eligibility. Runtime-specific process deletion and the separately qualified Linux VMSS shutdown evidence each retain their exact service, Action and target attribution.
+
+Sources: [AKS Standard Load Balancer](https://learn.microsoft.com/en-us/azure/aks/load-balancer-standard), [Azure cloud-provider health-probe annotations](https://cloud-provider-azure.sigs.k8s.io/topics/loadbalancer/#custom-load-balancer-health-probe), and the native Action/Scenario references below. Tenant-node power faults preserve the managed regional control plane, networking and storage; full Azure-zone disaster evidence remains a separate unqualified boundary.
 
 ## Current App Service facts: three-zone and native-fault gates
+
+The following paragraphs preserve the 5 November diagnostic snapshot. The completed 6 November comparison and current AKS findings above supersede its deployment status while retaining the original technical observations and existing section links.
 
 **Runtime repair, 5 November 2026:** a controlled same-source Linux stack comparison restored process management and both native selector validations. The .NET10 stack ran monitor `10.0.0-rc.1.25460.1`: internal process endpoints returned HTTP200, while private SCM and ARM process listing returned HTTP409 and native validation returned internal error `-1`. Adding `WEBSITE_USE_DOTNET_MONITOR=true`, restarting the app and omitting optional ProcessName each failed to repair it. The ineffective flag was removed.
 

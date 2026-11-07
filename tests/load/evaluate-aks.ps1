@@ -51,6 +51,10 @@ try{
         $podZones=@{}
         foreach($sample in $topology){
             foreach($pod in $sample.pods.items){
+                if(-not $pod.spec.ContainsKey('nodeName') -or -not $pod.spec.nodeName){
+                    if($pod.status.phase -ne 'Pending'){throw 'INCONCLUSIVE: an unscheduled pod has an unexpected non-Pending state.'}
+                    continue
+                }
                 $node=@($sample.nodes.items|Where-Object {$_.metadata.name -eq $pod.spec.nodeName})
                 if($node.Count -eq 1){$podZones[$pod.metadata.uid]=$node[0].metadata.labels.'topology.kubernetes.io/zone'}
             }
@@ -129,7 +133,10 @@ try{
         $exit=$LASTEXITCODE
         $evaluation=Get-Content $path -Raw|ConvertFrom-Json -AsHashtable
         if($window -eq 60){$result.recovery=$evaluation}else{$result.stable=$evaluation}
-        if($exit -ne 0 -or $evaluation.status -ne 'PASS'){$failures.Add("INCONCLUSIVE: complete qualifying $window-second recovery or stable window is missing.")}
+        if($exit -ne 0 -or $evaluation.status -ne 'PASS'){
+            $prefix=if($evaluation.status -eq 'FAIL'){'FAIL'}else{'INCONCLUSIVE'}
+            $failures.Add("${prefix}: $window-second recovery/stability evaluation is $($evaluation.status): $($evaluation.reason)")
+        }
     }
     if($database -and $result.recovery.status -eq 'PASS' -and $result.recovery.recoveryDurationSeconds -gt 180){
         $failures.Add('FAIL: database/combined recovery exceeded 180 seconds.')

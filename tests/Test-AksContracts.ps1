@@ -77,4 +77,37 @@ $after=@($ast.FindAll({param($node)
 if($evaluation.Count -ne 1 -or @($after|Where-Object {$_.Extent.StartOffset -gt $evaluation[0].Extent.EndOffset}).Count -ne 1){
     throw 'Independent measurement effects must be evaluated before final baseline-layout qualification.'
 }
+foreach($horizon in @(@{name='duration';expected='18m'},@{name='seconds';expected=1200})){
+    $statement=@($ast.FindAll({param($node)
+        $node -is [Management.Automation.Language.AssignmentStatementAst] -and
+        $node.Left -is [Management.Automation.Language.VariableExpressionAst] -and $node.Left.VariablePath.UserPath -eq $horizon.name
+    },$true))
+    if($statement.Count -ne 1){throw 'Actual fault observation horizon is ambiguous.'}
+    . ([scriptblock]::Create($statement[0].Extent.Text))
+    if((Get-Variable $horizon.name -ValueOnly) -ne $horizon.expected){throw 'Fault observation must allow the required post-restoration stable window.'}
+}
+$inventoryTokens=$null;$inventoryErrors=$null
+$inventoryAst=[Management.Automation.Language.Parser]::ParseFile((Join-Path $PSScriptRoot '..\scripts\Lab.Aks.ps1'),[ref]$inventoryTokens,[ref]$inventoryErrors)
+if($inventoryErrors){throw 'AKS inventory guard parsing failed.'}
+$guard=@($inventoryAst.FindAll({param($node)
+    $node -is [Management.Automation.Language.FunctionDefinitionAst] -and $node.Name -eq 'Assert-AksProtectedInventory'
+},$true))
+if($guard.Count -ne 1){throw 'Actual protected-resource inventory guard is ambiguous.'}
+$scratch=Join-Path ([IO.Path]::GetTempPath()) "csl-aks-inventory-$([Guid]::NewGuid().ToString('N'))"
+New-Item -ItemType Directory $scratch|Out-Null
+try{
+    . ([scriptblock]::Create($guard[0].Extent.Text))
+    $script:LabGroups=@('rg-owned')
+    $script:LabSubscription='fixture'
+    $protected=@{id='protected-resource';resourceGroup='rg-other';tags=@{a='one';b='two'}}
+    @($protected)|ConvertTo-Json -Depth 10|Set-Content "$scratch\protected-resources-before.json"
+    $script:fixtureInventory=@(@{id='protected-resource';resourceGroup='rg-other';tags=@{b='two';a='one'}},@{id='owned-resource';resourceGroup='rg-owned';tags=@{}})
+    function Invoke-LabAz { $script:fixtureInventory|ConvertTo-Json -Depth 10 }
+    function Write-LabJson($Path,$Value){ConvertTo-Json -InputObject $Value -Depth 20|Set-Content $Path}
+    Assert-AksProtectedInventory $scratch
+    $script:fixtureInventory[0].tags.a='changed'
+    Reject {Assert-AksProtectedInventory $scratch}
+    $saved=Get-Content "$scratch\protected-resources-after.json" -Raw|ConvertFrom-Json -AsHashtable
+    if($saved.tags.a -ne 'changed'){throw 'Changed protected metadata must remain available for diagnosis.'}
+}finally{Remove-Item -LiteralPath $scratch -Recurse -Force}
 'AKS exact owned native targets, abrupt duration and serialized zone-selector contract tests passed.'

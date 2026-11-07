@@ -43,6 +43,14 @@ function Check([string] $Case,[string] $TestId,[string] $ExpectedStatus,[hashtab
 try{
     Save-Events topology $topology;Save-Events observer $observer
     Check sustained-zone 'HA-ZONE-COMPUTE-001' PASS
+    $pending=@($topology|ForEach-Object {$s=$_|ConvertTo-Json -Depth 15|ConvertFrom-Json -AsHashtable
+        $s.pods.items+=@(@{metadata=@{uid='unscheduled'};spec=@{};status=@{phase='Pending'}});$s})
+    Save-Events topology $pending
+    Check pending-replacement 'HA-ZONE-COMPUTE-001' PASS
+    $invalid=@($pending|ForEach-Object {$s=$_|ConvertTo-Json -Depth 15|ConvertFrom-Json -AsHashtable
+        $s.pods.items[-1].status.phase='Running';$s})
+    Save-Events topology $invalid
+    Check invalid-unscheduled-pod 'HA-ZONE-COMPUTE-001' INCONCLUSIVE
     $short=@($topology|ForEach-Object {$s=$_|ConvertTo-Json -Depth 15|ConvertFrom-Json -AsHashtable
         if([DateTimeOffset]$s.observedAtUtc -ge $start.AddSeconds(340)){foreach($vm in $s.vms){$vm.powerState='PowerState/running'}};$s})
     Save-Events topology $short
@@ -59,6 +67,14 @@ try{
     $separate=Get-Content "$tmp\compute-availability-failure\effect-verdict.json" -Raw|ConvertFrom-Json
     if($separate.compute.firstFiveMinutes.status -ne 'FAIL' -or $separate.recovery.status -ne 'PASS' -or $separate.stable.status -ne 'PASS'){
         throw 'Availability failure must preserve independent recovery and stability verdicts.'
+    }
+    $unstable=@($events|ForEach-Object {$e=$_|ConvertFrom-Json -AsHashtable
+        if($e.type -eq 'canaryTick' -and (([DateTimeOffset]$e.scheduledAtUtc)-$start).TotalSeconds -in @(100,250,400,550,700)){$e.success=$false};$e})
+    Save-Events attempts $unstable
+    Check stable-window-failure 'HA-ZONE-COMPUTE-001' FAIL
+    $stableFailure=Get-Content "$tmp\stable-window-failure\effect-verdict.json" -Raw|ConvertFrom-Json
+    if($stableFailure.compute.firstFiveMinutes.status -ne 'PASS' -or $stableFailure.recovery.status -ne 'PASS' -or $stableFailure.stable.status -ne 'FAIL'){
+        throw 'A measured stable-window threshold failure must retain FAIL instead of becoming inconclusive.'
     }
     $combined=@($events|ForEach-Object {$e=$_|ConvertFrom-Json -AsHashtable
         if($e.type -eq 'businessOperation'){$e.phase='combined'}
