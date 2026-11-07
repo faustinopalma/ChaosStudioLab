@@ -14,7 +14,7 @@ $caseId=[Guid]::NewGuid().ToString('N')
 $caseRoot="$root\tests\$TestId-$caseId"
 New-Item -ItemType Directory $caseRoot -Force|Out-Null
 $started=[DateTimeOffset]::UtcNow
-$report=@{schemaVersion=1;testId=$TestId;caseId=$caseId;status='INCONCLUSIVE';reason=$null;phases=@();nativeOperations=@();automaticAzureCleanup=$false;startedAtUtc=$started.ToString('O')}
+$report=@{schemaVersion=1;testId=$TestId;caseId=$caseId;status='INCONCLUSIVE';reason=$null;phases=@();nativeOperations=@();automaticAzureCleanup=$false;retentionReconciliationSeconds=0;startedAtUtc=$started.ToString('O')}
 $lock=[IO.File]::Open("$ManifestPath.lock",'OpenOrCreate','ReadWrite','None')
 $sshOptions=@(Get-LabSshOptions $m $root)
 $sshArgs=$sshOptions+@('-p',"$TunnelPort",'csloperator@127.0.0.1')
@@ -71,6 +71,7 @@ function Get-Postgres([string] $Label){
 }
 function Complete-Measurement([hashtable] $Load,[string] $RunId,[string] $Phase){
     $exit=Complete-Private $Load
+    $retentionStarted=[DateTimeOffset]::UtcNow
     Invoke-Private "cd ~/csl && timeout 3600 pwsh -NoProfile -File scripts/runner/verify.ps1 -VerifyAllRuns > all-history-$caseId.log 2>&1"
     Save-LabRunnerEvidence $ManifestPath $Phase $TunnelPort
     $history=Get-Content "$root\evidence\results\all-runs-durability.json" -Raw|ConvertFrom-Json -AsHashtable
@@ -80,6 +81,7 @@ function Complete-Measurement([hashtable] $Load,[string] $RunId,[string] $Phase)
     $run=Get-Content "$root\evidence\results\$RunId\run.json" -Raw|ConvertFrom-Json -AsHashtable
     $report.phases+=@($run)
     $report.retention=$history
+    $report.retentionReconciliationSeconds+=([DateTimeOffset]::UtcNow-$retentionStarted).TotalSeconds
     $report.loadExitCode=$exit
     return $run
 }
@@ -130,6 +132,8 @@ try{
         }
         $report.after=Qualify after
         $report.status='PASS';$report.reason='Warmup and baseline passed with six private workers across three observed zones, complete traffic participation and zero lost/checksum-mismatched acknowledged writes.'
+        $m.lastBaseline=@{status='PASS';completedAtUtc=[DateTimeOffset]::UtcNow.ToString('O');caseRoot=$caseRoot;imageDigest=$m.applicationImageDigest}
+        Write-LabJson $ManifestPath $m
     }else{
         $database=$TestId -in @('HA-DB-001','HA-COMBINED-001')
         $compute=$TestId -ne 'HA-DB-001'
@@ -164,8 +168,8 @@ try{
         $first=& ssh @sshArgs "cd ~/csl && head -n 1 results/topology-$runId/observations.ndjson"
         if($LASTEXITCODE -ne 0){throw 'Initial topology observation retrieval failed.'}
         $initial=$first|ConvertFrom-Json -AsHashtable
-        $targetVms=if($compute){@($initial.vms|Where-Object {$_.scaleSetId -in $computeDefinition.targets -and
-            ($computeDefinition.kind -eq 'node' -or '1' -in $_.zones)}|ForEach-Object id)}else{@()}
+        $targetVms=@(if($compute){$initial.vms|Where-Object {$_.scaleSetId -in $computeDefinition.targets -and
+            ($computeDefinition.kind -eq 'node' -or '1' -in $_.zones)}|ForEach-Object id})
         if($compute -and $targetVms.Count -ne $(if($TestId -eq 'HA-NODE-001'){1}else{3})){throw 'Actual native selector does not cover the intended exact VM set.'}
         $report.targetVmIds=$targetVms
         if($compute){$computeDefinition.targetVmIds=$targetVms}
@@ -208,7 +212,6 @@ try{
         }
         $report.nativeOperations=@($intents|ForEach-Object intent);$report.nativeResults=$results;$report.fullPhase=$run
         $afterPg=Get-Postgres after
-        $report.after=Qualify after
         if($nativeError){throw "BLOCKED: $nativeError"}
         & "$script:LabRoot\tests\load\evaluate-aks.ps1" `
             -AttemptsPath "$root\evidence\results\$runId\attempts.ndjson" -TopologyPath "$root\evidence\results\topology-$runId\observations.ndjson" `
@@ -216,10 +219,16 @@ try{
             -SubmittedAtUtc $intents[0].intent.requestedAtUtc -TargetVmIds $targetVms -PostgresBefore $beforePg -PostgresAfter $afterPg
         $report.effect=Get-Content "$caseRoot\effect-verdict.json" -Raw|ConvertFrom-Json -AsHashtable
         $report.status=$report.effect.status;$report.reason=$report.effect.reason
+        if($run.status -ne 'PASS'){
+            $report.status=if($report.effect.status -eq 'INCONCLUSIVE'){'INCONCLUSIVE'}else{'FAIL'}
+            $report.reason="Full-phase availability/latency verdict is $($run.status). $($report.effect.reason)"
+        }
+        $report.after=Qualify after
     }
 }catch{
     $report.status=if($_.Exception.Message -like 'BLOCKED:*'){'BLOCKED'}elseif($_.Exception.Message -like 'INCONCLUSIVE:*'){'INCONCLUSIVE'}else{'FAIL'}
     $report.reason=$_.Exception.Message
+    $report.errorStackTrace=$_.ScriptStackTrace
     Write-Warning $report.reason
     throw
 }finally{
@@ -236,3 +245,4 @@ try{
     $lock.Dispose()
     Write-Information "$TestId $($report.status), evidence $caseRoot; no Azure lab teardown." -InformationAction Continue
 }
+if($report.status -ne 'PASS'){exit 1}

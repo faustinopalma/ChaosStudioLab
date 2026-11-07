@@ -120,6 +120,8 @@ try {
     $m.status="AKS_$($Step.ToUpperInvariant())_COMPLETE"
 } finally {
     $m.lastStage=@{step=$Step;startedAtUtc=$started.ToString('O');finishedAtUtc=[DateTimeOffset]::UtcNow.ToString('O')}
+    if(-not $m.ContainsKey('stageTimings')){$m.stageTimings=@()}
+    $m.stageTimings+=@($m.lastStage.Clone())
     Save-LabInventory $m $ManifestPath
     $lock.Dispose()
 }

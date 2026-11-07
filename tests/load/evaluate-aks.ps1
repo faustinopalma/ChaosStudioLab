@@ -12,6 +12,7 @@ param(
 $ErrorActionPreference='Stop'
 Set-StrictMode -Version Latest
 $result=@{status='INCONCLUSIVE';reason='Required independently observed effects are incomplete.';compute=$null;overlap=$null;recovery=$null;stable=$null}
+$failures=[Collections.Generic.List[string]]::new()
 function Read-Events([string]$Path){@(Get-Content $Path|Where-Object {$_}|ForEach-Object {$_|ConvertFrom-Json -AsHashtable})}
 try{
     $events=Read-Events $AttemptsPath
@@ -26,7 +27,7 @@ try{
         $survivors=@($initial.vms|Where-Object {$_.id -notin $TargetVmIds})
         $firstOff=$null;$lastOff=$null;$qualified=$null
         foreach($sample in $topology){
-            $time=[DateTimeOffset]$sample.observedAtUtc
+            $time=([DateTimeOffset]$sample.observedAtUtc).ToUniversalTime()
             if([DateTimeOffset]$sample.requestedAtUtc -lt $SubmittedAtUtc){continue}
             $off=@($sample.vms|Where-Object {$_.id -in $TargetVmIds -and $_.powerState -in @('PowerState/stopped','PowerState/deallocated')})
             $healthy=@($sample.vms|Where-Object {$_.id -in $survivors.id -and $_.powerState -eq 'PowerState/running'})
@@ -82,8 +83,9 @@ try{
                 successfulOperationP95Ms=$p95;droppedOperations=$dropCount;longestCompleteUnavailabilitySeconds=$longest;expectedBusinessOperations=6000;expectedCanaries=300}
             $result.compute.firstFiveMinutes=$window
             if($window.businessSuccessRate -lt 0.99 -or $null -eq $p95 -or $p95 -gt 2000 -or $longest -gt 5){
-                throw 'FAIL: first five-minute compute-only observation exceeded 99% business success, two-second p95 or five-second complete-unavailability limits.'
-            }
+                $window.status='FAIL'
+                $failures.Add('FAIL: first five-minute compute-only observation exceeded 99% business success, two-second p95 or five-second complete-unavailability limits.')
+            }else{$window.status='PASS'}
         }
     }
     if($database){
@@ -105,7 +107,7 @@ try{
             }).Count){throw 'INCONCLUSIVE: independently observed database failures do not bracket actual selected-zone node shutdown.'}
             $result.overlap=@{status='PASS';databaseFailureBefore=$left[0];computeOffAtUtc=$effectTime.ToString('O');databaseFailureAfter=$right[0]}
         }
-        $effectTime=[DateTimeOffset]$bad[0].observedAtUtc
+        $effectTime=([DateTimeOffset]$bad[0].observedAtUtc).ToUniversalTime()
     }
     $evidencePath=Join-Path $CaseRoot 'independent-effect.json'
     $noInterruption=$false
@@ -127,13 +129,21 @@ try{
         $exit=$LASTEXITCODE
         $evaluation=Get-Content $path -Raw|ConvertFrom-Json -AsHashtable
         if($window -eq 60){$result.recovery=$evaluation}else{$result.stable=$evaluation}
-        if($exit -ne 0 -or $evaluation.status -ne 'PASS'){throw 'INCONCLUSIVE: complete qualifying recovery or stable window is missing.'}
+        if($exit -ne 0 -or $evaluation.status -ne 'PASS'){$failures.Add("INCONCLUSIVE: complete qualifying $window-second recovery or stable window is missing.")}
     }
-    if($database -and $result.recovery.recoveryDurationSeconds -gt 180){throw 'FAIL: database/combined recovery exceeded 180 seconds.'}
+    if($database -and $result.recovery.status -eq 'PASS' -and $result.recovery.recoveryDurationSeconds -gt 180){
+        $failures.Add('FAIL: database/combined recovery exceeded 180 seconds.')
+    }
     $lastTick=[DateTimeOffset](@($events|Where-Object type -eq canaryTick|Sort-Object scheduledAtUtc)[-1].scheduledAtUtc)
     if($database -and ($lastTick-$effectTime).TotalSeconds -lt 600){throw 'INCONCLUSIVE: less than ten minutes of post-database-effect measurement.'}
-    $result.status='PASS'
-    $result.reason='Native Action succeeded, intended infrastructure/component effects and survivor traffic were independently evidenced, recovery/stability windows qualified. Full-phase availability is reported separately.'
+    if($failures.Count){
+        $result.status=if(@($failures|Where-Object {$_ -like 'FAIL:*'}).Count){'FAIL'}else{'INCONCLUSIVE'}
+        $result.reason=$failures -join ' '
+        Write-Warning $result.reason
+    }else{
+        $result.status='PASS'
+        $result.reason='Native Action succeeded, intended infrastructure/component effects and survivor traffic were independently evidenced, recovery/stability windows qualified. Full-phase availability is reported separately.'
+    }
 }catch{
     $result.status=if($_.Exception.Message -like 'FAIL:*'){'FAIL'}else{'INCONCLUSIVE'}
     $result.reason=$_.Exception.Message

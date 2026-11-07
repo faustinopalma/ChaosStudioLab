@@ -17,6 +17,12 @@ $pods=& kubectl -n csl get pods -l app=csl-api -o json|ConvertFrom-Json
 if($LASTEXITCODE -ne 0){throw 'Private pod inventory failed.'}
 $services=& kubectl -n csl get service api -o json|ConvertFrom-Json
 if($LASTEXITCODE -ne 0){throw 'Private application service inventory failed.'}
+$deployment=& kubectl -n csl get deployment api -o json|ConvertFrom-Json
+if($LASTEXITCODE -ne 0){throw 'Private application deployment inventory failed.'}
+$affinity=$deployment.spec.template.spec.PSObject.Properties['affinity']
+if($null -eq $affinity -or @($affinity.Value.podAntiAffinity.requiredDuringSchedulingIgnoredDuringExecution|Where-Object {
+    $_.topologyKey -eq 'kubernetes.io/hostname' -and $_.labelSelector.matchLabels.app -eq 'csl-api'
+}).Count -ne 1){throw 'Actual deployment must require one application pod per worker hostname.'}
 if($nodes.items.Count -ne 9 -or $pods.items.Count -ne 6 -or
     @($nodes.items|Where-Object {@($_.status.conditions|Where-Object {$_.type -eq 'Ready' -and $_.status -eq 'True'}).Count -ne 1}).Count -or
     @($pods.items|Where-Object {$_.status.phase -ne 'Running' -or @($_.status.containerStatuses|Where-Object {-not $_.ready}).Count}).Count){
@@ -24,6 +30,11 @@ if($nodes.items.Count -ne 9 -or $pods.items.Count -ne 6 -or
 }
 if($services.spec.type -ne 'LoadBalancer' -or $services.metadata.annotations.'service.beta.kubernetes.io/azure-load-balancer-internal' -ne 'true' -or
     $services.status.loadBalancer.ingress[0].ip -ne $config.EXPECTED_API_IP){throw 'Actual application ingress is not the approved private load balancer.'}
+if($services.spec.externalTrafficPolicy -ne 'Local' -or $services.spec.healthCheckNodePort -lt 30000 -or
+    $services.metadata.annotations.'service.beta.kubernetes.io/azure-load-balancer-health-probe-interval' -ne '5' -or
+    $services.metadata.annotations.'service.beta.kubernetes.io/azure-load-balancer-health-probe-num-of-probe' -ne '2'){
+    throw 'Actual private ingress must use node-local routing and five-second/two-probe health checks.'
+}
 $placement=@(foreach($pod in $pods.items){
     $node=@($nodes.items|Where-Object {$_.metadata.name -eq $pod.spec.nodeName})
     if($node.Count -ne 1){throw 'Pod placement has an ambiguous node.'}
@@ -63,7 +74,7 @@ try{
         $complete=@($placement|Where-Object {$p=$_;@($observations|Where-Object {$_.uid -eq $p.uid -and $_.kind -eq 'health'}).Count -and @($observations|Where-Object {$_.uid -eq $p.uid -and $_.kind -eq 'business'}).Count}).Count -eq 6
     }while(-not $complete -and [DateTimeOffset]::UtcNow -lt $deadline)
     if(-not $complete){throw 'Five-minute participation qualification did not observe health and business traffic from every pod.'}
-    @{status='PASS';placement=$placement;observations=$observations.ToArray();nodes=$nodes;pods=$pods;service=$services;dns=$dns}|
+    @{status='PASS';placement=$placement;observations=$observations.ToArray();nodes=$nodes;pods=$pods;service=$services;deployment=$deployment;dns=$dns}|
         ConvertTo-Json -Depth 40|Set-Content -LiteralPath $OutputPath
     'CSL_AKS_PLACEMENT_QUALIFIED'
 }finally{$token=$null}

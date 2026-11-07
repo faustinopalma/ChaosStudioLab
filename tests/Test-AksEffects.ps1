@@ -56,6 +56,10 @@ try{
         if($e.type -eq 'businessOperation' -and [DateTimeOffset]$e.startedAtUtc -ge $start.AddSeconds(60) -and [DateTimeOffset]$e.startedAtUtc -lt $start.AddSeconds(70)){$e.success=$false};$e})
     Save-Events attempts $failed
     Check compute-availability-failure 'HA-ZONE-COMPUTE-001' FAIL
+    $separate=Get-Content "$tmp\compute-availability-failure\effect-verdict.json" -Raw|ConvertFrom-Json
+    if($separate.compute.firstFiveMinutes.status -ne 'FAIL' -or $separate.recovery.status -ne 'PASS' -or $separate.stable.status -ne 'PASS'){
+        throw 'Availability failure must preserve independent recovery and stability verdicts.'
+    }
     $combined=@($events|ForEach-Object {$e=$_|ConvertFrom-Json -AsHashtable
         if($e.type -eq 'businessOperation'){$e.phase='combined'}
         if($e.type -eq 'canaryTick' -and [DateTimeOffset]$e.scheduledAtUtc -eq $start.AddSeconds(40)){$e.success=$false};$e})

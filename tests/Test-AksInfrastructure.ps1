@@ -23,6 +23,13 @@ try {
     $profiles = Get-Content "$root\infra\modules\aks-workload.bicep" -Raw
     foreach ($zone in @('z1a','z1b','z2a','z2b','z3a','z3b')) { if ($profiles -notmatch "name: '$zone'") { throw 'Missing deterministic user pool.' } }
     if ($profiles -match 'enableAutoScaling: true') { throw 'Autoscaling invalidates the sustained fixed-node fault.' }
+    $pods = Get-Content "$root\k8s\aks-workload.yaml" -Raw
+    if ($pods -notmatch '(?s)podAntiAffinity:\s+requiredDuringSchedulingIgnoredDuringExecution:\s+- labelSelector:\s+matchLabels:\s+app: csl-api\s+topologyKey: kubernetes.io/hostname' -or
+        $pods -notmatch 'externalTrafficPolicy: Local' -or
+        $pods -notmatch 'azure-load-balancer-health-probe-interval: "5"' -or
+        $pods -notmatch 'azure-load-balancer-health-probe-num-of-probe: "2"') {
+        throw 'Distinct recovered workers and node-local private load-balancer health probes are required.'
+    }
     foreach ($type in @('Microsoft.KeyVault/vaults','Microsoft.ContainerRegistry/registries','Microsoft.DBforPostgreSQL/flexibleServers')) {
         $resource = @($w.resources | Where-Object type -EQ $type)[0]
         $access = if ($type -like '*flexibleServers') { $resource.properties.network.publicNetworkAccess } else { $resource.properties.publicNetworkAccess }
@@ -31,7 +38,7 @@ try {
     $native = Get-Content "$root\infra\aks-native-scenarios.bicep" -Raw
     if ($native -notmatch 'virtualmachinescaleset:shutdown' -or $native -match 'InstanceIds|Random|automationAccounts' -or
         $native -notmatch "GracefulShutdown', value: 'false'") { throw 'Native deterministic VMSS fault contract failed.' }
-    foreach ($file in Get-ChildItem "$root\scripts" -Filter '*Aks*.ps1') {
+    foreach ($file in Get-ChildItem "$root\scripts" -Filter '*Aks*.ps1' -Recurse) {
         $tokens=$null; $errors=$null
         [System.Management.Automation.Language.Parser]::ParseFile($file.FullName,[ref]$tokens,[ref]$errors) | Out-Null
         if ($errors) { $errors | Out-String | Write-Output; throw 'AKS script parse failed.' }
