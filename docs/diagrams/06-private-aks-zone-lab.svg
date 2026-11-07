@@ -1,6 +1,6 @@
-<svg xmlns="http://www.w3.org/2000/svg" xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape" width="1400" height="1240" viewBox="0 0 1400 1240" role="img" aria-labelledby="title description">
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape" width="1400" height="1400" viewBox="0 0 1400 1400" role="img" aria-labelledby="title description">
   <title id="title">Private AKS and PostgreSQL native Chaos laboratory</title>
-  <desc id="description">One private runner accesses an internal load balancer serving six Linux pods on six distinct worker nodes across three observed physical zones. Three system nodes span the same zones. PostgreSQL uses private zone-redundant HA. Native Chaos Actions shut down exact tenant node scale sets or the selected-zone nodes and force PostgreSQL failover. Regional managed dependencies remain running.</desc>
+  <desc id="description">One private runner accesses an internal load balancer serving six Linux pods on six distinct worker nodes across three observed physical zones. Three system nodes span the same zones. PostgreSQL uses private zone-redundant HA; private HA Azure Managed Redis shares SQL-confirmed immutable reads across workers. Native Chaos Actions shut down exact tenant node scale sets or the selected-zone nodes and force PostgreSQL failover. Regional managed dependencies remain running. Direct private SQL snapshots verify every acknowledged write independently of both cache layers.</desc>
   <defs>
     <style>
       text { font-family: "Segoe UI", Arial, sans-serif; fill: #000000; }
@@ -24,7 +24,7 @@
     <marker id="management-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 L10 5 L0 10 Z" fill="#5c2d91"/></marker>
     <marker id="fault-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 L10 5 L0 10 Z" fill="#f7630c"/></marker>
   </defs>
-  <rect width="1400" height="1240" fill="#ffffff"/>
+  <rect width="1400" height="1400" fill="#ffffff"/>
   <g inkscape:groupmode="layer" inkscape:label="Title and management" id="management-context">
     <text x="40" y="48" class="heading">Private AKS: six workers, three observed physical zones</text>
     <text x="40" y="78" class="body">Sweden Central | Azure Linux | fixed node pools | private HTTPS application and private PostgreSQL HA</text>
@@ -53,7 +53,7 @@
     <rect x="65" y="535" width="270" height="55" rx="6" class="neutral"/>
     <text x="85" y="558" class="body">Controlled NAT egress</text>
     <text x="85" y="579" class="small">Runner has no public IP</text>
-    <rect x="430" y="250" width="930" height="670" rx="10" class="network"/>
+    <rect x="430" y="250" width="930" height="710" rx="10" class="network"/>
     <text x="450" y="281" class="label">Workload VNet 10.91.0.0/16</text>
     <rect x="460" y="310" width="330" height="70" rx="6" class="compute"/>
     <text x="480" y="337" class="label">Private internal load balancer</text>
@@ -74,7 +74,7 @@
   <g inkscape:groupmode="layer" inkscape:label="Zonal nodes and pods" id="zonal-compute">
     <rect x="460" y="410" width="870" height="360" rx="8" class="subnet"/>
     <text x="480" y="437" class="label">Node subnet 10.91.0.0/22 | pod overlay 10.92.0.0/16</text>
-    <text x="480" y="460" class="body">Local routing / 5 s probes / distinct workers | HTTP/1.1 + bounded confirmed-read cache</text>
+    <text x="480" y="460" class="body">Local routing / 5 s probes / distinct workers | HTTP/1.1 + local/shared confirmed reads</text>
     <g id="zone-1">
       <rect x="480" y="480" width="260" height="270" rx="6" class="zone"/>
       <text x="495" y="508" class="label">Observed physical AZ 1</text>
@@ -121,7 +121,7 @@
     <text x="45" y="877" class="body">until their workers return.</text>
   </g>
   <g inkscape:groupmode="layer" inkscape:label="Private managed dependencies" id="managed-dependencies">
-    <rect x="460" y="805" width="870" height="95" rx="8" class="subnet"/>
+    <rect x="460" y="805" width="870" height="150" rx="8" class="subnet"/>
     <text x="480" y="831" class="label">Separate private-endpoint subnet 10.91.10.0/24</text>
     <rect x="480" y="845" width="250" height="40" rx="5" class="endpoint"/>
     <text x="500" y="871" class="body">PostgreSQL private endpoint</text>
@@ -129,7 +129,10 @@
     <text x="785" y="871" class="body">Registry private endpoint</text>
     <rect x="1050" y="845" width="250" height="40" rx="5" class="endpoint"/>
     <text x="1070" y="871" class="body">Key Vault private endpoint</text>
+    <rect x="480" y="910" width="250" height="40" rx="5" class="endpoint"/>
+    <text x="500" y="936" class="body">Managed Redis private endpoint</text>
     <path d="M895 770 V780 H445 V865 H480" class="dataflow"/>
+    <path d="M445 865 V930 H480" class="dataflow"/>
     <text x="665" y="799" class="small">Workload Identity / Entra / VerifyFull TLS</text>
     <rect x="480" y="965" width="250" height="95" rx="6" class="identity"/>
     <text x="500" y="993" class="label">PostgreSQL 16</text>
@@ -147,18 +150,25 @@
     <path d="M890 885 V965" class="dataflow"/>
     <path d="M1175 885 V965" class="dataflow"/>
     <text x="480" y="1100" class="body">Managed services use private DNS and endpoints; application/database public data-plane access is disabled.</text>
-    <rect x="40" y="945" width="320" height="135" rx="6" class="control"/>
-    <text x="60" y="975" class="label">Governance-managed telemetry</text>
-    <text x="60" y="1001" class="body">Defender default workspace</text>
-    <text x="60" y="1027" class="small">Public ingestion/query remain enabled.</text>
-    <text x="60" y="1050" class="small">Provider-created in an existing default group;</text>
-    <text x="60" y="1068" class="small">outside the four owned laboratory groups.</text>
-    <path d="M460 740 H380 V1010 H360" class="fault"/>
+    <rect x="40" y="945" width="320" height="135" rx="6" class="identity"/>
+    <text x="60" y="975" class="label">Private HA Azure Managed Redis</text>
+    <text x="60" y="1001" class="body">Shared SQL-confirmed immutable reads</text>
+    <text x="60" y="1027" class="small">Entra Workload Identity / TLS 10000</text>
+    <text x="60" y="1050" class="small">Public access and access-key auth disabled;</text>
+    <text x="60" y="1068" class="small">SQL commits and direct retention stay separate.</text>
+    <path d="M480 930 H400 V1010 H360" class="dataflow"/>
+    <rect x="40" y="1115" width="320" height="135" rx="6" class="control"/>
+    <text x="60" y="1145" class="label">Governance-managed telemetry</text>
+    <text x="60" y="1171" class="body">Defender default workspace</text>
+    <text x="60" y="1197" class="small">Public ingestion/query remain enabled.</text>
+    <text x="60" y="1220" class="small">Provider-created in an existing default group;</text>
+    <text x="60" y="1238" class="small">outside the four owned laboratory groups.</text>
+    <path d="M460 740 H380 V1180 H360" class="fault"/>
   </g>
   <g inkscape:groupmode="layer" inkscape:label="Measurement boundary" id="measurement-boundary">
-    <rect x="40" y="1130" width="1320" height="85" rx="8" class="control"/>
-    <text x="60" y="1160" class="label">Evidence boundary</text>
-    <text x="60" y="1185" class="body">Native faults cover tenant AKS node shutdowns and PostgreSQL role failover. Managed regional dependencies remain running.</text>
-    <text x="60" y="1207" class="small">Every acknowledged write is reconciled. Combined overlap is independently observed. Whole-Azure-zone disaster coverage remains BLOCKED.</text>
+    <rect x="40" y="1290" width="1320" height="85" rx="8" class="control"/>
+    <text x="60" y="1320" class="label">Evidence boundary</text>
+    <text x="60" y="1345" class="body">Native faults cover tenant AKS node shutdowns and PostgreSQL role failover. Managed regional dependencies remain running.</text>
+    <text x="60" y="1367" class="small">Every acknowledged write is reconciled directly in SQL. Combined overlap is independently observed. Whole-Azure-zone coverage stays BLOCKED.</text>
   </g>
 </svg>
