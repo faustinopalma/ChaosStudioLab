@@ -39,13 +39,17 @@ The operator deleted the App Service lab groups on 6 November at 09:43 UTC. Seve
 
 ## AKS: new comparison
 
-The new comparison is authorized on 7 November 2026 and selects Sweden Central after regional qualification. AKS Standard, static node counts and six single-node user pools allow the native VMSS shutdown Action to isolate one application node. Selecting zone 1 across every owned system/user VMSS extends that scope to all three lab nodes in that zone.
+The new comparison is authorized on 7 November 2026 and selects Sweden Central after regional qualification. Scope and identities are deployed; private AKS/PostgreSQL infrastructure is provisioning after ARM validation passed with 42 Creates and five owned-identity Ignores. These validation counts supply no completed workload or experiment verdict.
+
+AKS Standard, static node counts and six single-node user pools allow the native VMSS shutdown Action to isolate one application node. Selected-zone shutdown targets exactly three owned VMSS: the system pool and logical user pools z1a/z1b, with zone 1 selected. This includes the zone-1 system VM and both application nodes while avoiding empty-zone matches on the four other user pools.
 
 The design requires six application pods across six user nodes in three zones, with three additional tainted system nodes. PostgreSQL remains a private zone-redundant managed dependency. The application moves to a .NET 10 container using the existing source. The API server, application ingress, registry, vault and database have private access paths.
 
 Unlike the historical App Service private Azure Monitor path, the initial AKS lab deploys no AMPLS or Log Analytics. Application logs are collected through the private Kubernetes API; the remote runner's independent observer and node-topology monitor provide raw evidence retained under ignored `.local\`.
 
-The comparison adds five-minute sustained compute-fault evidence. It records actual power states, Kubernetes readiness, surviving capacity, and any AKS restart or replacement. A full physical-zone-disaster verdict still requires broader fault coverage. See the [test matrix](aks-lab.md#test-matrix) and [scope limits](experiment-limits.md#aks-compute-shutdown-and-physical-zone-scope).
+Seven-minute (`PT7M`) native shutdown definitions provide margin for independent samples to establish at least 300 continuous seconds physically off. The runner reads node-group power states with Reader access; the Chaos identity has Virtual Machine Contributor and Reader for fault execution and reads. Actual power states, Kubernetes readiness, surviving capacity, and any AKS restart or replacement determine the sustained-effect verdict.
+
+The workload's Kubernetes readiness probe checks process liveness to retain endpoints during transient database outages. Explicit `/health/ready` and independent business observations retain database-health qualification. Recovery must start a qualifying 60-second window within 180 seconds, followed by 300 stable seconds at the approved service targets. A full physical-zone-disaster verdict still requires broader fault coverage. See the [test matrix](aks-lab.md#test-matrix) and [scope limits](experiment-limits.md#aks-compute-shutdown-and-physical-zone-scope).
 
 Resources remain active after execution until the operator orders stop or deletion. Pending AKS execution is recorded honestly in the [results register](aks-results.md); architecture approval supplies no measured PASS.
 

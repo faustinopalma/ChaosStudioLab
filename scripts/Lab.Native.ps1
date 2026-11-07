@@ -81,6 +81,8 @@ function Get-LabNativeActionUrn {
         'urn:csci:microsoft:appservice:killprocess/1.0.0' { return $ActionId }
         'microsoft-azurepostgresql-failover/1.0' { return 'urn:csci:microsoft:azurepostgresql:failover/1.0.0' }
         'urn:csci:microsoft:azurepostgresql:failover/1.0.0' { return $ActionId }
+        'microsoft-virtualmachinescaleset-shutdown/1.0' { return 'urn:csci:microsoft:virtualmachinescaleset:shutdown/1.0.0' }
+        'urn:csci:microsoft:virtualmachinescaleset:shutdown/1.0.0' { return $ActionId }
         default { throw "Unqualified native Action identifier: $ActionId" }
     }
 }
@@ -320,12 +322,16 @@ function Get-LabNativeApplicationProcesses {
 }
 
 function Find-LabNativeTargets {
-    param([string] $WorkspaceId,[string[]] $TargetIds,[string] $EvidenceRoot)
+    param([string] $WorkspaceId,[string[]] $TargetIds,[string] $EvidenceRoot,[string[]] $ExpectedScopeIds=@())
     $workspace=Invoke-LabArm Get "https://management.azure.com${WorkspaceId}?api-version=2026-08-01-preview"
     Write-LabJson (Join-Path $EvidenceRoot 'workspace.json') $workspace
-    $scope="/subscriptions/$script:LabSubscription/resourceGroups/$($script:LabGroups[1])"
-    if(@($workspace.body.properties.scopes).Count -ne 1 -or $workspace.body.properties.scopes[0] -ine $scope) {
-        throw 'Native Workspace discovery scope differs from the exact owned workload group.'
+    if(-not $ExpectedScopeIds.Count){$ExpectedScopeIds=@("/subscriptions/$script:LabSubscription/resourceGroups/$($script:LabGroups[1])")}
+    $ownedScopes=@($script:LabGroups|ForEach-Object {"/subscriptions/$script:LabSubscription/resourceGroups/$_"})
+    foreach($scope in $ExpectedScopeIds){
+        if($scope -notin $ownedScopes){throw 'Workspace discovery requested an unowned resource group scope.'}
+    }
+    if(@(Compare-Object @($ExpectedScopeIds|Sort-Object) @($workspace.body.properties.scopes|Sort-Object)).Count) {
+        throw 'Native Workspace discovery scopes differ from the exact owned groups.'
     }
     $response=Invoke-LabArm Post "https://management.azure.com$WorkspaceId/discover?api-version=2026-08-01-preview"
     Write-LabJson (Join-Path $EvidenceRoot 'discovery-acceptance.json') $response

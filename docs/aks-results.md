@@ -2,31 +2,35 @@
 
 [Lab guide](lab-guide.md) · [AKS design and tests](aks-lab.md) · [Experiment limits](experiment-limits.md) · [Historical App Service results](app-service-results.md)
 
-Status date: 7 November 2026. **Measured AKS outcomes are pending.** This register distinguishes approved design, qualified prerequisites and completed execution. No deployment, load, shutdown, failover or durability PASS is inferred from the architecture.
+Status date: 7 November 2026. **Measured AKS outcomes are pending.** Scope and identities are deployed; private AKS/PostgreSQL infrastructure is provisioning. ARM validation passed with 42 Creates and five owned-identity Ignores. These validation counts describe the planned changes, rather than completed resource creates. No baseline, shutdown, failover or durability test is reported as executed.
 
 ## Qualified prerequisites and intended deployment
 
 | Item | Available fact | Remaining evidence |
 | --- | --- | --- |
-| Authorization | Autonomous implementation, deployment, repairs and tests authorized; retain groups until operator stop/delete order | Actual owned deployment inventory and lifecycle state |
+| Authorization/scope | Autonomous implementation, deployment, repairs and tests authorized; scope and identities deployed; retain groups until operator stop/delete order | Completed infrastructure inventory and lifecycle state |
+| ARM validation | Passed; 42 Creates and five owned-identity Ignores | Completed private AKS/PostgreSQL provisioning and actual resource inventory |
 | Region/VM eligibility | Sweden Central `Standard_D4ds_v5` unrestricted in zones 1, 2 and 3; initial Italy North VM candidate restricted | Successful allocation and actual zone/node mapping |
 | PostgreSQL catalog | Zone-redundant HA capability enabled | Live PostgreSQL 16, Healthy primary/standby roles and zones, private TLS/Entra connectivity |
 | Kubernetes catalog | 1.35.9 checked as supported | Actual deployed version and healthy cluster |
 | AKS shape | Standard, no NAP/autoscaling; three tainted system nodes and six single-node user pools planned | Nine-node inventory, baseline six-pod participation and actual spread |
-| Native node contract | Live Action has `GracefulShutdown` and `Zones`, without instance IDs | Exact accepted owned VMSS targets, observed shutdown state and verified restoration semantics |
+| Native node contract | Live Action has `GracefulShutdown` and `Zones`, without instance IDs; shutdown definitions PT7M | Accepted targets and at least 300 s observed continuous power-off, shutdown state and restoration semantics |
+| Selected-zone target configuration | Exactly system/z1a/z1b VMSS with zone 1 selected; other four user pools omitted to avoid empty-zone matches | Actual VMSS/node mapping and exactly three affected nodes |
+| Node-group authorization | Runner Reader; Chaos Virtual Machine Contributor and Reader | Effective scoped grants, independent reads and actual fault-caller evidence |
 | Private paths | Private API/public FQDN disabled; private application HTTPS, Premium registry, vault and database planned | Actual caller-specific DNS, routes, authentication and publication/pull proof |
 | Runtime/logs | .NET 10 container reusing source; private Kubernetes API application logs; no initial AMPLS/Log Analytics | Published build, successful startup and actual private log collection |
+| Workload probe | Process-live readiness retains endpoints during dependency outage; `/health/ready` remains qualification gate | Actual probe configuration, baseline/restored-health checks and independent business results |
 | Independent observations | Remote runner observer and node-topology monitor planned; all raw evidence retained under ignored `.local\` | Complete attributable client/topology samples, power states and observation cadence |
 
-Catalog qualification supplies eligibility evidence. Deployment and baseline acceptance remain pending in this register.
+Catalog qualification and ARM validation supply prerequisite evidence. Scope and identity deployment is recorded separately; completion of private AKS/PostgreSQL provisioning and baseline acceptance remain pending.
 
 ## Test verdicts
 
 | Test | Execution/effect | Service recovery | Full-phase availability | Complete-history retention |
 | --- | --- | --- | --- | --- |
 | BASE-001 | **PENDING** | **PENDING** | **PENDING** | **PENDING** |
-| HA-NODE-001 | **PENDING**: exact single-node shutdown and 5 min sustained effect | **PENDING** | **PENDING** | **PENDING** |
-| HA-ZONE-COMPUTE-001 | **PENDING**: expected 3 selected-zone nodes, 5 min sustained effect | **PENDING** | **PENDING** | **PENDING** |
+| HA-NODE-001 | **PENDING**: PT7M exact single-node shutdown; at least 300 s sustained effect | **PENDING** | **PENDING** | **PENDING** |
+| HA-ZONE-COMPUTE-001 | **PENDING**: PT7M system/z1a/z1b targets; expected 3 nodes, at least 300 s sustained effect | **PENDING** | **PENDING** | **PENDING** |
 | HA-DB-001 | **PENDING**: forced failover and role/zone transition | **PENDING** | **PENDING** | **PENDING** |
 | HA-COMBINED-001 | **PENDING**: database-first disruption and independent node-effect overlap | **PENDING** | **PENDING** | **PENDING** |
 | HA-AZ-001 | **BLOCKED**: no supported physical full-zone injection in the current plan | Unmeasured | Unmeasured | Unmeasured |
@@ -54,6 +58,8 @@ Replace pending values only from final attributable evidence. Preserve failed an
 
 Each final case needs actual target counts/zone placement, accepted fault parameters, power-state/NotReady evidence where applicable, surviving service, errors/drops, successful-operation p95, recovery/stable timing, complete-history checksum reconciliation and separate availability/durability verdicts. The combined case additionally needs independent dependency failures overlapping actual compute loss.
 
+The approved database/combined gates remain 180 seconds to the beginning of a complete 60-second qualifying window with at least 99% business/canary success and successful-operation p95 at most one second, followed by 300 continuous stable seconds at 99.9% business success and baseline latency. Record explicit `/health/ready` qualification separately from Kubernetes process-live readiness and business recovery.
+
 Record whether the node fault stopped or deallocated instances and how service restored them. Verify private Kubernetes API log collection and the independent runner observer/node-topology monitor, including sampling cadence and missing intervals. The initial lab omits AMPLS and Log Analytics; record any later justified observability change. Keep raw resource identifiers, authentication details and all raw evidence under ignored `.local\`.
 
 ## Comparison anchor: historical App Service
@@ -74,4 +80,4 @@ These measurements remain attributed to App Service. The .NET 10 container, priv
 
 The earlier App Service dedicated groups were deleted by the operator on 6 November 2026 at 09:43 UTC. Seven unrelated groups and their 24 resources were verified unchanged.
 
-The new AKS scope is authorized to remain active until an operator stop/delete order. Actual deployment, running/stopped state, restoration and later cleanup verification are pending publication here.
+The new scope and identities are deployed; private AKS/PostgreSQL infrastructure is provisioning after successful ARM validation. The lab is authorized to remain active until an operator stop/delete order. Completed infrastructure readiness, running/stopped state, fault restoration and later cleanup verification remain pending.

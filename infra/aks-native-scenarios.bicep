@@ -16,8 +16,8 @@ resource workspace 'Microsoft.Chaos/workspaces@2026-08-01-preview' = {
   properties: { scopes: scopes }
 }
 var definitions = [
-  { name: 'aks-exact-node-shutdown', targets: [exactNodeScaleSetId], urn: 'urn:csci:microsoft:virtualmachinescaleset:shutdown/1.0.0', duration: 'PT5M', parameters: [{ key: 'GracefulShutdown', value: 'false' }, { key: 'Zones', value: '[]' }] }
-  { name: 'aks-selected-zone-shutdown', targets: zoneScaleSetIds, urn: 'urn:csci:microsoft:virtualmachinescaleset:shutdown/1.0.0', duration: 'PT5M', parameters: [{ key: 'GracefulShutdown', value: 'false' }, { key: 'Zones', value: string([selectedLogicalZone]) }] }
+  { name: 'aks-exact-node-shutdown', targets: [exactNodeScaleSetId], urn: 'urn:csci:microsoft:virtualmachinescaleset:shutdown/1.0.0', duration: 'PT7M', parameters: [{ key: 'GracefulShutdown', value: 'false' }, { key: 'Zones', value: '[]' }] }
+  { name: 'aks-selected-zone-shutdown', targets: zoneScaleSetIds, urn: 'urn:csci:microsoft:virtualmachinescaleset:shutdown/1.0.0', duration: 'PT7M', parameters: [{ key: 'GracefulShutdown', value: 'false' }, { key: 'Zones', value: string([selectedLogicalZone]) }] }
   { name: 'aks-postgres-forced-failover', targets: [postgresResourceId], urn: 'urn:csci:microsoft:azurepostgresql:failover/1.0.0', duration: 'PT1M', parameters: [{ key: 'FailoverMode', value: '1' }, { key: 'RestoreOnStop', value: 'false' }, { key: 'SkipIneligibleServers', value: 'false' }] }
 ]
 resource scenarios 'Microsoft.Chaos/workspaces/scenarios@2026-08-01-preview' = [for definition in definitions: {

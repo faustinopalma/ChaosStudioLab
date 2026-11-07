@@ -59,6 +59,7 @@ IMAGE_DIGEST="$digest" pwsh -NoLogo -NoProfile -Command '
   $t=Get-Content ./k8s/aks-workload.yaml -Raw
   foreach($p in @{RUNTIME_CLIENT_ID=$c.RUNTIME_CLIENT_ID;POSTGRES_HOST=$c.POSTGRES_HOST;SOURCE_REVISION=$c.SOURCE_REVISION;IMAGE_DIGEST=$env:IMAGE_DIGEST}.GetEnumerator()){$t=$t.Replace("__"+$p.Key+"__",$p.Value)}
   $t|Set-Content ./k8s/rendered.yaml'
+kubectl apply --dry-run=server -f k8s/rendered.yaml
 kubectl apply -f k8s/rendered.yaml
 kubectl -n csl rollout status deployment/api --timeout=600s
 curl --fail --silent --show-error "https://$API_FQDN/health/ready"

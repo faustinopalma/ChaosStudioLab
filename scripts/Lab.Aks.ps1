@@ -5,6 +5,23 @@ if (-not $script:LabEnvironment.ContainsKey('aksNodeResourceGroup') -or
 }
 $script:LabGroups += $script:LabEnvironment.aksNodeResourceGroup
 $script:AksBaseInventory = ${function:Get-LabInventory}
+$script:AksBaseDeployment = ${function:Invoke-LabDeployment}
+
+function Invoke-LabDeployment {
+    param([hashtable] $Manifest, [string] $ManifestPath, [string] $Group, [string] $Name, [string] $Template, [hashtable] $Parameters)
+    $root = Split-Path $ManifestPath -Parent
+    $path = Join-Path $root "$Name.validation-parameters.json"
+    $values = @{}
+    foreach ($entry in $Parameters.GetEnumerator()) { $values[$entry.Key] = @{value=$entry.Value} }
+    Write-LabJson $path @{parameters=$values}
+    try {
+        Write-Information "[$([DateTimeOffset]::UtcNow.ToString('O'))] ARM validating exact AKS stage $Name." -InformationAction Continue
+        $validation = Invoke-LabAz @('deployment','group','validate','-g',$Group,'--template-file',$Template,'--parameters',"@$path",'-o','json') | ConvertFrom-Json -AsHashtable
+        Write-LabJson (Join-Path $root "$Name.arm-validation.json") $validation
+        if ($validation.properties.provisioningState -ne 'Succeeded') { throw "ARM validation failed for $Name." }
+        return & $script:AksBaseDeployment $Manifest $ManifestPath $Group $Name $Template $Parameters
+    } finally { Remove-Item -LiteralPath $path -ErrorAction SilentlyContinue }
+}
 
 function Get-LabInventory {
     param([hashtable] $Manifest)

@@ -72,10 +72,10 @@ resource linksOps 'Microsoft.Network/privateDnsZones/virtualNetworkLinks@2024-06
   location: 'global'
   properties: { registrationEnabled: false, virtualNetwork: { id: operations.outputs.vnetId } }
 }]
-resource apiDns 'Microsoft.Network/privateDnsZones/A@2024-06-01' = {
-  parent: dnsZones[3]
-  name: 'api'
-  properties: { ttl: 60, aRecords: [{ ipv4Address: '10.91.3.240' }] }
+module apiDns 'aks-app-dns.bicep' = {
+  name: 'csl-aks-api-dns'
+  params: {}
+  dependsOn: [network]
 }
 output workload object = workload.outputs.workload
 output operations object = {

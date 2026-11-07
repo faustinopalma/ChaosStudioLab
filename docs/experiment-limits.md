@@ -56,7 +56,7 @@ The new native fault path targets node VM scale sets. The selected live Action a
 | Intended experiment | Required target/effect evidence | Coverage boundary |
 | --- | --- | --- |
 | Exact application node | One owned single-node user-pool VMSS mapped to one Kubernetes node; actual power-off and NotReady | One application compute node and its workloads |
-| Selected-zone compute | All owned system/user VMSS selected with zone 1; expected two user nodes and one system node physically off | Lab-owned AKS compute in the selected zone |
+| Selected-zone compute | Exactly three owned VMSS: system, z1a and z1b selected with zone 1; expected two user nodes and one system node physically off | Lab-owned AKS compute in the selected zone |
 | Database forced failover | Native operation, observed dependency errors, role/zone transition | Managed database failover and application reconnection |
 | Combined | Database failure independently overlaps actual selected-zone node shutdown | Correlated tested dependency/compute effects |
 | HA-AZ-001 | Supported broader physical full-zone injection and independent effect proof | Remains BLOCKED; no physical full-zone injection is planned |
@@ -65,13 +65,23 @@ The private internal load balancer, shared networking and AKS control plane are 
 
 ### Sustained window and service remediation
 
-Require a continuous five-minute physically-off interval, supported by ARM VM power-state snapshots and Kubernetes NotReady observations. Correlate each VMSS node with its Kubernetes identity, physical zone and workload placement. Readiness alone cannot establish power-off: a node can become NotReady because of connectivity or reporting delays.
+Require a continuous five-minute (at least 300-second) physically-off interval, supported by ARM VM power-state snapshots and Kubernetes NotReady observations. The native definitions use `PT7M` to provide sampling margin despite provider startup/restoration overhead. Seven configured minutes still require proof of the actual continuous outage. Correlate each VMSS node with its Kubernetes identity, physical zone and workload placement. Readiness alone cannot establish power-off: a node can become NotReady because of connectivity or reporting delays.
+
+Selected-zone targeting includes the system VMSS and only the zone-1 user VMSS, z1a and z1b. `Zones=['1']` selects the single zone-1 system instance from the three-zone system pool. Excluding the other four user VMSS avoids empty-zone selector matches. Verify actual mapping before execution and block unexpected extra/missing targets.
+
+The independent runner's node-group Reader role supports ARM power-state observation. The Chaos identity's node-group Virtual Machine Contributor and Reader roles support mutation and reads. Role assignment does not prove a successful shutdown or complete evidence; record effective access and actual fault callers separately.
 
 Record the actual shutdown state, including whether the service stops or deallocates instances, the configured `GracefulShutdown` value, and the verified restore-on-stop behavior. Verify restoration after Action completion or abort. Action duration by itself supplies no continuous-effect proof.
 
 Static pools, disabled autoscaling and disabled NAP make the intended capacity explicit. AKS reconciliation or remediation may still restart or replace nodes. Record every replacement, power-state transition and pod reschedule. A restart or replacement that shortens the required five-minute fault window fails the sustained-fault gate, even when business availability remains good.
 
 Surviving pods may reschedule onto healthy capacity. Report scheduling constraints and any relaxation needed for recovery; baseline six-node spread and post-fault capacity are distinct observations.
+
+### Endpoint readiness during dependency failure
+
+The Kubernetes workload readiness probe checks process liveness, retaining endpoints during transient PostgreSQL disruption so the application can handle dependency errors and reconnect. Explicit `/health/ready` remains the baseline/restored-health qualification gate. Kubernetes Ready therefore records the probe's process-health condition; it supplies no independent database or successful-business verdict.
+
+Publish dependency errors and canary/business results throughout failover even when pods remain Ready. The approved recovery objective is 180 seconds to the beginning of a complete 60-second window with at least 99% business/canary success and successful-operation p95 at most one second, followed by 300 continuous stable seconds at 99.9% business success and baseline latency. Endpoint retention supplies no availability PASS by itself.
 
 ## Load, durability and comparison boundaries
 

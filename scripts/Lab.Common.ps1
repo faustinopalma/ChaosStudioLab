@@ -96,6 +96,9 @@ function Sync-LabTestTooling {
         'tests\load\run.ps1', 'tests\load\scenario.js'
         'tests\load\evaluate-durability.ps1', 'tests\load\evaluate-recovery.ps1'
     )
+    if ($manifest.ContainsKey('architecture') -and $manifest.architecture -eq 'private-aks') {
+        $files += @('scripts\runner\qualify-aks.ps1', 'scripts\runner\observe-aks.ps1')
+    }
     $checksums = @()
     try {
         $archive = [IO.Compression.ZipFile]::Open($archivePath, [IO.Compression.ZipArchiveMode]::Create)
@@ -111,7 +114,7 @@ function Sync-LabTestTooling {
             finally { $writer.Dispose() }
         } finally { $archive.Dispose() }
         $archiveHash = (Get-FileHash $archivePath -Algorithm SHA256).Hash.ToLowerInvariant()
-        Write-Information "[$($started.ToString('O'))] Synchronizing eight current private measurement/observer/retention tools and verifying every source checksum." -InformationAction Continue
+        Write-Information "[$($started.ToString('O'))] Synchronizing $($files.Count) current private measurement/observer/retention tools and verifying every source checksum." -InformationAction Continue
         & scp @options -P $TunnelPort $archivePath "csloperator@127.0.0.1:csl/$archiveName"
         if ($LASTEXITCODE -ne 0) { throw 'Private measurement-tool package transfer failed.' }
         & ssh @options -p $TunnelPort 'csloperator@127.0.0.1' "cd ~/csl && unzip -oq $archiveName && sha256sum --quiet --check $checksumName && rm -- $archiveName $checksumName"

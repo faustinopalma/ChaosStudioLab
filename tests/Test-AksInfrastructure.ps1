@@ -3,12 +3,17 @@ $root = Split-Path $PSScriptRoot -Parent
 $tmp = Join-Path ([IO.Path]::GetTempPath()) "csl-aks-test-$([Guid]::NewGuid().ToString('N'))"
 New-Item -ItemType Directory $tmp | Out-Null
 try {
-    foreach ($name in @('aks-main','aks-native-scenarios','aks-access','modules\aks-identities','modules\aks-workload')) {
+    foreach ($name in @('aks-main','aks-app-dns','aks-native-scenarios','aks-access','aks-node-access','modules\aks-identities','modules\aks-workload')) {
         $file = Join-Path $tmp "$([IO.Path]::GetFileName($name)).json"
         & az bicep build --file "$root\infra\$name.bicep" --outfile $file --only-show-errors
         if ($LASTEXITCODE -ne 0) { throw "AKS Bicep compilation failed: $name" }
     }
     $w = Get-Content "$tmp\aks-workload.json" -Raw | ConvertFrom-Json -AsHashtable
+    $main = Get-Content "$tmp\aks-main.json" -Raw | ConvertFrom-Json -AsHashtable
+    $apiDns = @($main.resources | Where-Object name -eq 'csl-aks-api-dns')
+    if ($apiDns.Count -ne 1 -or -not @($apiDns[0].dependsOn | Where-Object { $_ -like '*csl-aks-network*' }).Count) {
+        throw 'Application private DNS must wait for its zone-creation deployment.'
+    }
     $aks = @($w.resources | Where-Object type -EQ 'Microsoft.ContainerService/managedClusters')
     if ($aks.Count -ne 1 -or -not $aks[0].properties.apiServerAccessProfile.enablePrivateCluster -or
         $aks[0].properties.apiServerAccessProfile.enablePrivateClusterPublicFQDN -or

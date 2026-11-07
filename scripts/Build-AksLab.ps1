@@ -62,12 +62,12 @@ try {
                 runnerPrincipalId=$o.runnerPrincipalId;chaosPrincipalId=$w.chaosPrincipalId;clusterName=$w.clusterName
                 registryName=$w.registryName;vaultName=$w.vaultName;postgresName=$w.postgresName
             }
-            $m.outputs.nodeActionRole=Invoke-LabDeployment $m $ManifestPath $script:LabGroups[3] 'csl-aks-node-action' "$script:LabRoot\infra\modules\role-assignment.bicep" @{principalId=$w.chaosPrincipalId;contributorRoleDefinitionId='9980e02c-c2be-4d73-94e8-173b1dc7cf3c'}
-            $m.outputs.nodeDiscoveryRole=Invoke-LabDeployment $m $ManifestPath $script:LabGroups[3] 'csl-aks-node-reader' "$script:LabRoot\infra\modules\role-assignment.bicep" @{principalId=$w.chaosPrincipalId;contributorRoleDefinitionId='acdd72a7-3385-48ef-bd42-f606fba81ae7'}
-            $nodeVnet = Invoke-LabAz @('network','private-endpoint','list','-g',$script:LabGroups[3],'-o','json') | ConvertFrom-Json -AsHashtable
-            $zones=Invoke-LabAz @('network','private-dns','zone','list','-g',$script:LabGroups[3],'-o','json')|ConvertFrom-Json -AsHashtable
-            if (@($zones).Count -ne 1) { throw 'Private AKS API DNS zone is ambiguous.' }
-            Invoke-LabAz @('network','private-dns','link','vnet','create','-g',$script:LabGroups[3],'-z',$zones[0].name,'-n','csl-private-runner','--virtual-network',$o.vnetId,'--registration-enabled','false','-o','none')|Out-Null
+            $zones=@(Invoke-LabAz @('network','private-dns','zone','list','-g',$script:LabGroups[3],'-o','json')|ConvertFrom-Json -AsHashtable)
+            if ($zones.Count -ne 1) { throw 'Private AKS API DNS zone is ambiguous.' }
+            $m.outputs.nodeAccess=Invoke-LabDeployment $m $ManifestPath $script:LabGroups[3] 'csl-aks-node-access' "$script:LabRoot\infra\aks-node-access.bicep" @{
+                chaosPrincipalId=$w.chaosPrincipalId;runnerPrincipalId=$o.runnerPrincipalId
+                privateApiZoneName=$zones[0].name;operationsVnetId=$o.vnetId
+            }
         } elseif ($Step -eq 'Runner') {
             $o=$m.outputs.infrastructure.operations.value
             $scriptBody=(Get-Content "$script:LabRoot\scripts\runner\install.sh" -Raw).Replace("`r`n","`n")
@@ -82,7 +82,8 @@ try {
             $m.sourceRevision=$revision
             $config=@{SUBSCRIPTION_ID=$script:LabSubscription;RUNNER_CLIENT_ID=$o.runnerClientId;MIGRATION_CLIENT_ID=$w.migrationClientId;RUNTIME_PRINCIPAL_ID=$w.runtimePrincipalId
                 RUNTIME_CLIENT_ID=$w.runtimeClientId;POSTGRES_HOST=$w.postgresHost;VAULT_NAME=$w.vaultName;API_FQDN=$w.apiFqdn;CLUSTER_NAME=$w.clusterName
-                APP_RESOURCE_GROUP=$script:LabGroups[1];NODE_RESOURCE_GROUP=$script:LabGroups[3];REGISTRY_NAME=$w.registryName;REGISTRY_HOST=$w.registryHost;SOURCE_REVISION=$revision}
+                APP_RESOURCE_GROUP=$script:LabGroups[1];NODE_RESOURCE_GROUP=$script:LabGroups[3];REGISTRY_NAME=$w.registryName;REGISTRY_HOST=$w.registryHost;SOURCE_REVISION=$revision
+                EXPECTED_API_IP='10.91.3.240';PRIVATE_API_FQDN=$w.privateFqdn;ARCHITECTURE='private-aks'}
             Write-LabJson "$root\runner-config.json" $config
             $archive="$root\aks-source.zip"; if(Test-Path $archive){Remove-Item -LiteralPath $archive}
             $zip=[IO.Compression.ZipFile]::Open($archive,[IO.Compression.ZipArchiveMode]::Create)
@@ -106,11 +107,13 @@ try {
             $sets=Invoke-LabAz @('vmss','list','-g',$script:LabGroups[3],'-o','json')|ConvertFrom-Json -AsHashtable
             $single=@($sets|Where-Object {$_.tags.'aks-managed-poolName' -eq 'z1a'})
             if($single.Count -ne 1 -or $single[0].sku.capacity -ne 1 -or $sets.Count -ne 7){throw 'Expected seven node pools and an exact single-node target.'}
-            $m.nativeTargets=@{single=$single[0].id;zone=@($sets.id);logicalZone='1'}
+            $zoneSets=@($sets|Where-Object {$_.tags.'aks-managed-poolName' -in @('system','z1a','z1b')})
+            if($zoneSets.Count -ne 3){throw 'Selected zone must include its system pool and both user pools.'}
+            $m.nativeTargets=@{single=$single[0].id;zone=@($zoneSets.id);logicalZone='1'}
             $m.outputs.native=Invoke-LabDeployment $m $ManifestPath $script:LabGroups[1] 'csl-aks-native' "$script:LabRoot\infra\aks-native-scenarios.bicep" @{
                 location=$script:LabChaosLocation;deploymentInstanceId=$m.deploymentInstanceId;workspaceName="csl-aks-chaos-$($m.deploymentInstanceId.Substring(0,8))"
                 chaosIdentityId=$w.chaosIdentityId;scopes=@($m.groups[1].id,$m.groups[3].id);exactNodeScaleSetId=$single[0].id
-                zoneScaleSetIds=@($sets.id);selectedLogicalZone='1';postgresResourceId=$w.postgresId
+                zoneScaleSetIds=@($zoneSets.id);selectedLogicalZone='1';postgresResourceId=$w.postgresId
             }
         }
     }
