@@ -6,10 +6,27 @@ This repository compares recovery and acknowledged-write durability under contro
 
 ## Current status — 7 November 2026
 
-- **App Service experiments are historical.** The operator deleted their dedicated resource groups on 6 November at 09:43 UTC. Verification found seven unrelated resource groups and their 24 resources unchanged. Historical results and retained evidence remain available.
-- **Private AKS/PostgreSQL infrastructure is provisioning.** Scope and identities are deployed; ARM validation passed with 42 Creates and five owned-identity Ignores. The design uses AKS Standard in Sweden Central, three system nodes and six single-node user pools across three zones, private application HTTPS ingress, and private PostgreSQL 16 with zone-redundant HA. Deployment and measured acceptance have separate gates. See the [AKS design and test plan](docs/aks-lab.md).
-- **AKS outcomes are pending.** The [AKS results register](docs/aks-results.md) records qualification, execution and acceptance separately. Planned fault coverage supplies no measured resilience verdict.
+- **App Service experiments are historical.** Their dedicated groups were deleted on 6 November at 09:43 UTC; seven unrelated groups and 24 resources were verified unchanged. Original results remain available.
+- **AKS execution and final qualification are complete.** Final checks passed nine Ready Azure Linux nodes, six distinct Ready user workers across three physical zones, private API access and Healthy zone-redundant PostgreSQL. All four owned groups remain active until an operator stop/delete order.
+- **The requested resilience suite has no complete PASS.** Baselines passed; every measured fault case failed a required availability, stability or placement gate, and physical full-zone coverage remains BLOCKED. Recovery and retention PASS remain separately reported.
+- **All 37,659 of 37,659 acknowledged AKS writes across ten history runs were retained**, with zero lost writes or checksum mismatch. [Final AKS results](docs/aks-results.md) preserve earlier node failures, observer interruptions, setup corrections and independent combined-overlap proof.
+- **Scope guard FAIL: one extra governance-managed telemetry resource.** Original 24 unrelated IDs/complete returned metadata are unchanged; inventory is 25 after a default regional Log Analytics workspace appeared at 10:56:57 UTC outside the four owned groups. Correlated Activity Log writes independently prove creation by the subscription's Defender for Containers managed identity, and AKS Defender references it. Public ingestion/query are Enabled. The external group remains untouched for operator review; qualified private workload paths do not establish all-security-telemetry privacy.
 - **The new lab remains active after execution.** Deployment, necessary repairs and tests are authorized autonomously; resource groups remain available until the operator orders stop or deletion. [D24](DECISIONS-ACCEPTED.md#d24-private-aks-comparative-architecture-and-operator-authorization) records the comparison and operating scope.
+
+All Azure lab resources remain running/active; only the temporary PC Bastion tunnel helper was stopped. The ignored operator report at `.local\<run>\OPERATOR-RESULTS.md` contains exact group names/inventory, private-access restart instructions and manual deletion steps. Public docs intentionally omit those private identifiers.
+
+## Final AKS outcomes
+
+| Test | Overall verdict and required failure |
+| --- | --- |
+| BASE-001, original and corrected | **PASS**: 100% business success, baseline p95 11 ms |
+| HA-NODE-001, final 18 min | **FAIL**: first-five-minute success 98.95%; recovery 39.181 s, stability and retention PASS |
+| HA-ZONE-COMPUTE-001 | **FAIL**: first-five-minute 97.85%, full-phase 98.9629630%; recovery 64.320 s and retention PASS |
+| HA-DB-001, reconciled | **FAIL**: full-phase 98.0093514% against 99.9%; recovery 28.551 s and retention PASS; interrupted topology trace preserved |
+| HA-COMBINED-001 | **FAIL**: full-phase 97.4445628% against 99.9%; independently observed overlap, recovery 28.855 s, stability and retention PASS |
+| HA-AZ-001 | **BLOCKED**: no physical full-zone injection; final guard exits 1 without Azure changes |
+
+Manifest-to-final-verification elapsed time was **5 h 05 min 36.744 s**. Ten unique k6 measurement intervals totalled **2 h 07 min 57.297 s**; these are different accounting categories. See [timing attribution](docs/aks-results.md#elapsed-time-and-attribution) and [operator-managed cleanup order](docs/aks-lab.md#operator-managed-cleanup-order). No cleanup was performed after the final measurements.
 
 ## Measured App Service outcomes
 
@@ -26,15 +43,17 @@ The Windows comparison used six private App Service workers across three observe
 
 Complete-history reconciliation retained **92,616 of 92,616 acknowledged measurement writes across 31 Linux and Windows runs**, with matching checksums. Linux process deletion returned HTTP 400 `This runtime stack is not yet supported on Linux` wherever listing worked (.NET 8, .NET 9 and Node.js 22); other stacks had listing blockers.
 
-Read the [original App Service results](docs/app-service-results.md) for phase metrics and execution history, and [experiment limits](docs/experiment-limits.md) for the scope of each conclusion. The historical .NET 9 App Service stacks reach their recorded support deadline on 10 November 2026; the AKS comparison plans a supported .NET 10 container using the existing application source.
+Read the [original App Service results](docs/app-service-results.md) for phase metrics and execution history, and [experiment limits](docs/experiment-limits.md) for the scope of each conclusion. The historical .NET 9 App Service stacks reach their recorded support deadline on 10 November 2026; the AKS comparison ran a supported .NET 10 container using the existing application source.
 
 ## Reading route
 
 1. [Lab guide](docs/lab-guide.md) — one navigable entry point.
 2. [App Service execution results](docs/app-service-results.md) and [experiment limits](docs/experiment-limits.md) — measured behavior and boundaries.
 3. [Private AKS lab](docs/aks-lab.md) — architecture, native node-shutdown targeting and acceptance.
-4. [AKS results](docs/aks-results.md) — pending results and the evidence needed to publish verdicts.
+4. [Final AKS results](docs/aks-results.md) — per-gate verdicts, complete-history retention, final inventory and timing attribution.
 5. [Accepted decisions](DECISIONS-ACCEPTED.md) and the guide's [technical-reference index](docs/lab-guide.md#technical-reference) — detailed contracts and historical material.
+
+The [editable private AKS architecture SVG](docs/diagrams/06-private-aks-zone-lab.svg) shows the workload data plane, one-pod-per-host placement, Local health probes and the lab-owned compute fault boundary. Its updated view explicitly includes the governance-managed public telemetry exception outside the four owned groups; see [limits](docs/experiment-limits.md#managed-security-telemetry-and-external-scope-delta).
 
 ## Publication and private context
 
