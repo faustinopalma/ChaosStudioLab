@@ -174,6 +174,8 @@ An initial exact-node preparation failure occurred before load or injection beca
 
 Use k6 from the private runner with **20 scheduled business operations/s plus one independent canary/s**. Bound concurrency at **200 business VUs and 10 canary VUs**. Preserve the existing request mix and deadlines for comparison, and record their actual values.
 
+Canonical measurements now initialize all **200 business/10 canary VUs before scheduling load**, within those existing caps. Previously, only 50/2 were initialized and k6 expanded during the fault; the shared-cache database case completed every issued business operation but dropped 51 scheduled operations while allocation grew. Full preallocation addresses injector startup pressure without raising concurrency, rates, retry budgets or acceptance thresholds. The runner pins and records these settings and restores the caller environment afterward. All drops remain counted. A canary performs both a read and a SQL-confirmed write; its ten-VU cap can still exhaust during a database interruption longer than ten seconds, which must be disclosed independently.
+
 | Gate | Acceptance contract |
 | --- | --- |
 | Baseline and stable service | At least 99.9% business success; successful-operation p95 at most 1 s |

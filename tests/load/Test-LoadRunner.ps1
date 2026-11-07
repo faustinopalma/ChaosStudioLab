@@ -9,6 +9,9 @@ $outputRoot = Join-Path $testRoot 'runs'
 New-Item -ItemType Directory -Path $mockDirectory -Force | Out-Null
 
 $mockK6 = @'
+if ($env:PREALLOCATED_VUS -ne '200' -or $env:MAX_VUS -ne '200') {
+    throw 'Canonical measurements must preallocate their unchanged bounded business VU capacity.'
+}
 $summaryIndex = [Array]::IndexOf($args, '--summary-export')
 $summaryPath = $args[$summaryIndex + 1]
 $metricsArgument = $args | Where-Object { $_ -like 'json=*' } | Select-Object -First 1
@@ -99,20 +102,37 @@ $previousEnvironment = @{
     Path = $env:PATH
     ApiBaseUrl = $env:API_BASE_URL
     ApiToken = $env:API_TOKEN
+    PreallocatedVUs = $env:PREALLOCATED_VUS
+    MaxVUs = $env:MAX_VUS
 }
 
 try {
     $env:PATH = "$mockDirectory;$($previousEnvironment.Path)"
     $env:API_BASE_URL = 'https://private.example'
     $env:API_TOKEN = 'synthetic-test-token'
+    $env:PREALLOCATED_VUS = '3'
+    $env:MAX_VUS = '4'
+
+    $scenarioSource = Get-Content (Join-Path $PSScriptRoot 'scenario.js') -Raw
+    if ($scenarioSource -notmatch 'preAllocatedVUs: Number\(__ENV\.PREALLOCATED_VUS \|\| 200\)' -or
+        $scenarioSource -notmatch 'preAllocatedVUs: 10,\s+maxVUs: 10') {
+        throw 'Standalone scenario defaults must preallocate the existing 200/10 VU bounds.'
+    }
 
     $passDirectory = & $runnerPath -OutputRoot $outputRoot -Phase 'baseline' -Duration '1m'
     $passReport = Get-Content -LiteralPath (Join-Path $passDirectory 'run.json') -Raw |
         ConvertFrom-Json
     if ($passReport.status -ne 'PASS' -or
         $passReport.businessOperationSuccessRate -ne 1 -or
-        $passReport.k6Iterations -ne 121) {
+        $passReport.k6Iterations -ne 121 -or
+        $passReport.workloadPreallocatedVUs -ne 200 -or
+        $passReport.workloadMaxVUs -ne 200 -or
+        $passReport.canaryPreallocatedVUs -ne 10 -or
+        $passReport.canaryMaxVUs -ne 10) {
         throw 'A fully successful synthetic k6 run was not reported as PASS.'
+    }
+    if ($env:PREALLOCATED_VUS -ne '3' -or $env:MAX_VUS -ne '4') {
+        throw 'Canonical measurement settings were not restored in the caller environment.'
     }
 
     $legacyDirectory = & $runnerPath -OutputRoot $outputRoot -Phase 'baseline-legacy' -Duration '1m'
@@ -151,7 +171,7 @@ try {
         throw 'The synthetic bearer token was written to a run artifact.'
     }
 
-    Write-Output 'Load-runner synthetic PASS, FAIL, dropped-operation, and token-redaction tests passed.'
+    Write-Output 'Load-runner bounded preallocation, PASS, FAIL, dropped-operation, and token-redaction tests passed.'
 }
 finally {
     foreach ($name in $previousEnvironment.Keys) {
@@ -159,6 +179,8 @@ finally {
             'Path' { 'PATH' }
             'ApiBaseUrl' { 'API_BASE_URL' }
             'ApiToken' { 'API_TOKEN' }
+            'PreallocatedVUs' { 'PREALLOCATED_VUS' }
+            'MaxVUs' { 'MAX_VUS' }
         }
         if ($null -eq $previousEnvironment[$name]) {
             Remove-Item -Path "Env:$environmentName" -ErrorAction SilentlyContinue

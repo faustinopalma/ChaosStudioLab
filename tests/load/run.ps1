@@ -56,7 +56,8 @@ $reportPath = Join-Path $runDirectory 'run.json'
 $scenarioPath = Join-Path $PSScriptRoot 'scenario.js'
 $startedAt = [DateTimeOffset]::UtcNow
 @{runId=$runId;phase=$Phase;runnerProcessId=$PID;startedAtUtc=$startedAt.ToString('O')
-    duration=$Duration;rate=$Rate;targetHost=$apiUri.Host} |
+    duration=$Duration;rate=$Rate;targetHost=$apiUri.Host
+    workloadPreallocatedVUs=200;workloadMaxVUs=200;canaryPreallocatedVUs=10;canaryMaxVUs=10} |
     ConvertTo-Json | Set-Content (Join-Path $runDirectory 'started.json') -Encoding utf8
 
 $previousEnvironment = @{
@@ -65,6 +66,8 @@ $previousEnvironment = @{
     DURATION = $env:DURATION
     RATE = $env:RATE
     SUCCESS_P95_LIMIT_MS = $env:SUCCESS_P95_LIMIT_MS
+    PREALLOCATED_VUS = $env:PREALLOCATED_VUS
+    MAX_VUS = $env:MAX_VUS
 }
 
 try {
@@ -73,6 +76,8 @@ try {
     $env:DURATION = $Duration
     $env:RATE = [string] $Rate
     $env:SUCCESS_P95_LIMIT_MS = [string] $SuccessfulOperationP95LimitMs
+    $env:PREALLOCATED_VUS = '200'
+    $env:MAX_VUS = '200'
 
     & $k6.Source run `
         --log-format raw `
@@ -226,6 +231,10 @@ try {
         durationSeconds = [Math]::Round(($endedAt - $startedAt).TotalSeconds, 3)
         configuredRatePerSecond = $Rate
         configuredDuration = $Duration
+        workloadPreallocatedVUs = 200
+        workloadMaxVUs = 200
+        canaryPreallocatedVUs = 10
+        canaryMaxVUs = 10
         minimumBusinessOperationSuccessRate = $MinimumBusinessOperationSuccessRate
         businessOperationSuccessRate = $businessOperationSuccessRate
         successfulBusinessOperations = $businessOperationSuccesses
