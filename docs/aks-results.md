@@ -6,7 +6,44 @@ Final evidence date for the original architecture: 7 November 2026, read-only ve
 
 Separately, external scope delta remains **FAIL**: original 24 unrelated IDs/complete returned metadata are unchanged, but one extra default Log Analytics workspace exists outside owned groups. Creation by the subscription's Defender for Containers managed identity is independently proven. Public ingestion/query remain Enabled; no all-security-telemetry-private verdict is established.
 
-## Follow-up architecture repair and conditional teardown
+## Final bounded-close summary -- 7 November 2026
+
+The operator requested prompt closure rather than further open-ended iterations, followed by a final summary and manual Azure teardown. Measurements are closed. **The complete same-image native suite remains INCOMPLETE**, and the real physical-zone-disaster case remains BLOCKED.
+
+| Case | Measured version | Final interpretation |
+| --- | --- | --- |
+| BASE-001 | Shared-cache image `19aed0c`, eager bounded driver `81a33c1` | **PASS**: 12,001 business successes, zero failures/drops, p95 11 ms; 601 successful canaries, zero failures/drops |
+| HA-NODE-001 | First repaired image `10d18f3` | **PASS** on that version: full-phase 99.962965%, eight failed business operations, zero drops; not rerun on the final shared-cache version |
+| HA-ZONE-COMPUTE-001 | First repaired image `10d18f3` | **PASS** on that version: full-phase 99.949076%, eleven failures, zero drops; not rerun on the final shared-cache version |
+| HA-DB-001 | Shared-cache image `19aed0c`, eager bounded driver `81a33c1` | **INCONCLUSIVE** overall because the independent topology observer failed; measured business phase **PASS**, 100% |
+| HA-COMBINED-001 | Original architecture only | Earlier overall FAIL remains; corrected final-image case was not executed |
+| HA-AZ-001 | All versions | **BLOCKED**: selected tenant-compute shutdown does not establish a disaster across an entire physical Azure zone |
+
+### Final database measurement
+
+Case `4ffa8108c28b4e1c9936d96a730755b3`, run `b9062a7304354b9e85c02df34ff72dae`, completed at **20:55:38 UTC**. All **21,600 scheduled business operations succeeded**, with **zero failed logical business operations and zero business drops**; successful-operation p95 was **13 ms**. There were **413 failed business attempts**, subsequently reconciled to SQL-confirmed logical success. All **1,058 completed canaries succeeded**, while **22 scheduled canaries were dropped** under the unchanged ten-VU cap.
+
+This resolves the previous 51-business-drop measurement pattern without increasing maximum concurrency, offered rates, deadlines, retries or acceptance thresholds. Fully preallocated capacity was independently observed at 210 total VUs in actual measurements. The native operation completed and its Workspace identity was independently authenticated through correlated Activity Logs.
+
+The topology observer stopped after **20 samples**, spanning **20:31:52.828–20:34:10.248 UTC**. Its VMSS ARM request failed with `HttpClient.Timeout of 10 seconds` at `observe-aks.ps1:27`. The dependency observer completed successfully, but that does not reconstruct the missing topology horizon. The overall native verdict stays INCONCLUSIVE; no fault was resubmitted and no missing samples were fabricated.
+
+Direct private PostgreSQL reconciliation retained **78,142 of 78,142 acknowledged measurement writes across 21 runs**, plus **23 of 23 private-verification journal writes**, with zero missing or changed recorded checksums. This compares the stored checksum column with acknowledgements; payload JSON is not independently rehashed. Final read-only capture found nine Ready nodes, six Ready application pods on six distinct workers, and private PostgreSQL Ready/Healthy zone-redundant HA.
+
+### Timing and closure
+
+| Recorded stage | Wall time | Included component |
+| --- | ---: | --- |
+| Private shared-cache stage | 728.352 s | 580 s provider provisioning; remaining validation/preview/inventory |
+| Shared-cache application publication | 629.185 s | Private Linux build, publication and rollout |
+| Final baseline case | 1,375.594 s | 405.344 s reconciliation/retrieval; configured five-minute warmup and ten-minute baseline |
+| Final database case | 1,509.778 s | 234.638 s reconciliation/retrieval; configured eighteen-minute business load and bounded observers |
+
+These are stage wall times, not pure measurement durations or a complete accounting of research/troubleshooting time. Earlier original and failed repair intervals remain separately recorded below.
+
+At **21:00:02 UTC / 22:00:02 CET**, deletion of the ownership-verified workload group was accepted. At **22:08 CET**, the operator took manual teardown ownership. The PC deletion wait and temporary Bastion tunnel were stopped; workload-group deletion completion was not verified, and no additional group deletion was submitted. Its AKS-managed node group may follow the already accepted workload deletion automatically. Remaining cleanup is operator-managed. The external governance-created workspace stays outside the owned manifest and was untouched; no universal zero-cost or strict external-scope PASS is claimed.
+The operator subsequently reported issuing the resource-group deletion commands directly. Further work is documentation-only; Azure deletion completion was not verified. At **22:08 CET**, the operator took manual teardown ownership. The PC deletion wait and temporary Bastion tunnel were stopped; workload-group deletion completion was not verified, and no additional group deletion was submitted. Its AKS-managed node group may follow the already accepted workload deletion automatically. Remaining cleanup is operator-managed. The external governance-created workspace stays outside the owned manifest and was untouched; no universal zero-cost or strict external-scope PASS is claimed.
+
+## Repair history and original conditional teardown
 
 The operator's later 7 November instruction authorizes architectural corrections, unchanged native-suite reruns and teardown of this experiment's owned resources **after successful tests**. This supersedes the original leave-running instruction. Original FAIL results and the genuine whole-zone HA-AZ BLOCKED boundary remain preserved.
 

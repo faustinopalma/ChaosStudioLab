@@ -4,7 +4,16 @@
 
 This is the reading entry point for the resilience laboratory. Follow the measured App Service history first, then the private AKS comparison, and finally the detailed references.
 
-## The question and the evidence
+## Latest outcome and where to stop reading
+
+Measurements closed on 7 November 2026 at the operator's request. The private AKS architecture, bounded confirmed-order caching and corrected load preallocation produced a final baseline PASS and **100% measured database-phase business success**, with zero business drops. The final database HA verdict remains **INCONCLUSIVE** because its topology observer lost the required horizon after a ten-second ARM timeout.
+
+Earlier repaired exact-node and selected-zone-compute cases passed on the preceding image. They were not rerun on the final shared-cache image, and the repaired combined case was not executed. **The complete same-image suite remains INCOMPLETE; physical whole-zone disaster remains BLOCKED.** Final direct SQL proof retained 78,142 measurement acknowledgements plus 23 private-journal acknowledgements with matching recorded checksums.
+
+Start with the [final bounded-close summary, metrics and lifecycle note](aks-results.md#final-bounded-close-summary----7-november-2026), then use the history and design links below. Azure teardown is now operator-managed. Only the workload-group deletion request had already been accepted before that instruction; its completion was not verified, and the PC cleanup wait/tunnel were stopped. Historical active-resource statements describe their dated checkpoints.
+The operator has reported launching the resource-group delete commands. Their completion is outside this documentation-only closure. Azure teardown is now operator-managed. Only the workload-group deletion request had already been accepted before that instruction; its completion was not verified, and the PC cleanup wait/tunnel were stopped. Historical active-resource statements describe their dated checkpoints.
+
+## Measurement questions
 
 The application acknowledges a write after PostgreSQL commits it. The client records the operation identifier and expected checksum. Controlled faults then test continued business service, automatic recovery and subsequent reconciliation of every acknowledged write.
 
