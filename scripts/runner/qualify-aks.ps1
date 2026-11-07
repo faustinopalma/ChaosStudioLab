@@ -3,7 +3,7 @@ $ErrorActionPreference='Stop'
 Set-StrictMode -Version Latest
 $config=Get-Content "$PSScriptRoot\..\..\runner-config.json" -Raw|ConvertFrom-Json
 $dns=@{}
-foreach($hostName in @($config.API_FQDN,$config.PRIVATE_API_FQDN,$config.POSTGRES_HOST,$config.REGISTRY_HOST,"$($config.VAULT_NAME).vault.azure.net")){
+foreach($hostName in @($config.API_FQDN,$config.PRIVATE_API_FQDN,$config.POSTGRES_HOST,$config.REGISTRY_HOST,"$($config.VAULT_NAME).vault.azure.net",$config.SHARED_CACHE_HOST)){
     $addresses=@([Net.Dns]::GetHostAddresses($hostName)|ForEach-Object IPAddressToString)
     $dns[$hostName]=$addresses
     $valid=if($hostName -eq $config.API_FQDN){$addresses.Count -eq 1 -and $addresses[0] -eq $config.EXPECTED_API_IP}
@@ -79,7 +79,8 @@ try{
                 throw 'Actual application health/source/process identity is inconsistent.'
             }
             if($kind -eq 'business' -and ($body.payloadSha256 -cne $seed.expectedChecksum -or $body.operationId -ne $seed.operationId)){throw 'Private business checksum participation failed.'}
-            if($kind -eq 'read-cache' -and (-not $body.enabled -or $body.entries -lt 0 -or $body.entries -gt 10000)){
+            if($kind -eq 'read-cache' -and (-not $body.enabled -or $body.entries -lt 0 -or $body.entries -gt 10000 -or
+                $null -eq $body.PSObject.Properties['shared'] -or -not $body.shared.enabled -or -not $body.shared.connected)){
                 throw 'Actual per-pod immutable read-cache configuration/capacity is unqualified.'
             }
             $observations.Add(@{kind=$kind;uid=$uid;processId=$processId;processStartedAtUtc=$processStart

@@ -86,6 +86,8 @@ spec:
               value: Http1
             - name: Orders__CacheImmutableReads
               value: "true"
+            - name: Orders__SharedCacheHost
+              value: "__SHARED_CACHE_HOST__"
             - name: ConnectionStrings__Postgres
               value: "Host=__POSTGRES_HOST__;Database=csl;Username=id-csl-runtime"
             - name: Diagnostics__Token

@@ -80,11 +80,18 @@ builder.Services.AddSingleton<NpgsqlDataSource>(services =>
     return dataSource.Build();
 });
 builder.Services.AddSingleton<NpgsqlOrderRepository>();
+if (!string.IsNullOrWhiteSpace(builder.Configuration["Orders:SharedCacheHost"]))
+{
+    if (!builder.Configuration.GetValue<bool>("Orders:CacheImmutableReads"))
+        throw new InvalidOperationException("Shared confirmed-order caching requires Orders:CacheImmutableReads.");
+    builder.Services.AddSingleton<RedisOrderCache>();
+    builder.Services.AddSingleton<IConfirmedOrderCache>(services => services.GetRequiredService<RedisOrderCache>());
+}
 builder.Services.AddSingleton<IOrderRepository>(services =>
 {
     var repository = services.GetRequiredService<NpgsqlOrderRepository>();
     return builder.Configuration.GetValue<bool>("Orders:CacheImmutableReads")
-        ? new CachedOrderRepository(repository)
+        ? new CachedOrderRepository(repository, services.GetService<IConfirmedOrderCache>())
         : repository;
 });
 builder.Services.AddSingleton<OrderService>();
@@ -93,6 +100,8 @@ builder.Services.AddSingleton<DatabaseOpenDiagnostics>();
 builder.Services.AddHostedService<DatabaseWarmupService>();
 
 var app = builder.Build();
+if (app.Services.GetService<RedisOrderCache>() is { } sharedCache)
+    await sharedCache.InitializeAsync(app.Lifetime.ApplicationStopping);
 var processStartedAtUtc = new DateTimeOffset(
     System.Diagnostics.Process.GetCurrentProcess().StartTime.ToUniversalTime()).ToString("O");
 app.Use(async (context, next) =>
@@ -143,10 +152,11 @@ app.MapGet("/diagnostics/db-open", async (
     stages = await diagnostics.RunAsync(context.RequestAborted)
 })).RequireAuthorization();
 
-app.MapGet("/diagnostics/read-cache", (IOrderRepository repository) =>
+app.MapGet("/diagnostics/read-cache", (IOrderRepository repository, IServiceProvider services) =>
     repository is CachedOrderRepository cache
-        ? Results.Ok(new { enabled = true, hits = cache.Hits, misses = cache.Misses, entries = cache.Entries })
-        : Results.Ok(new { enabled = false, hits = 0L, misses = 0L, entries = 0 }))
+        ? Results.Ok(new { enabled = true, hits = cache.Hits, misses = cache.Misses, entries = cache.Entries, compactions = cache.Compactions,
+            shared = services.GetService<RedisOrderCache>()?.Snapshot })
+        : Results.Ok(new { enabled = false, hits = 0L, misses = 0L, entries = 0, compactions = 0L }))
     .RequireAuthorization();
 
 app.MapGet("/health/dependencies", async (

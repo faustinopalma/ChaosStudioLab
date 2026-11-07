@@ -57,7 +57,7 @@ rm -f tls/token.txt tls/auth-secret.json tls/tls-secret.json
 IMAGE_DIGEST="$digest" pwsh -NoLogo -NoProfile -Command '
   $c=Get-Content ./runner-config.json -Raw|ConvertFrom-Json
   $t=Get-Content ./k8s/aks-workload.yaml -Raw
-  foreach($p in @{RUNTIME_CLIENT_ID=$c.RUNTIME_CLIENT_ID;POSTGRES_HOST=$c.POSTGRES_HOST;SOURCE_REVISION=$c.SOURCE_REVISION;IMAGE_DIGEST=$env:IMAGE_DIGEST}.GetEnumerator()){$t=$t.Replace("__"+$p.Key+"__",$p.Value)}
+  foreach($p in @{RUNTIME_CLIENT_ID=$c.RUNTIME_CLIENT_ID;POSTGRES_HOST=$c.POSTGRES_HOST;SHARED_CACHE_HOST=$c.SHARED_CACHE_HOST;SOURCE_REVISION=$c.SOURCE_REVISION;IMAGE_DIGEST=$env:IMAGE_DIGEST}.GetEnumerator()){$t=$t.Replace("__"+$p.Key+"__",$p.Value)}
   $t|Set-Content ./k8s/rendered.yaml'
 kubectl apply --dry-run=server -f k8s/rendered.yaml
 set +e

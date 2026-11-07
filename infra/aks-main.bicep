@@ -78,6 +78,18 @@ module apiDns 'aks-app-dns.bicep' = {
   dependsOn: [network]
 }
 output workload object = workload.outputs.workload
+module readCache 'aks-read-cache.bicep' = {
+  name: 'csl-aks-read-cache'
+  params: {
+    location: location
+    deploymentInstanceId: deploymentInstanceId
+    workloadResourceGroupName: workloadResourceGroupName
+    workloadVnetId: workload.outputs.workload.vnetId
+    operationsVnetId: operations.outputs.vnetId
+    runtimePrincipalId: prerequisitePrincipalIds.runtime
+  }
+}
+output readCache object = readCache.outputs.readCache
 output operations object = {
   vnetId: operations.outputs.vnetId
   bastionId: operations.outputs.bastionId

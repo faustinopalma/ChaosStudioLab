@@ -1,7 +1,7 @@
 [CmdletBinding()]
 param(
     [Parameter(Mandatory)][string] $ManifestPath,
-    [Parameter(Mandatory)][ValidateSet('Scope','Identities','Infrastructure','Access','Runner','Application','Native')][string] $Step,
+    [Parameter(Mandatory)][ValidateSet('Scope','Identities','Infrastructure','Access','Runner','ReadCache','Application','Native')][string] $Step,
     [int] $TunnelPort = 50222
 )
 . (Join-Path $PSScriptRoot 'Lab.Aks.ps1')
@@ -76,14 +76,21 @@ try {
             $result=Invoke-LabAz @('vm','run-command','invoke','-g',$script:LabGroups[2],'-n','vm-csl-runner','--command-id','RunShellScript','--scripts',"printf '%s' '$encoded' | base64 -d > /tmp/csl-install-aks.sh; timeout 1200 bash /tmp/csl-install-aks.sh",'-o','json')|ConvertFrom-Json -AsHashtable
             Write-LabJson "$root\runner-install.json" $result
             if (($result.value.message -join "`n") -notmatch 'CSL_AKS_INSTALL_COMPLETED') { throw 'Runner install did not reach its success marker.' }
+        } elseif ($Step -eq 'ReadCache') {
+            $w=$m.outputs.infrastructure.workload.value; $o=$m.outputs.infrastructure.operations.value
+            $m.outputs.readCache = Invoke-LabDeployment $m $ManifestPath $script:LabGroups[0] 'csl-aks-read-cache' "$script:LabRoot\infra\aks-read-cache.bicep" @{
+                location=$script:LabLocation; deploymentInstanceId=$m.deploymentInstanceId; workloadResourceGroupName=$script:LabGroups[1]
+                workloadVnetId=$w.vnetId; operationsVnetId=$o.vnetId; runtimePrincipalId=$w.runtimePrincipalId
+            }
         } elseif ($Step -eq 'Application') {
             $w=$m.outputs.infrastructure.workload.value; $o=$m.outputs.infrastructure.operations.value
+            $cache=if($m.outputs.ContainsKey('readCache')){$m.outputs.readCache.readCache.value}else{$m.outputs.infrastructure.readCache.value}
             $revision=(& git -C $script:LabRoot rev-parse HEAD).Trim()
             $m.sourceRevision=$revision
             $config=@{SUBSCRIPTION_ID=$script:LabSubscription;RUNNER_CLIENT_ID=$o.runnerClientId;MIGRATION_CLIENT_ID=$w.migrationClientId;RUNTIME_PRINCIPAL_ID=$w.runtimePrincipalId
                 RUNTIME_CLIENT_ID=$w.runtimeClientId;POSTGRES_HOST=$w.postgresHost;VAULT_NAME=$w.vaultName;API_FQDN=$w.apiFqdn;CLUSTER_NAME=$w.clusterName
                 APP_RESOURCE_GROUP=$script:LabGroups[1];NODE_RESOURCE_GROUP=$script:LabGroups[3];REGISTRY_NAME=$w.registryName;REGISTRY_HOST=$w.registryHost;SOURCE_REVISION=$revision
-                EXPECTED_API_IP='10.91.3.240';PRIVATE_API_FQDN=$w.privateFqdn;ARCHITECTURE='private-aks'}
+                EXPECTED_API_IP='10.91.3.240';PRIVATE_API_FQDN=$w.privateFqdn;ARCHITECTURE='private-aks';SHARED_CACHE_HOST=$cache.host}
             Write-LabJson "$root\runner-config.json" $config
             $archive="$root\aks-source.zip"; if(Test-Path $archive){Remove-Item -LiteralPath $archive}
             $zip=[IO.Compression.ZipFile]::Open($archive,[IO.Compression.ZipArchiveMode]::Create)

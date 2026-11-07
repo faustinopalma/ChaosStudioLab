@@ -48,7 +48,7 @@
     <rect x="65" y="405" width="270" height="90" rx="6" class="compute"/>
     <text x="85" y="434" class="label">One private runner</text>
     <text x="85" y="458" class="body">Runner subnet 10.94.1.0/24</text>
-    <text x="85" y="482" class="small">Load, observations and write reconciliation</text>
+    <text x="85" y="482" class="small">Load, observations and direct SQL verification</text>
     <path d="M200 375 V405" class="management"/>
     <rect x="65" y="535" width="270" height="55" rx="6" class="neutral"/>
     <text x="85" y="558" class="body">Controlled NAT egress</text>
@@ -65,6 +65,7 @@
     <text x="1130" y="337" class="label">Node NAT egress</text>
     <text x="1130" y="360" class="body">Nodes have no public IP</text>
     <path d="M335 450 H400 V345 H460" class="dataflow"/>
+    <path d="M335 482 H410 V865 H480" class="dataflow"/>
     <text x="45" y="665" class="body">Bidirectional VNet peering</text>
     <text x="45" y="688" class="body">Private DNS linked to the runner</text>
     <path d="M335 422 H385 V225 H950 V310" class="management"/>
