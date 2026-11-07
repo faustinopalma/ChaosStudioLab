@@ -1,0 +1,11 @@
+FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
+WORKDIR /source
+COPY src/Demo.Api/ ./
+RUN dotnet publish Demo.Api.csproj -c Release -p:LabTargetFramework=net10.0 -o /app
+
+FROM mcr.microsoft.com/dotnet/aspnet:10.0
+WORKDIR /app
+COPY --from=build /app/ ./
+USER app
+EXPOSE 8443
+ENTRYPOINT ["dotnet", "Demo.Api.dll"]

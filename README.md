@@ -1,75 +1,51 @@
 # Azure Chaos Studio resilience lab
 
-The current target is a **private Azure App Service application running across three observed availability zones**, backed by private Azure Database for PostgreSQL Flexible Server with zone-redundant HA. Linux is the selected baseline; an explicit Windows comparison variant runs the native process-crash tests.
+This repository compares recovery and acknowledged-write durability under controlled Azure application, compute and PostgreSQL faults.
 
-**Region selection:** The deployed workload uses **Spain Central / P1v3**, with six Linux workers and actual `maximumNumberOfZones: 3`. All six workers served successful health and authenticated checksum-verified business requests across `spaincentral-az1`, `spaincentral-az2` and `spaincentral-az3`. The single private runner/operations VNet/NAT/Bastion and modern **Chaos Workspace remain in Sweden Central**, using global VNet peering and documented cross-region native targeting. [D21](DECISIONS-ACCEPTED.md#d21-expanded-regional-qualification-and-cross-region-workspaces) records the selection. Any region can be configured and live-qualified.
+**Start with the [lab guide](docs/lab-guide.md).** It connects the measured App Service experiments, their evidence limits, the new private AKS/PostgreSQL design, and the detailed technical references.
 
-**Current authorization:** [D22](DECISIONS-ACCEPTED.md#d22-autonomous-completion-and-withdrawn-operational-prohibitions) records autonomous completion without a cost ceiling, including the existing database start, necessary lab repairs, exemption maintenance and the full requested tests. Active project-level operational prohibitions and extra restart-approval requirements have been removed.
+## Current status — 7 November 2026
 
-**Latest execution, 6 November (Windows comparison variant):** every tested Linux stack fails App Service process deletion, so [D23](DECISIONS-ACCEPTED.md#d23-explicit-windows-comparison-variant-for-native-process-crash) adds an explicit Windows App Service variant with the same private six-worker, three-zone architecture, database and Workspace. On that variant the complete native suite ran:
+- **App Service experiments are historical.** The operator deleted their dedicated resource groups on 6 November at 09:43 UTC. Verification found seven unrelated resource groups and their 24 resources unchanged. Historical results and retained evidence remain available.
+- **A private AKS/PostgreSQL comparison is authorized.** The design uses AKS Standard in Sweden Central, three system nodes and six single-node user pools across three zones, private application HTTPS ingress, and private PostgreSQL 16 with zone-redundant HA. Deployment and measured acceptance have separate gates. See the [AKS design and test plan](docs/aks-lab.md).
+- **AKS outcomes are pending.** The [AKS results register](docs/aks-results.md) records qualification, execution and acceptance separately. Planned fault coverage supplies no measured resilience verdict.
+- **The new lab remains active after execution.** Deployment, necessary repairs and tests are authorized autonomously; resource groups remain available until the operator orders stop or deletion. [D24](DECISIONS-ACCEPTED.md#d24-private-aks-comparative-architecture-and-operator-authorization) records the comparison and operating scope.
 
-| Test | Verdict |
+## Measured App Service outcomes
+
+The Windows comparison used six private App Service workers across three observed physical zones in Spain Central.
+
+| Experiment | Observed outcome |
 | --- | --- |
-| BASE-001 | **PASS**: 100% success, zero errors/drops, p95 123 ms |
-| HA-APP-001 | **PASS**: exact-instance dotnet worker replaced, zero failed operations |
-| HA-APP-ZONE-001 | **PASS**: both workers in the selected physical zone replaced, zero failed operations |
-| HA-DB-001 | **PASS**: recovery and durability, 36.359 s recovery. Full-phase availability **FAIL** separately at 97.347% |
-| HA-COMBINED-001 | **PASS**: recovery, durability and independently evidenced overlap, 34.989 s recovery. Full-phase availability **FAIL** separately at 97.324% |
-| HA-AZ-001 | **BLOCKED**: no qualifying sustained real-zone injection |
+| BASE-001 | **PASS**: 100% business success; successful-operation p95 123 ms |
+| HA-APP-001 | **PASS**: exact-instance dotnet process replacement started 12.7 s after acceptance; zero failed business operations |
+| HA-APP-ZONE-001 | **PASS**: both selected-zone workers' dotnet processes replaced in 11–13 s; zero failed business operations |
+| HA-DB-001 | Recovery/durability **PASS**, recovery 36.359 s; full-phase availability **FAIL**, 97.347% |
+| HA-COMBINED-001 | Recovery/durability/observed overlap **PASS**, recovery 34.989 s; full-phase availability **FAIL**, 97.324% |
+| HA-AZ-001 | **BLOCKED**: no qualifying sustained physical full-zone outage was injected |
 
-All **92,616** acknowledged measurement writes across 31 runs were retained with matching checksums. A Npgsql GSS-probing stall on Windows was root-caused and fixed first. Resources remain deployed for operator deletion. See [current execution results](docs/app-service-results.md#windows-comparison-variant-complete-native-suite-6-november).
+Complete-history reconciliation retained **92,616 of 92,616 acknowledged measurement writes across 31 Linux and Windows runs**, with matching checksums. Linux process deletion returned HTTP 400 `This runtime stack is not yet supported on Linux` wherever listing worked (.NET 8, .NET 9 and Node.js 22); other stacks had listing blockers.
 
-**Linux execution, 5 November:** Linux `DOTNETCORE|9.0` repaired process listing and both native selector validations. The fresh baseline passed with 100% success, zero errors/drops and p95 **124 ms**. Native PostgreSQL recovery/durability passed by explicit reconciliation at **32.288 s**; full-phase availability separately failed at **97.620481%**. Actual instance, zone and combined application Actions fail on Linux, so those Linux verdicts remain **BLOCKED**. See [Linux results](docs/app-service-results.md#linux-net-9-outcome-5-november).
+Read the [original App Service results](docs/app-service-results.md) for phase metrics and execution history, and [experiment limits](docs/experiment-limits.md) for the scope of each conclusion. The historical .NET 9 App Service stacks reach their recorded support deadline on 10 November 2026; the AKS comparison plans a supported .NET 10 container using the existing application source.
 
-**Bounded diagnostic runtime:** the deployed .NET 9 stacks (Linux and Windows) reach catalog end of support on **10 November 2026**. Preflight and measurement gates reject expired support. Requalify a supported stack before that date. See [runtime evidence](docs/research.md#current-app-service-facts-three-zone-and-native-fault-gates).
+## Reading route
 
-**Earlier completed measurements:** private infrastructure, private SCM publication and actual six-worker/three-zone participation are verified. Complete **BASE-001 passed** with 100% success, zero errors/drops and p95 122 ms. Native PostgreSQL recovery/durability **passed by explicit reconciliation**, with **34.601 s** recovery; its full-phase availability separately **failed at 97.481598%**. All **16,486 measurement + 12 smoke writes** were retained/checksummed. A real exact-instance submission and both selectors' validation fail provider target validation through **all eight advertised Workspace regions**, against the same Spain Central app. Required application/combined coverage remains **BLOCKED**, preventing a complete-suite PASS. Resources remain deployed. See [current execution results](docs/app-service-results.md).
+1. [Lab guide](docs/lab-guide.md) — one navigable entry point.
+2. [App Service execution results](docs/app-service-results.md) and [experiment limits](docs/experiment-limits.md) — measured behavior and boundaries.
+3. [Private AKS lab](docs/aks-lab.md) — architecture, native node-shutdown targeting and acceptance.
+4. [AKS results](docs/aks-results.md) — pending results and the evidence needed to publish verdicts.
+5. [Accepted decisions](DECISIONS-ACCEPTED.md) and the guide's [technical-reference index](docs/lab-guide.md#technical-reference) — detailed contracts and historical material.
 
-The [foreground App Service preflight](scripts/Test-AppServicePreflight.ps1) is available for a new run's read-only qualification. Supply the approved `CSL_ENVIRONMENT_FILE`, a fresh `-StateDirectory` under ignored `.local` and `-PreviousManifestPath`. It preserves raw evidence and a new ownership manifest, enforces per-command deadlines and reports every requested test separately. It never deploys, executes faults or cleans up. Resume an existing live run with its current manifest; do not generate another ownership GUID or recreate its groups. See [current research](docs/research.md#fresh-foreground-catalog-qualification).
+## Publication and private context
 
-[Build-Lab.ps1](scripts/Build-Lab.ps1) stages the early plan, private dependencies, single runner, checksummed private publication and definition-only `NativeScenarios` overlay behind separate validation gates. [Test-Lab.ps1](scripts/Test-Lab.ps1) selects one test, requires healthy private PostgreSQL and a successful baseline before injection, and records explicit per-test verdicts. Native effect/recovery/overlap and complete-history retention logic passes local fixtures; actual database qualification passed through reconciliation, while application/combined effects remain unqualified. Obsolete cycle/controller/lifecycle entrypoints have been removed.
+Keep accounts, tenant/subscription identifiers, resource-group names, authentication paths, policy records, manifests, credentials and raw evidence in ignored `.local\` and `.azure\` paths. Publish sanitized architecture and results. The [environment example](config/environment.example.json) documents the existing App Service configuration; it does not establish AKS deployment readiness.
 
-## Required architecture
-
-- Linux App Service Web App and compatible zone-redundant Premium plan, initially using six workers. An explicit Windows comparison variant with the same plan shape and private paths runs native process-crash tests that Linux App Service rejects.
-- Three-zone readiness requires the actual plan's `maximumNumberOfZones >= 3` and healthy application-instance/traffic evidence from three distinct observed `physicalZone` values.
-- Inbound App Service Private Endpoint and outbound regional VNet Integration, using separate subnets.
-- Private DNS for application, SCM/Kudu publication, PostgreSQL and required supporting services; public application/database data-plane access disabled.
-- Retained PostgreSQL HA with primary and standby in distinct zones.
-- One private runner for publication, database bootstrap, migration and optional measurement; retain the proven management connectivity initially.
-- Deployment orchestration from the PC with visible progress and local logs, executing the requested suite and leaving the final environment available for subsequent operator teardown.
-- Modern Chaos Studio **Workspaces, Scenarios and Actions**, using native App Service process-crash and PostgreSQL failover Actions after their exact regional contracts are verified.
-
-The refactor removes Container Apps, its Dedicated workload profile/image-pull path, Automation Account, two Hybrid Workers, lifecycle control storage and automatic suspension/deletion. The new design has no independent expiry enforcement when the PC disconnects.
-
-Zone-selected process crashes and a correlated infrastructure-zone outage require separate evidence and verdicts. The earlier database recovery measurement supplies no App Service or three-zone application qualification.
-
-Linux is the selected baseline. Qualify native Action support on Linux and record unsupported tests explicitly. The [OS compatibility comparison](docs/research.md#linux-baseline-and-windows-test-coverage) distinguishes a documented Windows-only template from unverified Linux Action eligibility.
-
-## Current documents
-
-- [Implementation specification](docs/specification.md): authoritative requirements, three-zone acceptance, private paths, native faults and local/manual workflow.
-- [Accepted decisions D17-D19](DECISIONS-ACCEPTED.md#d17-private-azure-app-service-across-three-zones): controlling corrections to the previous design.
-- [Implementation contracts](docs/implementation-contracts.md): current operating authorization, deployed architecture and measurable native-test contracts.
-- [Development readiness](docs/development-readiness.md): deployed App Service capabilities, reconciled database qualification and remaining provider blockers.
-- [App Service execution results](docs/app-service-results.md): deployed capabilities, complete baseline, native provider outcomes, retention and separate suite verdicts.
-- [Platform research](docs/research.md#current-app-service-facts-three-zone-and-native-fault-gates): official App Service placement and modern Chaos references.
-- [Historical execution results](docs/first-cycle-results.md): measured Container Apps/PostgreSQL results, incomplete application test coverage, troubleshooting and cleanup limitations.
-
-The [earlier architecture guide](docs/architecture-guide.md) and [autonomous cycle method](docs/lab-cycle-method.md) remain historical. The [diagram index](docs/diagrams/README.md) separates the current target/evidence diagrams from the historical Container Apps/Automation drawings.
-
-## Git and private context
-
-Git tag `baseline-before-app-service-refactor` preserves the earlier source and documents. Keep real accounts, tenant/subscription IDs, group names, authentication paths, policy records, manifests, keys and raw evidence in ignored `.local\` and `.azure\` paths. The public environment template is [environment.example.json](config/environment.example.json).
-
-Keep session-to-session handoffs and operational progress journals under ignored `.local\handoff\`. Publish architectural requirements and sanitized results separately; operational session state has no public root-level status file.
-
-Run the existing publication guard before committing or sharing:
+Run the publication guard before committing or sharing:
 
 ```powershell
 pwsh .\tests\Test-Publication.ps1
 ```
 
-Git ignore rules do not protect full-folder archives or erase already-committed data. No remote publication is implied by a local commit.
+Git ignore rules do not protect full-folder archives or remove already-committed data. A local commit implies no remote publication. Resource-group deletion alone does not certify removal of soft-deleted vaults, service backups or audit retention.
 
-Read-only preflight verified that the previous dedicated groups and exact old Container Apps managed group were absent before the new scope was created. Unrelated resources were preserved. A recoverable vault remains under its retention policy; no purge was performed. The new groups remain deployed for operator-managed deletion, and group absence does not certify backup/audit-retention cleanup.
+Git tag `baseline-before-app-service-refactor` preserves the earlier Container Apps implementation. Its [execution history](docs/first-cycle-results.md) retains its original platform attribution.

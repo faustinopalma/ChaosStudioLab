@@ -32,7 +32,7 @@ try {
         $message = $null
         try { Assert-LabPolicyExemptions } catch { $message = $_.Exception.Message }
         if (-not $message -or $message -notlike "*$Reason*" -or
-            $message -notlike '*create a new scoped exemption or extend*') {
+            $message -notlike '*Create the scoped exemption or extend*') {
             throw "Expected actionable startup rejection for $Reason; got $message"
         }
     }

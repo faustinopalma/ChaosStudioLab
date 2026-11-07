@@ -1,6 +1,6 @@
 # Accepted design decisions
 
-**Current decisions: D17-D19, D21 and D22.** The [specification](docs/specification.md) and [implementation contracts](docs/implementation-contracts.md) describe the active private App Service/native Chaos laboratory. Earlier Container Apps/controller decisions are recoverable from Git tag `baseline-before-app-service-refactor`.
+**Current comparison decision: D24.** D17-D23 record the App Service architecture, operating authorization and Windows comparison. Those dedicated groups were deleted by the operator on 6 November 2026; their measured outcomes remain in the [App Service results](docs/app-service-results.md). The [lab guide](docs/lab-guide.md) connects that history to the new private AKS/PostgreSQL laboratory. Earlier Container Apps/controller decisions are recoverable from Git tag `baseline-before-app-service-refactor`.
 
 ## D17. Private Azure App Service across three zones
 
@@ -49,3 +49,17 @@ On 6 November 2026 the operator directed that the complete App Service HA suite 
 The suite therefore runs on a Windows App Service comparison variant beside the retained Linux deployment. The variant keeps the same requirements: six workers in a zone-redundant Premium plan across three observed physical zones, Private Endpoint ingress, VNet Integration egress, private SCM publication, disabled public access, the same private PostgreSQL HA server, the modern Workspace and native Actions. Windows native validation rejects an explicit `processName`, so the Windows Scenarios omit it. The measured default target under out-of-process hosting is the dotnet application worker.
 
 Linux results remain reported separately with their BLOCKED application verdicts. Windows results establish the Windows variant only and make no claim about Linux support. HA-AZ-001 remains a separate guard requiring genuine correlated infrastructure-zone evidence.
+
+## D24. Private AKS comparative architecture and operator authorization
+
+On 7 November 2026 the operator authorized autonomous implementation, deployment, necessary repairs and testing of a new private AKS/PostgreSQL comparison. Keep the new resource groups active until the operator orders stop or deletion. Orchestrate bounded foreground stages from the PC with visible progress and logs; use one private Ubuntu managed-identity runner for publication and measurement. Preserve ownership checks, unrelated resources and every acknowledged write.
+
+Choose **AKS Standard without Node Auto Provisioning (NAP)**. Chaos Studio guidance supports the node VM scale-set fault path for this configuration and excludes NAP-enabled clusters. Sweden Central was selected after live qualification found `Standard_D4ds_v5` unrestricted in zones 1, 2 and 3 and PostgreSQL zone-redundant HA enabled; the initial Italy North VM candidate was restricted. Kubernetes 1.35.9 was checked in the supported catalog. Catalog qualification remains distinct from successful provisioning and baseline acceptance.
+
+The design uses a private API server with public FQDN disabled, Azure CNI Overlay with Cilium, private application HTTPS through an internal load balancer, a private Premium container registry with managed-identity build/pull access, private Key Vault and private PostgreSQL 16 with Entra-only authentication and zone-redundant HA (intended primary zone 1, standby zone 2). The initial AKS lab omits AMPLS and Log Analytics. Preserve application logs through the private Kubernetes API and evidence from the runner's independent observer and node-topology monitor; keep all raw evidence under ignored `.local\`. Additional observability services require an actual need.
+
+Use three dedicated tainted system nodes across three zones and six user pools, each containing one node: two user nodes per zone, nine nodes total. Six baseline application pods must participate across the six user nodes and three physical zones. Keep node counts static and disable autoscaling and NAP. Surviving capacity may reschedule pods; record AKS reconciliation and remediation.
+
+The selected live native node-shutdown Action exposes `GracefulShutdown` and `Zones`, with no instance-ID selector. Exact-node targeting therefore uses a verified single-node user-pool VMSS. Zone-compute targeting selects all owned system/user VMSS with `Zones=['1']`, expecting two application nodes and one system node. Require independently observed VM power states and Kubernetes NotReady evidence for a continuous five-minute fault, plus healthy surviving pods. Replacement or restart that shortens the required sustained window fails that gate.
+
+Run baseline, exact-node shutdown, zone-compute shutdown, PostgreSQL forced failover and database-first combined overlap tests. Keep process/pod faults separately attributed. HA-AZ-001 remains BLOCKED until a supported physical full-zone injection and independent effect evidence exist. Report full-phase availability separately from recovery and complete-history checksum retention. The [AKS plan](docs/aks-lab.md), [limits](docs/experiment-limits.md) and [results register](docs/aks-results.md) define publication boundaries; no AKS PASS is implied by this decision.
