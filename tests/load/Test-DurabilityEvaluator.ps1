@@ -54,7 +54,41 @@ try {
             throw 'A persistently unreadable acknowledged write was not kept as an unresolved failure.'
         }
     }
-    'Durability verifies every unique issued write, exact checksums, absent unacknowledged writes, losses and explicit transport failures.'
+    $env:API_BASE_URL = $null; $env:API_TOKEN = $null
+    $case = 'Transport'
+    $sqlAttempts = Join-Path $root 'sql.ndjson'
+    @($ack, $unack) | ForEach-Object { $_ | ConvertTo-Json -Compress } | Set-Content $sqlAttempts
+    foreach ($sqlCase in @('Retained','Lost','Changed','Duplicate','Malformed','BadColumns')) {
+        $csv = Join-Path $root "$sqlCase.csv"
+        $lines = @('operation_id,payload_sha256')
+        switch ($sqlCase) {
+            'Retained' { $lines += "$first,$checksum" }
+            'Changed' { $lines += "$first,$('b' * 64)" }
+            'Duplicate' { $lines += @("$first,$checksum","$first,$checksum") }
+            'Malformed' { $lines += "invalid,$checksum" }
+            'BadColumns' { $lines = @('operation_id,unexpected') }
+        }
+        $lines | Set-Content $csv
+        $output = Join-Path $root "sql-$sqlCase.json"
+        $rejected = $false
+        try {
+            & (Join-Path $PSScriptRoot 'evaluate-durability.ps1') -AttemptsPath $sqlAttempts -OutputPath $output -SqlSnapshotPath $csv
+        } catch { $rejected = $true }
+        if ($rejected -ne ($sqlCase -ne 'Retained')) { throw "Direct SQL verdict mismatch: $sqlCase." }
+        if ($sqlCase -in @('Duplicate','Malformed','BadColumns')) { continue }
+        $proof = Get-Content $output -Raw | ConvertFrom-Json
+        if ($proof.readSource -ne 'private-postgresql-direct-snapshot' -or $proof.sqlSnapshotSha256 -notmatch '^[0-9a-f]{64}$') {
+            throw 'Direct SQL provenance was not persisted.'
+        }
+        if ($sqlCase -eq 'Retained' -and ($proof.retainedWrites -ne 1 -or $proof.confirmedAbsentUnacknowledgedWrites -ne 1)) {
+            throw 'Direct SQL retention/absent accounting failed.'
+        }
+        if ($sqlCase -eq 'Lost' -and $proof.lostAcknowledgedWrites -ne 1) { throw 'Direct SQL missing acknowledged row was hidden by cache.' }
+        if ($sqlCase -eq 'Changed' -and ($proof.retainedWrites -ne 0 -or $proof.failures.Count -ne 1)) {
+            throw 'Direct SQL checksum mismatch was not rejected.'
+        }
+    }
+    'Durability verifies issued/acknowledged writes, losses, checksums and transport errors; direct SQL fixtures bypass unavailable/cached API reads.'
 } finally {
     $env:API_BASE_URL = $oldUrl; $env:API_TOKEN = $oldToken
     Remove-Item -LiteralPath $root -Recurse -Force

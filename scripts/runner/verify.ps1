@@ -82,20 +82,47 @@ try {
     $conflictRequest = @{ operationId = $operationId; payload = @{ sku = 'different'; quantity = 2; notes = 'durability-check' } } | ConvertTo-Json -Compress
     $conflict = Invoke-WebRequest "$base/api/orders" -Method Post -Body $conflictRequest -ContentType application/json -Headers $headers -SkipHttpErrorCheck -TimeoutSec 15
     Assert-Proof 'Different payload conflict' ($conflict.StatusCode -eq 409) $conflict.StatusCode
+    $sqlSnapshotPath = $null
+    if ($config.PSObject.Properties['ARCHITECTURE'] -and $config.ARCHITECTURE -eq 'private-aks') {
+        $resource = [Uri]::EscapeDataString('https://ossrdbms-aad.database.windows.net')
+        $client = [Uri]::EscapeDataString($config.MIGRATION_CLIENT_ID)
+        $databaseToken = Invoke-RestMethod "http://169.254.169.254/metadata/identity/oauth2/token?api-version=2018-02-01&resource=$resource&client_id=$client" -Headers @{Metadata='true'} -TimeoutSec 15
+        if (-not $databaseToken.access_token) { throw 'Direct PostgreSQL verification identity did not return a token.' }
+        try {
+            $env:PGPASSWORD = $databaseToken.access_token
+            $env:PGHOST = $config.POSTGRES_HOST
+            $env:PGUSER = 'id-csl-migrations'
+            $env:PGDATABASE = 'csl'
+            $env:PGSSLMODE = 'verify-full'
+            $env:PGSSLROOTCERT = '/etc/ssl/certs/ca-certificates.crt'
+            $env:PGCONNECT_TIMEOUT = '15'
+            $env:PGOPTIONS = '-c statement_timeout=120000'
+            $rows = @(& psql --no-psqlrc --no-password -v ON_ERROR_STOP=1 -c '\copy (SELECT operation_id::text, btrim(payload_sha256) AS payload_sha256 FROM orders ORDER BY operation_id) TO STDOUT WITH CSV HEADER')
+            if ($LASTEXITCODE -ne 0) { throw 'Direct PostgreSQL durability snapshot failed; cached API reads cannot qualify retention.' }
+            $sqlSnapshotPath = Join-Path $out "direct-orders-$([Guid]::NewGuid().ToString('N')).csv"
+            [IO.File]::WriteAllLines($sqlSnapshotPath, [string[]]$rows, [Text.UTF8Encoding]::new($false))
+        } finally {
+            $databaseToken = $null
+            foreach ($name in @('PGPASSWORD','PGHOST','PGUSER','PGDATABASE','PGSSLMODE','PGSSLROOTCERT','PGCONNECT_TIMEOUT','PGOPTIONS')) {
+                Remove-Item "Env:\$name" -ErrorAction SilentlyContinue
+            }
+        }
+    }
     $env:API_BASE_URL = $base
     $env:API_TOKEN = $token
     & (Join-Path $PSScriptRoot '..\..\tests\load\evaluate-durability.ps1') `
-        -AttemptsPath $journal -OutputPath (Join-Path $out 'private-verification-durability.json')
+        -AttemptsPath $journal -OutputPath (Join-Path $out 'private-verification-durability.json') -SqlSnapshotPath $sqlSnapshotPath
     if ($LASTEXITCODE -ne 0) { throw 'Private verification write history was not fully reconciled.' }
     if ($AcknowledgedAttemptsPath) {
         $env:API_BASE_URL = $base
         $env:API_TOKEN = $token
         & (Join-Path $PSScriptRoot '..\..\tests\load\evaluate-durability.ps1') `
             -AttemptsPath $AcknowledgedAttemptsPath `
-            -OutputPath (Join-Path (Split-Path $AcknowledgedAttemptsPath -Parent) 'durability-verdict.json')
+            -OutputPath (Join-Path (Split-Path $AcknowledgedAttemptsPath -Parent) 'durability-verdict.json') -SqlSnapshotPath $sqlSnapshotPath
     }
     if ($VerifyAllRuns) {
-        $aggregate=@{status='INCONCLUSIVE';startedAtUtc=[DateTimeOffset]::UtcNow.ToString('O');runs=@();readParallelism=$ReadParallelism}
+        $aggregate=@{status='INCONCLUSIVE';startedAtUtc=[DateTimeOffset]::UtcNow.ToString('O');runs=@();readParallelism=$ReadParallelism
+            readSource=if ($sqlSnapshotPath) { 'private-postgresql-direct-snapshot' } else { 'private-api' }}
         try {
             $directories=@(foreach($directory in Get-ChildItem -LiteralPath $out -Directory | Sort-Object Name) {
                 if(-not (Test-Path -LiteralPath (Join-Path $directory.FullName 'attempts.ndjson'))) { continue }
@@ -106,20 +133,20 @@ try {
             $evaluator=Join-Path $PSScriptRoot '..\..\tests\load\evaluate-durability.ps1'
             # Bounded concurrency keeps the growing history inside its deadline; each run is still read sequentially and attributed by X-Run-Id.
             $evaluateRun={
-                param([string] $RunDirectory, [string] $Evaluator)
+                param([string] $RunDirectory, [string] $Evaluator, [string] $SqlSnapshot)
                 $verdictPath=Join-Path $RunDirectory 'durability-verdict.json'
                 Remove-Item -LiteralPath $verdictPath -ErrorAction SilentlyContinue
                 $errorMessage=$null
-                try { & $Evaluator -AttemptsPath (Join-Path $RunDirectory 'attempts.ndjson') -OutputPath $verdictPath | Out-Null }
+                try { & $Evaluator -AttemptsPath (Join-Path $RunDirectory 'attempts.ndjson') -OutputPath $verdictPath -SqlSnapshotPath $SqlSnapshot | Out-Null }
                 catch { $errorMessage=$_.Exception.Message }
                 [pscustomobject]@{directory=$RunDirectory;verdictPath=$verdictPath;error=$errorMessage}
             }
             $outcomes=@(if($ReadParallelism -eq 1) {
-                foreach($directory in $directories) { & $evaluateRun $directory $evaluator }
+                foreach($directory in $directories) { & $evaluateRun $directory $evaluator $sqlSnapshotPath }
             } else {
                 $evaluateRunText=$evaluateRun.ToString()
                 $directories | ForEach-Object -ThrottleLimit $ReadParallelism -Parallel {
-                    & ([scriptblock]::Create($using:evaluateRunText)) $_ $using:evaluator
+                    & ([scriptblock]::Create($using:evaluateRunText)) $_ $using:evaluator $using:sqlSnapshotPath
                 }
             })
             foreach($outcome in $outcomes | Sort-Object directory) {

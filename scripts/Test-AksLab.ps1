@@ -75,7 +75,9 @@ function Complete-Measurement([hashtable] $Load,[string] $RunId,[string] $Phase)
     Invoke-Private "cd ~/csl && timeout 3600 pwsh -NoProfile -File scripts/runner/verify.ps1 -VerifyAllRuns > all-history-$caseId.log 2>&1"
     Save-LabRunnerEvidence $ManifestPath $Phase $TunnelPort
     $history=Get-Content "$root\evidence\results\all-runs-durability.json" -Raw|ConvertFrom-Json -AsHashtable
-    if($history.status -ne 'PASS' -or @($history.runs|Where-Object {$_.status -ne 'PASS' -or $_.lostAcknowledgedWrites -ne 0}).Count){
+    if($history.status -ne 'PASS' -or $history.readSource -ne 'private-postgresql-direct-snapshot' -or
+        @($history.runs|Where-Object {$_.status -ne 'PASS' -or $_.lostAcknowledgedWrites -ne 0 -or
+            $_.readSource -ne 'private-postgresql-direct-snapshot' -or $_.sqlSnapshotSha256 -notmatch '^[0-9a-f]{64}$'}).Count){
         throw 'Every issued/acknowledged write has not been successfully reconciled.'
     }
     $run=Get-Content "$root\evidence\results\$RunId\run.json" -Raw|ConvertFrom-Json -AsHashtable

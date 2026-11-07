@@ -2,10 +2,26 @@
 param(
     [Parameter(Mandatory)][string] $AttemptsPath,
     [Parameter(Mandatory)][string] $OutputPath,
+    [string] $SqlSnapshotPath,
     [ValidateRange(0, 6)][int] $TransientReadRetries = 4
 )
 $ErrorActionPreference = 'Stop'
-if (-not $env:API_BASE_URL -or -not $env:API_TOKEN) { throw 'Private API URL and token are required for durability verification.' }
+if (-not $SqlSnapshotPath -and (-not $env:API_BASE_URL -or -not $env:API_TOKEN)) { throw 'Private API URL and token are required for durability verification.' }
+$sqlRows = @{}
+if ($SqlSnapshotPath) {
+    if ((Get-Content -LiteralPath $SqlSnapshotPath -TotalCount 1) -cne 'operation_id,payload_sha256') {
+        throw 'Direct PostgreSQL snapshot has unexpected columns.'
+    }
+    foreach ($row in Import-Csv -LiteralPath $SqlSnapshotPath) {
+        $id = [Guid]::Empty
+        if (-not [Guid]::TryParse($row.operation_id, [ref]$id) -or $row.payload_sha256 -cnotmatch '^[0-9a-f]{64}$') {
+            throw 'Direct PostgreSQL snapshot contains an invalid operation ID or checksum.'
+        }
+        $key = $id.ToString()
+        if ($sqlRows.ContainsKey($key)) { throw 'Direct PostgreSQL snapshot contains a duplicate operation ID.' }
+        $sqlRows[$key] = $row.payload_sha256
+    }
+}
 $events = @(Get-Content -LiteralPath $AttemptsPath | Where-Object { $_ } | ForEach-Object { $_ | ConvertFrom-Json })
 $runIds = @($events | ForEach-Object runId | Sort-Object -Unique)
 if ($runIds.Count -ne 1 -or -not $runIds[0]) { throw 'Durability evidence must contain exactly one run.' }
@@ -31,6 +47,8 @@ $proof = [ordered]@{
     acknowledgedUniqueWrites = @($writes.Values | Where-Object acknowledged).Count
     retainedWrites = 0; confirmedAbsentUnacknowledgedWrites = 0; lostAcknowledgedWrites = 0
     transientReadRetries = 0; readsResolvedAfterRetry = 0
+    readSource = if ($SqlSnapshotPath) { 'private-postgresql-direct-snapshot' } else { 'private-api' }
+    sqlSnapshotSha256 = if ($SqlSnapshotPath) { (Get-FileHash -LiteralPath $SqlSnapshotPath).Hash.ToLowerInvariant() } else { $null }
     failures = [Collections.Generic.List[object]]::new()
 }
 # A transient read-back response proves neither retention nor loss, so it is retried before the write is classified.
@@ -61,6 +79,20 @@ try {
             Write-Information "Checking write $processed of $($writes.Count)." -InformationAction Continue
         }
         $write = $writes[$id]
+        if ($SqlSnapshotPath) {
+            if (-not $sqlRows.ContainsKey($id) -and -not $write.acknowledged) {
+                $proof.confirmedAbsentUnacknowledgedWrites++
+                continue
+            }
+            if ($sqlRows.ContainsKey($id) -and $sqlRows[$id] -ceq $write.checksum) {
+                $proof.retainedWrites++
+                continue
+            }
+            if (-not $sqlRows.ContainsKey($id) -and $write.acknowledged) { $proof.lostAcknowledgedWrites++ }
+            $proof.failures.Add(@{ operationId=$id; acknowledged=$write.acknowledged; readSource=$proof.readSource
+                reason=if ($sqlRows.ContainsKey($id)) { 'Stored SQL checksum differs.' } else { 'Row is absent from SQL.' } })
+            continue
+        }
         $response = Read-Write $id
         if ($response.StatusCode -eq 404 -and -not $write.acknowledged) {
             $proof.confirmedAbsentUnacknowledgedWrites++
