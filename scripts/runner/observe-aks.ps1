@@ -21,14 +21,28 @@ $ready=$false
 try{
     do{
         $sample=@{runId=$RunId;requestedAtUtc=[DateTimeOffset]::UtcNow.ToString('O');observedAtUtc=$null;vms=@();nodes=$null;pods=$null}
+        $sampleFailed=$false
         foreach($set in $sets){
-            $vms=Invoke-RestMethod "https://management.azure.com$($set.id)/virtualMachines?api-version=2024-11-01&`$expand=instanceView" -Headers @{Authorization="Bearer $token"} -TimeoutSec 10
+            try{
+                $vms=Invoke-RestMethod "https://management.azure.com$($set.id)/virtualMachines?api-version=2024-11-01&`$expand=instanceView" -Headers @{Authorization="Bearer $token"} -TimeoutSec 10
+            }catch{
+                $failure=$_.Exception.GetBaseException()
+                $status=if($_.Exception -is [Microsoft.PowerShell.Commands.HttpResponseException]){[int]$_.Exception.Response.StatusCode}else{0}
+                if($failure -isnot [Threading.Tasks.TaskCanceledException] -and $failure -isnot [TimeoutException] -and
+                    $status -ne 429 -and $status -lt 500){throw}
+                $sampleFailed=$true
+                @{runId=$RunId;failedAtUtc=[DateTimeOffset]::UtcNow.ToString('O');scaleSetId=$set.id;statusCode=$status;exceptionType=$failure.GetType().FullName}|
+                    ConvertTo-Json -Compress|Add-Content "$directory\observation-errors.ndjson"
+                Write-Warning "Transient ARM power-state observation failed; incomplete sample discarded. Existing 30-second evidence-gap requirement remains unchanged."
+                break
+            }
             foreach($vm in $vms.value){
                 $power=@($vm.properties.instanceView.statuses|Where-Object {$_.code -like 'PowerState/*'})
                 $sample.vms+=@(@{id=$vm.id;scaleSetId=$set.id;instanceId=$vm.instanceId;zones=@($vm.zones)
                     powerState=if($power.Count -eq 1){$power[0].code}else{'UNVERIFIED'}})
             }
         }
+        if($sampleFailed){Start-Sleep -Seconds 5;continue}
         $sample.nodes=& kubectl get nodes -o json|ConvertFrom-Json
         if($LASTEXITCODE -ne 0){throw 'Independent private Kubernetes node observation failed.'}
         $sample.pods=& kubectl -n csl get pods -l app=csl-api -o json|ConvertFrom-Json

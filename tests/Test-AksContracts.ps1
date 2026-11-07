@@ -77,6 +77,16 @@ $after=@($ast.FindAll({param($node)
 if($evaluation.Count -ne 1 -or @($after|Where-Object {$_.Extent.StartOffset -gt $evaluation[0].Extent.EndOffset}).Count -ne 1){
     throw 'Independent measurement effects must be evaluated before final baseline-layout qualification.'
 }
+$measurement=@($ast.FindAll({param($node)
+    $node -is [Management.Automation.Language.CommandAst] -and $node.GetCommandName() -eq 'Complete-Measurement' -and
+    $node.CommandElements[-1].Extent.Text -eq '$phase'
+},$true))
+$observerFailure=@($ast.FindAll({param($node)
+    $node -is [Management.Automation.Language.ThrowStatementAst] -and $node.Extent.Text.Contains('independent observer failed')
+},$true))
+if($measurement.Count -ne 1 -or $observerFailure.Count -ne 1 -or $measurement[0].Extent.EndOffset -gt $observerFailure[0].Extent.StartOffset){
+    throw 'Observer failure must preserve complete measurement and retention before surfacing incomplete evidence.'
+}
 foreach($horizon in @(@{name='duration';expected='18m'},@{name='seconds';expected=1200})){
     $statement=@($ast.FindAll({param($node)
         $node -is [Management.Automation.Language.AssignmentStatementAst] -and
@@ -109,5 +119,25 @@ try{
     Reject {Assert-AksProtectedInventory $scratch}
     $saved=Get-Content "$scratch\protected-resources-after.json" -Raw|ConvertFrom-Json -AsHashtable
     if($saved.tags.a -ne 'changed'){throw 'Changed protected metadata must remain available for diagnosis.'}
+    $observerTokens=$null;$observerErrors=$null
+    $observerAst=[Management.Automation.Language.Parser]::ParseFile((Join-Path $PSScriptRoot '..\scripts\runner\observe-aks.ps1'),[ref]$observerTokens,[ref]$observerErrors)
+    if($observerErrors){throw 'Power-state observer parsing failed.'}
+    $catches=@($observerAst.FindAll({param($node) $node -is [Management.Automation.Language.CatchClauseAst]},$true))
+    if($catches.Count -ne 1){throw 'Transient observation handling is ambiguous.'}
+    $handling=[scriptblock]::Create($catches[0].Body.Extent.Text.Trim().TrimStart('{').TrimEnd('}'))
+    $directory=$scratch;$RunId='00000000000000000000000000000001';$set=@{id='owned-scale-set'}
+    foreach($exception in @([Threading.Tasks.TaskCanceledException]::new('fixture timeout'),
+        [Microsoft.PowerShell.Commands.HttpResponseException]::new('fixture throttling',[Net.Http.HttpResponseMessage]::new([Net.HttpStatusCode]::TooManyRequests)))){
+        $sampleFailed=$false
+        foreach($once in @(1)){
+            try{throw $exception}catch{. $handling}
+        }
+        if(-not $sampleFailed){throw 'Transient failure must discard the whole sample.'}
+    }
+    Reject {
+        try{throw [Microsoft.PowerShell.Commands.HttpResponseException]::new('fixture authorization',[Net.Http.HttpResponseMessage]::new([Net.HttpStatusCode]::Forbidden))}
+        catch{. $handling}
+    }
+    if(@(Get-Content "$scratch\observation-errors.ndjson").Count -ne 2){throw 'Transient failures must produce explicit diagnostic records without replacing complete observations.'}
 }finally{Remove-Item -LiteralPath $scratch -Recurse -Force}
 'AKS exact owned native targets, abrupt duration and serialized zone-selector contract tests passed.'

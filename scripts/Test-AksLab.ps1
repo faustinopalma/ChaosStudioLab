@@ -207,8 +207,12 @@ try{
                 try{$results+=@(Complete-AksNativeExecution $entry.intent $entry.definition $m $ManifestPath "$caseRoot\$($entry.definition.kind)")}
                 catch{$nativeError=$_.Exception.Message;Write-Warning $nativeError}
             }
-            if((Complete-Private $health) -ne 0 -or (Complete-Private $topology) -ne 0){throw 'Independent observer failed; its explicit logs are retained.'}
+            $report.nativeOperations=@($intents|ForEach-Object intent);$report.nativeResults=$results
+            $report.observerExitCodes=@{health=(Complete-Private $health);topology=(Complete-Private $topology)}
             $run=Complete-Measurement $load $runId $phase
+            if($report.observerExitCodes.health -ne 0 -or $report.observerExitCodes.topology -ne 0){
+                throw 'INCONCLUSIVE: independent observer failed; completed load, explicit observer logs and full retention evidence are preserved.'
+            }
         }
         $report.nativeOperations=@($intents|ForEach-Object intent);$report.nativeResults=$results;$report.fullPhase=$run
         $afterPg=Get-Postgres after
