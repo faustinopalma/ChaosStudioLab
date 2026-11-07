@@ -59,6 +59,32 @@ try{
         $trafficZones=@($traffic|ForEach-Object {$podZones[$_.instanceId]}|Where-Object {$_}|Sort-Object -Unique)
         if($trafficZones.Count -lt 2){throw 'INCONCLUSIVE: fewer than two observed surviving zones delivered successful business traffic during the sustained node outage.'}
         $result.compute.survivingTrafficZones=$trafficZones
+        if(-not $database){
+            $windowStart=[DateTimeOffset]::FromUnixTimeSeconds([long][Math]::Ceiling($effectTime.ToUnixTimeMilliseconds()/1000.0))
+            $windowEnd=$windowStart.AddSeconds(300)
+            $operations=@($events|Where-Object {$_.type -eq 'businessOperation' -and
+                [DateTimeOffset]$_.startedAtUtc -ge $windowStart -and [DateTimeOffset]$_.startedAtUtc -lt $windowEnd})
+            $drops=@($events|Where-Object {$_.type -eq 'droppedScheduledOperation' -and $_.scenario -eq 'workload' -and
+                [DateTimeOffset]$_.recordedAtUtc -ge $windowStart -and [DateTimeOffset]$_.recordedAtUtc -lt $windowEnd})
+            $dropCount=0.0;foreach($drop in $drops){$dropCount+=[double]$drop.count}
+            $ticks=@($events|Where-Object {$_.type -eq 'canaryTick' -and
+                [DateTimeOffset]$_.scheduledAtUtc -ge $windowStart -and [DateTimeOffset]$_.scheduledAtUtc -lt $windowEnd}|Sort-Object scheduledAtUtc)
+            $tickSeconds=@($ticks|ForEach-Object {[long][Math]::Floor(([DateTimeOffset]$_.scheduledAtUtc).ToUnixTimeMilliseconds()/1000.0)}|Sort-Object -Unique)
+            if($operations.Count+$dropCount -ne 6000 -or $ticks.Count -ne 300 -or $tickSeconds.Count -ne 300){
+                throw 'INCONCLUSIVE: first five-minute post-compute-effect window lacks complete business/canary sampling.'
+            }
+            $success=@($operations|Where-Object success -eq $true)
+            $durations=@($success|ForEach-Object {[double]$_.durationMs}|Sort-Object)
+            $p95=if($durations.Count){$durations[[Math]::Max(0,[int][Math]::Ceiling(0.95*$durations.Count)-1)]}else{$null}
+            $consecutive=0;$longest=0
+            foreach($tick in $ticks){if($tick.success){$consecutive=0}else{$consecutive++;$longest=[Math]::Max($longest,$consecutive)}}
+            $window=@{startedAtUtc=$windowStart.ToString('O');endedAtUtc=$windowEnd.ToString('O');businessSuccessRate=$success.Count/6000.0
+                successfulOperationP95Ms=$p95;droppedOperations=$dropCount;longestCompleteUnavailabilitySeconds=$longest;expectedBusinessOperations=6000;expectedCanaries=300}
+            $result.compute.firstFiveMinutes=$window
+            if($window.businessSuccessRate -lt 0.99 -or $null -eq $p95 -or $p95 -gt 2000 -or $longest -gt 5){
+                throw 'FAIL: first five-minute compute-only observation exceeded 99% business success, two-second p95 or five-second complete-unavailability limits.'
+            }
+        }
     }
     if($database){
         if($PostgresAfter.state -ne 'Ready' -or $PostgresAfter.highAvailability.mode -ne 'ZoneRedundant' -or

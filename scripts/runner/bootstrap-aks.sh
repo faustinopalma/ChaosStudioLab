@@ -62,5 +62,6 @@ IMAGE_DIGEST="$digest" pwsh -NoLogo -NoProfile -Command '
 kubectl apply --dry-run=server -f k8s/rendered.yaml
 kubectl apply -f k8s/rendered.yaml
 kubectl -n csl rollout status deployment/api --timeout=600s
-curl --fail --silent --show-error "https://$API_FQDN/health/ready"
+curl --fail --silent --show-error --connect-timeout 5 --max-time 15 \
+  --retry 20 --retry-all-errors --retry-delay 3 --retry-max-time 120 "https://$API_FQDN/health/ready"
 printf '\nCSL_AKS_APPLICATION_READY\n'

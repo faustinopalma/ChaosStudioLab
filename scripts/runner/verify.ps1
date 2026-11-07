@@ -16,7 +16,7 @@ function Assert-Proof([string] $Name, [bool] $Pass, [object] $Detail) {
     if (-not $Pass) { throw "Private verification failed: $Name" }
 }
 try {
-    $addresses = [Net.Dns]::GetHostAddresses($config.API_FQDN) | ForEach-Object { $_.IPAddressToString }
+    $addresses = @([Net.Dns]::GetHostAddresses($config.API_FQDN) | ForEach-Object { $_.IPAddressToString })
     if ($config.PSObject.Properties['ARCHITECTURE'] -and $config.ARCHITECTURE -eq 'private-aks') {
         if ($config.EXPECTED_API_IP -ne '10.91.3.240') { throw 'AKS private load-balancer address differs from the approved manifest contract.' }
         Assert-Proof 'Private load-balancer DNS' (@($addresses).Count -eq 1 -and $addresses[0] -eq $config.EXPECTED_API_IP) $addresses

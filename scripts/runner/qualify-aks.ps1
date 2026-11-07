@@ -48,10 +48,17 @@ try{
             if($kind -eq 'business'){$args.Headers.Authorization="Bearer $token"}
             $response=Invoke-WebRequest @args
             $uid=[string]($response.Headers['X-Lab-Instance-Id']|Select-Object -First 1)
+            $processId=[string]($response.Headers['X-Lab-Process-Id']|Select-Object -First 1)
+            $processStart=[string]($response.Headers['X-Lab-Process-Start-Utc']|Select-Object -First 1)
             $body=$response.Content|ConvertFrom-Json
             if($response.StatusCode -ne 200 -or $uid -notin $placement.uid){throw 'Traffic identity does not match current six pod UIDs.'}
+            if($processId -notmatch '^\d+$' -or -not $processStart){throw 'Actual application process identity is incomplete.'}
+            if($kind -eq 'health' -and ($body.status -ne 'live' -or $body.instanceId -ne $uid -or
+                $body.processId -ne [int]$processId -or $body.revision -ne $config.SOURCE_REVISION)){
+                throw 'Actual application health/source/process identity is inconsistent.'
+            }
             if($kind -eq 'business' -and ($body.payloadSha256 -cne $seed.expectedChecksum -or $body.operationId -ne $seed.operationId)){throw 'Private business checksum participation failed.'}
-            $observations.Add(@{kind=$kind;uid=$uid;observedAtUtc=[DateTimeOffset]::UtcNow.ToString('O')})
+            $observations.Add(@{kind=$kind;uid=$uid;processId=$processId;processStartedAtUtc=$processStart;observedAtUtc=[DateTimeOffset]::UtcNow.ToString('O')})
         }
         $complete=@($placement|Where-Object {$p=$_;@($observations|Where-Object {$_.uid -eq $p.uid -and $_.kind -eq 'health'}).Count -and @($observations|Where-Object {$_.uid -eq $p.uid -and $_.kind -eq 'business'}).Count}).Count -eq 6
     }while(-not $complete -and [DateTimeOffset]::UtcNow -lt $deadline)

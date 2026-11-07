@@ -52,5 +52,19 @@ try{
     Check observer-gap 'HA-ZONE-COMPUTE-001' INCONCLUSIVE
     Save-Events topology $topology
     Check missing-zone-swap 'HA-COMBINED-001' INCONCLUSIVE $pg
-    'AKS sustained >=300-second shutdown, observer-gap and database zone-swap evidence tests passed.'
+    $failed=@($events|ForEach-Object {$e=$_|ConvertFrom-Json -AsHashtable
+        if($e.type -eq 'businessOperation' -and [DateTimeOffset]$e.startedAtUtc -ge $start.AddSeconds(60) -and [DateTimeOffset]$e.startedAtUtc -lt $start.AddSeconds(70)){$e.success=$false};$e})
+    Save-Events attempts $failed
+    Check compute-availability-failure 'HA-ZONE-COMPUTE-001' FAIL
+    $combined=@($events|ForEach-Object {$e=$_|ConvertFrom-Json -AsHashtable
+        if($e.type -eq 'businessOperation'){$e.phase='combined'}
+        if($e.type -eq 'canaryTick' -and [DateTimeOffset]$e.scheduledAtUtc -eq $start.AddSeconds(40)){$e.success=$false};$e})
+    Save-Events attempts $combined
+    $dbObserver=@($observer|ForEach-Object {$e=$_|ConvertTo-Json -Depth 10|ConvertFrom-Json -AsHashtable
+        if($e.kind -eq 'dependencies' -and [DateTimeOffset]$e.requestedAtUtc -ge $start.AddSeconds(40) -and [DateTimeOffset]$e.requestedAtUtc -le $start.AddSeconds(70)){
+            $e.statusCode=503;$e.dependencyStatus='unavailable'
+        };$e})
+    Save-Events observer $dbObserver
+    Check independently-bracketed-combined 'HA-COMBINED-001' PASS
+    'AKS sustained shutdown, sample gaps, exact availability thresholds, database zone-swap and independent overlap evidence tests passed.'
 }finally{Remove-Item -LiteralPath $tmp -Recurse -Force}

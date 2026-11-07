@@ -21,7 +21,7 @@ $sshArgs=$sshOptions+@('-p',"$TunnelPort",'csloperator@127.0.0.1')
 $children=[Collections.Generic.List[hashtable]]::new()
 $management=$null
 function Invoke-Private([string] $Command){
-    & ssh @sshArgs $Command
+    & ssh @sshArgs $Command | Out-Host
     if($LASTEXITCODE -ne 0){throw "Private command failed ($LASTEXITCODE): $Command"}
 }
 function Start-Private([string] $Label,[string] $Command,[string] $ReadyLine){
