@@ -1,5 +1,7 @@
 # Private App Service execution results
 
+[Executive summary](executive-summary.md) | [Reading order](lab-guide.md#read-in-this-order) | Next evidence report: [AKS final close](aks-results.md#final-bounded-close-summary----7-november-2026)
+
 Latest evidence date: 6 November 2026, UTC. The Windows comparison variant completed every required application, database and combined case. The Linux results, complete-history reconciliation and the eight-region Workspace comparison of 5 November are preserved below.
 
 ## Windows comparison variant: complete native suite, 6 November

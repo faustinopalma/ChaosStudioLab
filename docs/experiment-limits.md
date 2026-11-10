@@ -1,8 +1,18 @@
 # Experiment limits and interpretation
 
-[Lab guide](lab-guide.md) · [App Service results](app-service-results.md) · [AKS plan](aks-lab.md) · [AKS results](aks-results.md)
+[Executive summary](executive-summary.md) · [Reading order](lab-guide.md#read-in-this-order) · [App Service results](app-service-results.md) · Next: [AKS architecture and contracts](aks-lab.md) · [AKS results](aks-results.md)
 
-Final evidence dates: App Service 6 November and AKS 7 November 2026. All measured AKS fault cases remain FAIL at required gates; recovery/stability/retention PASS do not override failed availability or placement. Combined overlap is independently proven. Physical full-zone coverage remains BLOCKED; final private qualification passed.
+Final evidence dates: App Service 6 November and AKS 7 November 2026. Original AKS fault cases failed required gates; the first cache/HTTP/1.1 repair later passed node and selected-zone compute tests. Final shared-cache database business measurement reached 100%, while incomplete topology evidence kept the overall verdict INCONCLUSIVE and the final-version suite INCOMPLETE. Physical full-zone coverage remains BLOCKED. [Final closure](aks-results.md#final-bounded-close-summary----7-november-2026) takes precedence over intermediate checkpoints below.
+
+## HA, DR and final-version evidence
+
+High availability measurements cover the actual injected component faults and their observed recovery. Disaster recovery additionally needs evidence for the intended disaster and recovery path. Regional failover, backup restoration and a qualifying physical whole-zone outage were not executed here, so DR readiness remains unvalidated.
+
+The final database phase completed all 21,600 scheduled business operations successfully, with zero business failures or drops, while 413 failed attempts reconciled to SQL-confirmed logical success. All 1,058 completed canaries succeeded, but 22 canary schedules were dropped. The independent topology observer stopped after 20 samples following a ten-second ARM timeout; completed native execution and dependency observation cannot reconstruct that missing horizon. Keep the overall INCONCLUSIVE verdict.
+
+Earlier repaired node and selected-zone compute PASS results belong to the preceding image. They were not rerun on the final shared-cache image, and the repaired combined case was not executed. The complete final-version suite remains INCOMPLETE. Shared caching adds a dependency and changes which reads reach PostgreSQL, so direct SQL reconciliation bypasses both caches. Final SQL proof retained 78,142 measurement acknowledgements across 21 runs plus 23 journal acknowledgements, comparing stored checksum values with acknowledgements without independently rehashing payload JSON.
+
+The original-series interpretations below preserve the availability, observation and placement failures that preceded those repairs.
 
 ## Separate the verdicts
 
@@ -18,7 +28,7 @@ Do not derive a complete-suite PASS from a subset of passed cases. Preserve fail
 
 The AKS harness retains independently observed effects before final-layout evaluation and aggregates full-phase SLO failure into overall case FAIL. Native execution, effect and recovery PASS remain visible without overriding availability FAIL. A database/combined case with failed full-phase availability receives overall FAIL. Historical App Service recovery-only PASS labels retain their component attribution; they do not define overall AKS acceptance.
 
-AKS nine-node/six-pod placement, private HTTPS/authentication/idempotence/checksum smoke checks and non-fault native validations passed qualification. BASE-001 passed with 100% business success and successful-operation p95 11 ms. Every measured fault case then failed a required gate; final private qualification passed separately. Keep DNS, ingress timing, local tunnel and pre-load singleton-selection repairs in troubleshooting elapsed time; they supply no fault-test downtime or recovery measurement.
+At the original architecture checkpoint, AKS nine-node/six-pod placement, private HTTPS/authentication/idempotence/checksum smoke checks and non-fault native validations passed qualification. BASE-001 passed with 100% business success and successful-operation p95 11 ms. Every original measured fault case then failed a required gate; private qualification passed separately. Keep DNS, ingress timing, local tunnel and pre-load singleton-selection repairs in troubleshooting elapsed time; they supply no fault-test downtime or recovery measurement.
 
 The initial node preparation attempt stopped before load/injection. Its retry is an actual native fault execution, with native completion, independent caller/object-claim attribution and at least 300.292 s sustained power-off verified. Do not merge the preparation failure with measured fault errors or derive a complete HA PASS from baseline/native completion.
 
@@ -186,17 +196,17 @@ Proven managed creation does not establish lab-manifest ownership or remove the 
 
 The App Service dedicated groups were deleted by the operator on 6 November at 09:43 UTC; seven unrelated groups and 24 resources were verified unchanged. Historical execution reports describe resource state at their original evidence time.
 
-The new AKS lab remains active until the operator orders stop or deletion. No independent expiry enforcement is claimed. Resource-group absence alone does not establish deletion of retained backups, audit records or recoverable vault objects.
+AKS measurements closed on 7 November and teardown became operator-managed. The workload-group deletion request was accepted before handoff, but completion and later operator-reported deletions were not verified. No independent expiry enforcement is claimed. Resource-group absence alone does not establish deletion of retained backups, audit records or recoverable vault objects.
 
-Final private qualification and retention PASS establish the final observed workload state and 37,659/37,659 acknowledged writes across ten runs. They do not erase fault acceptance FAILs, HA-AZ-001 BLOCKED or external scope delta FAIL. The final real-zone guard exits 1 without injecting or changing Azure.
+Original private qualification and retention PASS established that checkpoint's workload state and 37,659/37,659 acknowledged writes across ten runs. The later 78,142-write SQL reconciliation has its own final-close attribution. Neither retention total erases failed acceptance gates, HA-AZ-001 BLOCKED or external scope delta FAIL. The real-zone guard exits 1 without injecting or changing Azure.
 
-Final owned inventory has 87 resource/definition/exemption IDs across four active groups; it is not a top-level resource count. On an operator deletion order, remove workload/AKS first, let AKS delete the managed node group and verify absence, then operations and network. Never delete the pre-existing default regional group or Defender workspace. See the [cleanup order](aks-lab.md#operator-managed-cleanup-order).
+The original owned inventory had 87 resource/definition/exemption IDs across four groups, before the cache overlay; this is not a top-level resource count or a current live inventory. The cleanup order removes workload/AKS first, verifies managed-node-group deletion, then removes operations and network. The pre-existing default regional group and Defender workspace stay outside lab ownership. See the [cleanup order](aks-lab.md#operator-managed-cleanup-order).
 
-Only the temporary PC tunnel helper was stopped. Azure resources remain running/active; helper shutdown establishes no Azure suspension or cleanup verdict. Exact inventory/private-access restart instructions remain in ignored `.local\<run>\OPERATOR-RESULTS.md`, with manifest/handoff preserving final FAIL, health PASS and retention PASS.
+The temporary PC tunnel and deletion wait were stopped at handoff. Helper shutdown establishes no Azure suspension or cleanup verdict. Exact inventory, access instructions and raw evidence remain in ignored private operator reports and manifests; dated active-resource statements describe their capture time.
 
 ## Timing interpretation
 
-Manifest creation to final read-only verification was 18,336.744344 s, while ten unique k6 intervals totalled 7,677.297 s. Recorded case-retention time is an incomplete 859.3913 s subtotal excluding unrecorded initial-baseline retention and manual DB reconciliation. Parallel infrastructure children overlap each other and the parent; do not add them together.
+For the original series, manifest creation to read-only verification was 18,336.744344 s, while ten unique k6 intervals totalled 7,677.297 s. These exclude later repair stages. Recorded original case-retention time is an incomplete 859.3913 s subtotal excluding unrecorded initial-baseline retention and manual DB reconciliation. Parallel infrastructure children overlap each other and the parent; do not add them together.
 
 Research, authorization, diagnosis, manual reconciliation and operator gaps are not fully timed. Keep unclassified elapsed time honest rather than assigning it to invented active work. See the [final timing table](aks-results.md#elapsed-time-and-attribution).
 

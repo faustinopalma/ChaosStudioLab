@@ -1,8 +1,8 @@
 # Lab guide
 
-[Repository overview](../README.md) · [Accepted decisions](../DECISIONS-ACCEPTED.md)
+[Repository overview](../README.md) · [Executive summary](executive-summary.md) · [Accepted decisions](../DECISIONS-ACCEPTED.md)
 
-This is the reading entry point for the resilience laboratory. Follow the measured App Service history first, then the private AKS comparison, and finally the detailed references.
+Use the [executive summary](executive-summary.md) for the architecture comparison and HA/DR conclusions. This guide orders the evidence reports, interpretation rules and technical references. Existing filenames and headings are retained so earlier links continue to work.
 
 ## Latest outcome and where to stop reading
 
@@ -11,7 +11,9 @@ Measurements closed on 7 November 2026 at the operator's request. The private AK
 Earlier repaired exact-node and selected-zone-compute cases passed on the preceding image. They were not rerun on the final shared-cache image, and the repaired combined case was not executed. **The complete same-image suite remains INCOMPLETE; physical whole-zone disaster remains BLOCKED.** Final direct SQL proof retained 78,142 measurement acknowledgements plus 23 private-journal acknowledgements with matching recorded checksums.
 
 Start with the [final bounded-close summary, metrics and lifecycle note](aks-results.md#final-bounded-close-summary----7-november-2026), then use the history and design links below. Azure teardown is now operator-managed. Only the workload-group deletion request had already been accepted before that instruction; its completion was not verified, and the PC cleanup wait/tunnel were stopped. Historical active-resource statements describe their dated checkpoints.
-The operator has reported launching the resource-group delete commands. Their completion is outside this documentation-only closure. Azure teardown is now operator-managed. Only the workload-group deletion request had already been accepted before that instruction; its completion was not verified, and the PC cleanup wait/tunnel were stopped. Historical active-resource statements describe their dated checkpoints.
+The operator later reported launching the resource-group delete commands. Their completion is outside this documentation-only closure.
+
+These experiments establish bounded component HA evidence. Whole-zone disaster, regional failover and backup-restore recovery remain unvalidated; the [executive conclusion](executive-summary.md#1-executive-conclusion) separates that DR gap from measured recovery and durability.
 
 ## Measurement questions
 
@@ -30,11 +32,15 @@ A successful recovery or retention check can coexist with failed full-phase avai
 
 | Step | Document | What it answers |
 | --- | --- | --- |
-| 1 | [App Service execution results](app-service-results.md#windows-comparison-variant-complete-native-suite-6-november) | What actually ran on Windows and Linux, including failed and blocked attempts |
-| 2 | [Experiment limits](experiment-limits.md) | What process crashes, forced failover and compute shutdown can establish |
-| 3 | [Private AKS lab](aks-lab.md) | Why the new topology permits exact-node and selected-zone compute targeting; how tests are gated |
-| 4 | [AKS results register](aks-results.md) | Which facts are qualified, which outcomes remain pending, and what evidence a verdict needs |
-| 5 | [Technical reference](#technical-reference) | Where to find detailed App Service contracts, decisions, platform research and older histories |
+| 1 | [Executive summary](executive-summary.md) | Both architecture diagrams, attempted tests, successful mechanisms, failures and remaining HA/DR gaps |
+| 2 | [This reading guide](#latest-outcome-and-where-to-stop-reading) | The latest closure, evidence questions and document roles |
+| 3 | [App Service execution results](app-service-results.md#windows-comparison-variant-complete-native-suite-6-november) | Windows results first, then Linux qualification and earlier failed or blocked attempts |
+| 4 | [AKS results register: final close](aks-results.md#final-bounded-close-summary----7-november-2026) | Final-version evidence first; continue through repair and original history for the version-by-version explanation |
+| 5 | [Experiment limits](experiment-limits.md) | Acceptance gates, fault footprints, observation gaps and the limits of HA/DR claims |
+| 6 | [Private AKS lab](aks-lab.md) | Node placement, private dependencies, caching, native targets and operating contracts |
+| 7 | [Technical reference](#technical-reference) | Detailed requirements and decisions; historical Container Apps material is optional |
+
+For an executive briefing, stop after step 1. For a technical review, read through step 6. The narrative below retains the original execution sequence; the final-close sections above take precedence over intermediate resource-state and in-progress checkpoints.
 
 ## App Service: measured history
 
@@ -47,6 +53,8 @@ All 92,616 acknowledged measurement writes across 31 Linux and Windows runs were
 The operator deleted the App Service lab groups on 6 November at 09:43 UTC. Seven unrelated groups and their 24 resources were verified unchanged. The original result documents retain their execution-time descriptions, including statements that resources were then deployed; this later lifecycle update belongs to the comparison's current status.
 
 ## AKS: new comparison
+
+This section traces the original series and the subsequent repairs. Original failures and the 37,659-write checkpoint below remain historical; the final close above records the later 78,142-write reconciliation and incomplete final-version suite.
 
 The new comparison is authorized on 7 November 2026 and selects Sweden Central after regional qualification. Live qualification completed at about 10:42 UTC: AKS 1.35.9 on Azure Linux 3.0 has nine Ready nodes across seven VMSS, with six .NET 10 pods on six user nodes across three zones. HTTPS, authentication, idempotence and checksum smoke checks passed using the pinned private ACR image digest. Private API, PostgreSQL, registry and vault DNS resolved inside approved subnets.
 
@@ -100,30 +108,34 @@ Seven-minute (`PT7M`) native shutdown definitions provide margin for independent
 
 The workload's Kubernetes readiness probe checks process liveness to retain endpoints during transient database outages. Explicit `/health/ready` and independent business observations retain database-health qualification. Recovery must start a qualifying 60-second window within 180 seconds, followed by 300 stable seconds at the approved service targets. A full physical-zone-disaster verdict still requires broader fault coverage. See the [test matrix](aks-lab.md#test-matrix) and [scope limits](experiment-limits.md#aks-compute-shutdown-and-physical-zone-scope).
 
-The original execution is complete; [AKS results](aks-results.md) preserve measured fault FAILs, physical full-zone BLOCKED and original final private qualification PASS. The first cache/HTTP/1.1 repair passed baseline/node/zone-compute but failed database full-phase availability. The second repair adds predictable local admission and a private HA shared confirmed-order cache, with Entra Workload Identity and independently verified private configuration. Unchanged native-suite reruns are in progress. Four groups remain active during measurements. The original final inventory recorded 87 owned resource/definition/exemption IDs; the cache overlay adds owned resources. Original 24 unrelated resources remain unchanged plus the external Defender workspace, so strict scope delta remains FAIL.
+The original execution is complete; [AKS results](aks-results.md) preserve its measured fault FAILs, physical full-zone BLOCKED and original private qualification PASS. The first cache/HTTP/1.1 repair passed baseline/node/zone-compute but failed database full-phase availability. The second repair added predictable local admission and a private HA shared confirmed-order cache. Final eager load preallocation removed business drops in the last database phase, but observer failure prevented an overall PASS. Measurements are closed; the complete same-version suite remains INCOMPLETE. The original 87-ID owned inventory predates the cache overlay. Original 24 unrelated resources remained unchanged plus the external Defender workspace, so strict scope delta remains FAIL.
 
 Fresh deployments include the cache in `Infrastructure`. For an already qualified deployed AKS lab, apply the independently validated `ReadCache` stage through `scripts/Build-AksLab.ps1` before `Application`; reuse the same manifest/approved private environment. The API Deployment's `Orders__SharedCacheHost` must match the new manifest cache output. Qualify private DNS, actual HA/TLS/public-disable/key-disable and runtime identity, then run a fresh `BASE-001` and the complete unchanged native fault sequence. [Design and boundaries](aks-lab.md#immutable-read-cache-and-ingress-protocol-repair) · [All original and repair results](aks-results.md).
 
 Read [timing attribution](aks-results.md#elapsed-time-and-attribution): manifest-to-final-verification elapsed time was 5 h 05 min 36.744 s; ten unique k6 intervals totalled 2 h 07 min 57.297 s. Recorded retention is an incomplete subtotal, parallel infrastructure stages overlap, and research/diagnosis/manual reconciliation/operator gaps are not fully timed.
 
-The later operator instruction authorizes teardown after successful native-suite reruns. Follow the [workload → managed-node verification → operations → network sequence](aks-lab.md#operator-managed-cleanup-order). Never delete the pre-existing default regional group or Defender workspace. No automatic teardown or governance change was performed.
+Final teardown became operator-managed after one workload-group deletion request had been accepted. Completion was not verified. The [workload → managed-node verification → operations → network sequence](aks-lab.md#operator-managed-cleanup-order) retains the ownership boundary; the pre-existing default regional group and Defender workspace stay outside it.
 
-The private operator report is `.local\<run>\OPERATOR-RESULTS.md`: exact four-group names/87-ID inventory, private-access restart instructions and manual deletion steps remain ignored. Manifest/handoff persist final FAIL, health PASS and all retained writes. The original series stopped only the temporary PC tunnel helper. Current repair stages reopen private management and retain Azure resources until the qualified-success cleanup gate.
+Private operator reports and manifests retain exact inventory, access instructions and raw evidence under ignored `.local\` paths. Their resource-state statements belong to their recorded checkpoints. The final-close handoff supersedes intermediate instructions to continue repair measurements.
 
 ## Technical reference
 
 | Reference | Scope and reading caution |
 | --- | --- |
+| [Both architecture diagrams](diagrams/README.md#current-target-and-evidence-contract) | AKS and App Service first; the older Container Apps drawings are explicitly historical |
 | [Accepted decisions](../DECISIONS-ACCEPTED.md) | D24 governs the new AKS comparison; D17-D23 retain App Service decisions |
+| [Decision register](../DECISIONS.md) | Earlier design questions and options; use the accepted register for approved choices |
 | [Implementation specification](specification.md) | Current AKS navigation and detailed historical App Service requirements; older Linux snapshots retain explicit historical attribution |
 | [Implementation contracts](implementation-contracts.md) | App Service native selector, effect, audit, recovery and retention contracts; use the AKS plan for new VMSS targeting |
 | [Development readiness](development-readiness.md) | App Service deployment and provider qualification history; separate from AKS deployment readiness |
 | [Platform research](research.md) | Current AKS navigation, final Windows comparison and historical Linux qualification/native contracts |
 | [Editable private AKS architecture SVG](diagrams/06-private-aks-zone-lab.svg) | Workload data plane, one-pod-per-host topology, compute boundary and explicit governance-managed public telemetry box outside four owned groups |
-| [Diagram index](diagrams/README.md) | Existing App Service and historical Container Apps diagram index |
+| [Diagram index](diagrams/README.md) | AKS, App Service and native evidence views, followed by the historical drawings |
 | [First-cycle results](first-cycle-results.md) | Original Container Apps/PostgreSQL measurements and cleanup findings |
 | [Historical architecture guide](architecture-guide.md) | Retired Container Apps/Automation walkthrough |
 | [Historical cycle method](lab-cycle-method.md) | Retired autonomous cycle procedure and troubleshooting history |
+
+Read the accepted decisions before implementation requirements when reproducing a design. The final three references document the earlier Container Apps cycle and are optional for the App Service/AKS comparison.
 
 ## Before sharing
 

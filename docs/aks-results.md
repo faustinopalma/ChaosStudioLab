@@ -1,8 +1,8 @@
 # Private AKS comparison results register
 
-[Lab guide](lab-guide.md) · [AKS design and tests](aks-lab.md) · [Experiment limits](experiment-limits.md) · [Historical App Service results](app-service-results.md)
+[Executive summary](executive-summary.md) · [Reading order](lab-guide.md#read-in-this-order) · [AKS design and tests](aks-lab.md) · Next: [Experiment limits](experiment-limits.md) · [Historical App Service results](app-service-results.md)
 
-Final evidence date for the original architecture: 7 November 2026, read-only verification completed at **14:29:18.8910812 UTC**. **The original requested suite has no complete PASS:** baselines passed, every measured fault case failed a required gate, and HA-AZ-001 remains BLOCKED. Combined effect/overlap/recovery/stability/retention/placement passed while full-phase availability failed. Final private qualification passed; all **37,659 of 37,659** acknowledged writes/ten runs were retained. Four owned groups are left active, with strict external scope delta FAIL.
+Start with the final bounded-close summary below for the latest evidence. The original architecture's checkpoint was **14:29:18.8910812 UTC on 7 November 2026**: its suite had no complete PASS, every measured fault case failed a required gate, and HA-AZ-001 remained BLOCKED. Combined effect/overlap/recovery/stability/retention/placement passed while full-phase availability failed. Original private qualification passed; all **37,659 of 37,659** acknowledged writes/ten runs were retained. Four owned groups were active at that checkpoint, with strict external scope delta FAIL. Subsequent repair results and the operator-managed closure are recorded separately below.
 
 Separately, external scope delta remains **FAIL**: original 24 unrelated IDs/complete returned metadata are unchanged, but one extra default Log Analytics workspace exists outside owned groups. Creation by the subscription's Defender for Containers managed identity is independently proven. Public ingestion/query remain Enabled; no all-security-telemetry-private verdict is established.
 
@@ -41,7 +41,7 @@ Direct private PostgreSQL reconciliation retained **78,142 of 78,142 acknowledge
 These are stage wall times, not pure measurement durations or a complete accounting of research/troubleshooting time. Earlier original and failed repair intervals remain separately recorded below.
 
 At **21:00:02 UTC / 22:00:02 CET**, deletion of the ownership-verified workload group was accepted. At **22:08 CET**, the operator took manual teardown ownership. The PC deletion wait and temporary Bastion tunnel were stopped; workload-group deletion completion was not verified, and no additional group deletion was submitted. Its AKS-managed node group may follow the already accepted workload deletion automatically. Remaining cleanup is operator-managed. The external governance-created workspace stays outside the owned manifest and was untouched; no universal zero-cost or strict external-scope PASS is claimed.
-The operator subsequently reported issuing the resource-group deletion commands directly. Further work is documentation-only; Azure deletion completion was not verified. At **22:08 CET**, the operator took manual teardown ownership. The PC deletion wait and temporary Bastion tunnel were stopped; workload-group deletion completion was not verified, and no additional group deletion was submitted. Its AKS-managed node group may follow the already accepted workload deletion automatically. Remaining cleanup is operator-managed. The external governance-created workspace stays outside the owned manifest and was untouched; no universal zero-cost or strict external-scope PASS is claimed.
+The operator subsequently reported issuing the resource-group deletion commands directly. Further work is documentation-only; Azure deletion completion was not verified.
 
 ## Repair history and original conditional teardown
 

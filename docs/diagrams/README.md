@@ -1,11 +1,16 @@
 # Architecture and flow diagrams
 
+[Executive summary with both architectures](../executive-summary.md#2-the-two-measured-architectures) | [Reading order](../lab-guide.md#read-in-this-order)
+
 ## Current target and evidence contract
 
+Read the measured architecture views first. The historical drawings below describe the earlier Container Apps design.
+
+- [Private AKS architecture](06-private-aks-zone-lab.svg): nine nodes, six application pods on distinct workers across three zones, private internal load balancing, PostgreSQL HA, shared confirmed-order caching and the owned compute-fault boundary. The separate governance-managed public telemetry exception is shown explicitly. Use the [versioned results](../aks-results.md#final-bounded-close-summary----7-november-2026) to distinguish original failures, repaired compute PASS results and final database INCONCLUSIVE.
 - [Private App Service target architecture](04-private-linux-app-service.svg): managed six-worker plan, required three-zone participation, separate outbound Integration/inbound PE subnets, private application/SCM/database paths and one runner. The same shape serves the Linux baseline and the Windows comparison variant.
 - [Deterministic native suite evidence contract](05-native-chaos-evidence.svg): independent baseline, exact-instance, zone-selected, database, combined and real-zone verdicts, including effect overlap and all-write durability.
 
-These are editable SVG sources with generic labeled components. On Linux, App Service rejects native process deletion, so the Linux application and combined cases remain BLOCKED. On the [Windows comparison variant](../app-service-results.md#windows-comparison-variant-complete-native-suite-6-november), BASE-001, HA-APP-001, HA-APP-ZONE-001, HA-DB-001 and HA-COMBINED-001 passed recovery and durability on 6 November 2026. Database and combined full-phase availability failed separately at about 97.3%, and HA-AZ-001 remains BLOCKED. All 92,616 acknowledged measurement writes across 31 runs were retained with checksums. The .NET 9 stacks have bounded support through 10 November 2026. Open the sources in Inkscape; export a PNG only when a preview is needed.
+These are editable SVG sources with generic labeled components. On Linux, App Service rejects native process deletion, so the Linux application and combined cases remain BLOCKED. On the [Windows comparison variant](../app-service-results.md#windows-comparison-variant-complete-native-suite-6-november), baseline and process-crash cases passed; database and combined cases passed recovery and durability on 6 November 2026. Database and combined full-phase availability failed separately at about 97.3%, and HA-AZ-001 remains BLOCKED on both platforms. All 92,616 acknowledged App Service measurement writes across 31 runs were retained with checksums. The recorded .NET 9 support deadline is 10 November 2026; further runs require supported-runtime qualification. Open the sources in Inkscape; export a PNG only when a preview is needed.
 
 ## Historical drawings
 

@@ -1,8 +1,8 @@
 # Private AKS and PostgreSQL comparison lab
 
-[Lab guide](lab-guide.md) · [Limits](experiment-limits.md) · [Results](aks-results.md) · [Decision D24](../DECISIONS-ACCEPTED.md#d24-private-aks-comparative-architecture-and-operator-authorization)
+[Executive summary](executive-summary.md) · [Reading order](lab-guide.md#read-in-this-order) · [Limits](experiment-limits.md) · [Results](aks-results.md) · [Decision D24](../DECISIONS-ACCEPTED.md#d24-private-aks-comparative-architecture-and-operator-authorization)
 
-Final evidence date: 7 November 2026. Baselines and final private qualification passed. Every measured fault case remains FAIL at a required gate, including combined full-phase availability despite proven overlap/recovery/stability/retention. Original interrupted topology evidence is preserved; physical full-zone HA-AZ-001 remains BLOCKED. See [final results](aks-results.md).
+Final evidence date: 7 November 2026. The original architecture's measured fault cases failed required gates. The first cache/HTTP/1.1 repair later passed node and selected-zone compute cases. The final shared-cache version passed baseline and achieved 100% scheduled business success during database failover, while its overall database verdict remained INCONCLUSIVE because topology observation stopped early. Final-version compute reruns and repaired combined measurement were incomplete. Physical full-zone HA-AZ-001 remains BLOCKED. See [final close and versioned results](aks-results.md#final-bounded-close-summary----7-november-2026).
 
 [Open the editable private AKS architecture SVG](diagrams/06-private-aks-zone-lab.svg). It shows the workload data plane, one-pod-per-host placement, Local health probes and lab-owned compute fault boundary. The updated drawing explicitly shows the governance-managed public telemetry exception outside the four owned groups. Earlier structural/browser-render checks passed; the telemetry exception and scope delta are described below.
 
