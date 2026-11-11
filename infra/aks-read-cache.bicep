@@ -4,6 +4,8 @@ param workloadResourceGroupName string
 param workloadVnetId string
 param operationsVnetId string
 param runtimePrincipalId string
+@description('Label used for DNS link and nested deployment names; aks or aca.')
+param labelPrefix string = 'aks'
 
 var tags = { project: 'ChaosStudioLab', labId: 'lab-dev01', deploymentInstanceId: deploymentInstanceId }
 resource workloadGroup 'Microsoft.Resources/resourceGroups@2024-03-01' existing = {
@@ -17,12 +19,12 @@ resource dns 'Microsoft.Network/privateDnsZones@2024-06-01' = {
 }
 resource links 'Microsoft.Network/privateDnsZones/virtualNetworkLinks@2024-06-01' = [for (id, index) in [workloadVnetId, operationsVnetId]: {
   parent: dns
-  name: index == 0 ? 'aks-workload' : 'aks-operations'
+  name: index == 0 ? '${labelPrefix}-workload' : '${labelPrefix}-operations'
   location: 'global'
   properties: { registrationEnabled: false, virtualNetwork: { id: id } }
 }]
 module cache 'br/public:avm/res/cache/redis-enterprise:0.5.1' = {
-  name: 'csl-aks-shared-cache'
+  name: 'csl-${labelPrefix}-shared-cache'
   scope: workloadGroup
   params: {
     name: 'csl-cache-${uniqueString(workloadGroup.id)}'

@@ -99,6 +99,9 @@ function Sync-LabTestTooling {
     if ($manifest.ContainsKey('architecture') -and $manifest.architecture -eq 'private-aks') {
         $files += @('scripts\runner\qualify-aks.ps1', 'scripts\runner\observe-aks.ps1')
     }
+    if ($manifest.ContainsKey('architecture') -and $manifest.architecture -eq 'private-aca') {
+        $files += @('scripts\runner\qualify-aca.ps1', 'scripts\runner\observe-aca.ps1', 'scripts\runner\fault-aca.ps1')
+    }
     $checksums = @()
     try {
         $archive = [IO.Compression.ZipFile]::Open($archivePath, [IO.Compression.ZipArchiveMode]::Create)

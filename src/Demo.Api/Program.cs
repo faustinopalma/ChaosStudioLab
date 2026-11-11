@@ -97,6 +97,8 @@ builder.Services.AddSingleton<IOrderRepository>(services =>
 builder.Services.AddSingleton<OrderService>();
 builder.Services.AddSingleton<DatabaseHealthProbe>();
 builder.Services.AddSingleton<DatabaseOpenDiagnostics>();
+builder.Services.AddSingleton(TimeProvider.System);
+builder.Services.AddSingleton<ReplicaFault>();
 builder.Services.AddHostedService<DatabaseWarmupService>();
 
 var app = builder.Build();
@@ -124,6 +126,46 @@ app.MapGet("/health/live", () => Results.Ok(new
     processStartedAtUtc,
     revision = Revision()
 }));
+
+// Platform readiness probe for Container Apps: process health plus the lab replica-fault lease.
+// It deliberately ignores PostgreSQL so a database failover keeps every replica in rotation.
+app.MapGet("/health/serving", (ReplicaFault fault) =>
+{
+    var state = fault.Current;
+    return state.Active
+        ? Results.Json(new { status = "withdrawn", replicaId = ReplicaId(), state.ExpiresAtUtc, state.Reason },
+            statusCode: StatusCodes.Status503ServiceUnavailable)
+        : Results.Ok(new { status = "serving", replicaId = ReplicaId() });
+});
+
+app.MapPost("/diagnostics/replica-fault", (ReplicaFaultRequest? request, ReplicaFault fault, HttpContext context) =>
+{
+    if (request is null || request.Mode is not ("unready" or "exit"))
+        return Results.ValidationProblem(new Dictionary<string, string[]> { ["mode"] = ["Use unready or exit."] });
+    var identity = new { replicaId = ReplicaId(), processId = Environment.ProcessId, processStartedAtUtc, acceptedAtUtc = DateTimeOffset.UtcNow };
+    if (request.Mode == "exit")
+    {
+        // Abrupt replica crash: the response is flushed first, then the process is killed without graceful shutdown.
+        context.Response.OnCompleted(() =>
+        {
+            System.Diagnostics.Process.GetCurrentProcess().Kill();
+            return Task.CompletedTask;
+        });
+        return Results.Json(new { identity.replicaId, identity.processId, identity.processStartedAtUtc, identity.acceptedAtUtc, mode = "exit" },
+            statusCode: StatusCodes.Status202Accepted);
+    }
+    try
+    {
+        var activated = fault.TryActivate(request.TtlSeconds, request.Reason ?? string.Empty, out var state);
+        return Results.Json(new { identity.replicaId, identity.processId, identity.processStartedAtUtc, identity.acceptedAtUtc,
+                mode = "unready", state.ExpiresAtUtc, alreadyActive = !activated },
+            statusCode: activated ? StatusCodes.Status202Accepted : StatusCodes.Status409Conflict);
+    }
+    catch (ArgumentException exception)
+    {
+        return Results.ValidationProblem(new Dictionary<string, string[]> { ["request"] = [exception.Message] });
+    }
+}).RequireAuthorization();
 
 app.MapGet("/health/ready", async (
     DatabaseHealthProbe database,
@@ -321,7 +363,9 @@ static OrderResponse ToResponse(
         TraceId(context));
 
 static string ReplicaId() =>
-    Environment.GetEnvironmentVariable("WEBSITE_INSTANCE_ID") ?? "local";
+    Environment.GetEnvironmentVariable("WEBSITE_INSTANCE_ID")
+    ?? Environment.GetEnvironmentVariable("CONTAINER_APP_REPLICA_NAME")
+    ?? "local";
 
 static string Revision() =>
     Environment.GetEnvironmentVariable("LAB_SOURCE_REVISION") ?? "local";
@@ -331,3 +375,5 @@ static string TraceId(HttpContext context) =>
     ?? context.TraceIdentifier;
 
 public partial class Program;
+
+public sealed record ReplicaFaultRequest(string? Mode, int TtlSeconds, string? Reason);

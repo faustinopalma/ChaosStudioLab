@@ -17,9 +17,13 @@ function Assert-Proof([string] $Name, [bool] $Pass, [object] $Detail) {
 }
 try {
     $addresses = @([Net.Dns]::GetHostAddresses($config.API_FQDN) | ForEach-Object { $_.IPAddressToString })
-    if ($config.PSObject.Properties['ARCHITECTURE'] -and $config.ARCHITECTURE -eq 'private-aks') {
+    $architecture = if ($config.PSObject.Properties['ARCHITECTURE']) { $config.ARCHITECTURE } else { 'app-service' }
+    if ($architecture -eq 'private-aks') {
         if ($config.EXPECTED_API_IP -ne '10.91.3.240') { throw 'AKS private load-balancer address differs from the approved manifest contract.' }
         Assert-Proof 'Private load-balancer DNS' (@($addresses).Count -eq 1 -and $addresses[0] -eq $config.EXPECTED_API_IP) $addresses
+    } elseif ($architecture -eq 'private-aca') {
+        if ($config.EXPECTED_API_IP -notmatch '^10\.96\.[01]\.\d+$') { throw 'Container Apps environment address is outside its approved infrastructure subnet.' }
+        Assert-Proof 'Private Container Apps environment DNS' (@($addresses).Count -eq 1 -and $addresses[0] -eq $config.EXPECTED_API_IP) $addresses
     } else {
         Assert-Proof 'Private endpoint DNS' (@($addresses).Count -gt 0 -and @($addresses | Where-Object { $_ -notlike '10.81.10.*' }).Count -eq 0) $addresses
     }
@@ -83,7 +87,7 @@ try {
     $conflict = Invoke-WebRequest "$base/api/orders" -Method Post -Body $conflictRequest -ContentType application/json -Headers $headers -SkipHttpErrorCheck -TimeoutSec 15
     Assert-Proof 'Different payload conflict' ($conflict.StatusCode -eq 409) $conflict.StatusCode
     $sqlSnapshotPath = $null
-    if ($config.PSObject.Properties['ARCHITECTURE'] -and $config.ARCHITECTURE -eq 'private-aks') {
+    if ($architecture -in @('private-aks','private-aca')) {
         $resource = [Uri]::EscapeDataString('https://ossrdbms-aad.database.windows.net')
         $client = [Uri]::EscapeDataString($config.MIGRATION_CLIENT_ID)
         $databaseToken = Invoke-RestMethod "http://169.254.169.254/metadata/identity/oauth2/token?api-version=2018-02-01&resource=$resource&client_id=$client" -Headers @{Metadata='true'} -TimeoutSec 15
