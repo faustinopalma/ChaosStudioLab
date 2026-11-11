@@ -221,7 +221,15 @@ function Invoke-LabArm {
             TimeoutSec = 120; ContentType = 'application/json'; MaximumRedirection = 0
         }
         if ($null -ne $Body) { $arguments.Body = $Body | ConvertTo-Json -Depth 50 }
-        $response = Invoke-WebRequest @arguments
+        # Read-only GETs are retried on transport failures; mutating calls are never resent.
+        for ($attempt = 1; ; $attempt++) {
+            try { $response = Invoke-WebRequest @arguments; break }
+            catch [Net.Http.HttpRequestException], [Threading.Tasks.TaskCanceledException] {
+                if ($Method -ne 'Get' -or $attempt -ge 4) { throw }
+                Write-Warning "Read-only management request transport failed ($attempt/3); retrying."
+                Start-Sleep -Seconds (5 * $attempt)
+            }
+        }
         return @{
             statusCode = $response.StatusCode
             headers = $response.Headers

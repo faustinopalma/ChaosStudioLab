@@ -12,7 +12,8 @@ try {
     $main = Get-Content "$tmp\aks-main.json" -Raw | ConvertFrom-Json -AsHashtable
     $cacheTemplate = Get-Content "$tmp\aks-read-cache.json" -Raw | ConvertFrom-Json -AsHashtable
     $cacheResources = if ($cacheTemplate.resources -is [hashtable]) { @($cacheTemplate.resources.Values) } else { @($cacheTemplate.resources) }
-    $cache = @($cacheResources | Where-Object name -eq 'csl-aks-shared-cache')[0].properties.parameters
+    $cache = @($cacheResources | Where-Object { $_.name -eq 'csl-aks-shared-cache' -or $_.name -eq "[format('csl-{0}-shared-cache', parameters('labelPrefix'))]" })[0].properties.parameters
+    if ($cacheTemplate.parameters.labelPrefix.defaultValue -ne 'aks') { throw 'The AKS shared-cache deployment must keep its aks default label.' }
     if ($cache.publicNetworkAccess.value -ne 'Disabled' -or $cache.highAvailability.value -ne 'Enabled' -or
         $cache.minimumTlsVersion.value -ne '1.2' -or $cache.enableTelemetry.value -or
         $cache.database.value.accessKeysAuthentication -ne 'Disabled' -or $cache.database.value.clientProtocol -ne 'Encrypted' -or
