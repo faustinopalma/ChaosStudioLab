@@ -1,0 +1,146 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape" width="1400" height="1180" viewBox="0 0 1400 1180" role="img" aria-labelledby="title description">
+  <title id="title">Private Azure Container Apps resilience laboratory</title>
+  <desc id="description">One private runner reaches an internal, zone-redundant Container Apps environment through its static private IP. Six fixed replicas run one digest-pinned image; Azure spreads them across availability zones without exposing per-replica zones. A lab-only authenticated adapter withdraws two replicas from readiness for 360 seconds. Chaos Studio forces PostgreSQL failover. PostgreSQL HA, Azure Managed Redis, ACR and Key Vault use private endpoints. Direct SQL snapshots verify every acknowledged write.</desc>
+  <defs>
+    <style>
+      text { font-family: "Segoe UI", Arial, sans-serif; fill: #000000; }
+      .heading { font-size: 28px; font-weight: 600; }
+      .label { font-size: 17px; font-weight: 600; }
+      .body { font-size: 14px; }
+      .small { font-size: 12px; }
+      .network { fill: none; stroke: #0078d4; stroke-width: 2; }
+      .subnet { fill: none; stroke: #5c2d91; stroke-width: 1.5; stroke-dasharray: 6 4; }
+      .zone { fill: none; stroke: #0078d4; stroke-width: 1.5; }
+      .compute { fill: #cfe4fa; stroke: #0078d4; stroke-width: 1.5; }
+      .withdrawn { fill: #fff4ce; stroke: #f7630c; stroke-width: 2; stroke-dasharray: 6 3; }
+      .neutral { fill: #f3f2f1; stroke: #495057; stroke-width: 1.5; }
+      .identity { fill: #dff6dd; stroke: #107c10; stroke-width: 1.5; }
+      .endpoint { fill: #e8daef; stroke: #5c2d91; stroke-width: 1.5; }
+      .control { fill: #fff4ce; stroke: #f7630c; stroke-width: 1.5; }
+      .dataflow { fill: none; stroke: #0078d4; stroke-width: 2; marker-end: url(#data-arrow); }
+      .management { fill: none; stroke: #5c2d91; stroke-width: 2; stroke-dasharray: 7 4; marker-end: url(#management-arrow); }
+      .fault { fill: none; stroke: #f7630c; stroke-width: 2; stroke-dasharray: 7 4; marker-end: url(#fault-arrow); }
+    </style>
+    <marker id="data-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 L10 5 L0 10 Z" fill="#0078d4"/></marker>
+    <marker id="management-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 L10 5 L0 10 Z" fill="#5c2d91"/></marker>
+    <marker id="fault-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 L10 5 L0 10 Z" fill="#f7630c"/></marker>
+  </defs>
+  <rect width="1400" height="1180" fill="#ffffff"/>
+  <g inkscape:groupmode="layer" inkscape:label="Title and control" id="control-context">
+    <text x="40" y="48" class="heading">Private Container Apps: six replicas, zone-redundant environment</text>
+    <text x="40" y="78" class="body">Sweden Central | Consumption workload profile | internal environment | private HTTPS application and private PostgreSQL HA</text>
+    <rect x="40" y="110" width="260" height="90" rx="8" class="neutral"/>
+    <text x="60" y="141" class="label">Operator PC</text>
+    <text x="60" y="167" class="body">Approved CLI profile</text>
+    <text x="60" y="187" class="small">Bounded stages through Bastion</text>
+    <rect x="430" y="110" width="440" height="90" rx="8" class="control"/>
+    <text x="450" y="141" class="label">Chaos Studio Workspace</text>
+    <text x="450" y="166" class="body">Native PostgreSQL ForcedFailover only</text>
+    <text x="450" y="187" class="small">No native Container Apps or environment fault exists</text>
+    <rect x="900" y="110" width="460" height="90" rx="8" class="control"/>
+    <text x="920" y="141" class="label">Lab replica-fault adapter</text>
+    <text x="920" y="166" class="body">Authenticated call withdraws two replicas from readiness</text>
+    <text x="920" y="187" class="small">360-second in-process lease; independent of PostgreSQL</text>
+    <path d="M300 150 H430" class="management"/>
+  </g>
+  <g inkscape:groupmode="layer" inkscape:label="Private networks" id="private-networks">
+    <rect x="40" y="250" width="320" height="380" rx="10" class="network"/>
+    <text x="60" y="281" class="label">Operations VNet 10.97.0.0/16</text>
+    <rect x="65" y="305" width="270" height="70" rx="6" class="neutral"/>
+    <text x="85" y="333" class="label">Bastion management path</text>
+    <text x="85" y="358" class="body">SSH to the runner only</text>
+    <rect x="65" y="405" width="270" height="110" rx="6" class="compute"/>
+    <text x="85" y="434" class="label">One private runner</text>
+    <text x="85" y="458" class="body">k6: 20 business ops/s + canary</text>
+    <text x="85" y="480" class="small">Replica and dependency observers</text>
+    <text x="85" y="500" class="small">Direct SQL write reconciliation</text>
+    <path d="M200 375 V405" class="management"/>
+    <rect x="65" y="545" width="270" height="55" rx="6" class="neutral"/>
+    <text x="85" y="568" class="body">Controlled NAT egress</text>
+    <text x="85" y="589" class="small">Runner has no public IP</text>
+    <text x="45" y="665" class="body">Bidirectional VNet peering</text>
+    <text x="45" y="688" class="body">Private DNS zones linked to both VNets</text>
+    <rect x="430" y="250" width="930" height="615" rx="10" class="network"/>
+    <text x="450" y="281" class="label">Workload VNet 10.96.0.0/16</text>
+    <path d="M335 455 H400 V350 H480" class="dataflow"/>
+    <path d="M1130 200 V228 H895 V485" class="fault"/>
+  </g>
+  <g inkscape:groupmode="layer" inkscape:label="Container Apps environment" id="environment">
+    <rect x="460" y="300" width="870" height="420" rx="8" class="subnet"/>
+    <text x="480" y="326" class="label">Delegated infrastructure subnet 10.96.0.0/23 | NAT egress</text>
+    <rect x="480" y="340" width="400" height="70" rx="6" class="compute"/>
+    <text x="500" y="367" class="label">Internal environment ingress</text>
+    <text x="500" y="390" class="body">Static private IP / platform TLS / readiness-aware routing</text>
+    <rect x="910" y="340" width="400" height="70" rx="6" class="neutral"/>
+    <text x="930" y="367" class="label">zoneRedundant = true</text>
+    <text x="930" y="390" class="body">Azure places replicas across zones 1, 2 and 3</text>
+    <path d="M680 410 V440" class="dataflow"/>
+    <rect x="480" y="440" width="830" height="200" rx="8" class="zone"/>
+    <text x="500" y="466" class="label">Container app ca-csl-api: one revision, min = max = 6 replicas, 1 vCPU / 2 GiB</text>
+    <rect x="500" y="485" width="250" height="60" rx="5" class="withdrawn"/>
+    <text x="515" y="511" class="label">Replica 1: withdrawn</text>
+    <text x="515" y="532" class="small">Readiness 503 for 360 s; process alive</text>
+    <rect x="770" y="485" width="250" height="60" rx="5" class="withdrawn"/>
+    <text x="785" y="511" class="label">Replica 2: withdrawn</text>
+    <text x="785" y="532" class="small">Readiness 503 for 360 s; process alive</text>
+    <rect x="1040" y="485" width="250" height="60" rx="5" class="compute"/>
+    <text x="1055" y="511" class="label">Replica 3: serving</text>
+    <text x="1055" y="532" class="small">HTTP 8080 behind ingress</text>
+    <rect x="500" y="560" width="250" height="60" rx="5" class="compute"/>
+    <text x="515" y="586" class="label">Replica 4: serving</text>
+    <text x="515" y="607" class="small">HTTP 8080 behind ingress</text>
+    <rect x="770" y="560" width="250" height="60" rx="5" class="compute"/>
+    <text x="785" y="586" class="label">Replica 5: serving</text>
+    <text x="785" y="607" class="small">HTTP 8080 behind ingress</text>
+    <rect x="1040" y="560" width="250" height="60" rx="5" class="compute"/>
+    <text x="1055" y="586" class="label">Replica 6: serving</text>
+    <text x="1055" y="607" class="small">HTTP 8080 behind ingress</text>
+    <text x="480" y="665" class="body">Readiness probe /health/serving checks the process and the fault lease only, so a database failover keeps all replicas in rotation.</text>
+    <text x="480" y="688" class="body">Per-replica zones are platform-managed and are not exposed; the replica fault removes capacity without selecting a zone.</text>
+  </g>
+  <g inkscape:groupmode="layer" inkscape:label="Private managed dependencies" id="managed-dependencies">
+    <rect x="460" y="745" width="870" height="100" rx="8" class="subnet"/>
+    <text x="1000" y="770" class="label">Private-endpoint subnet 10.96.10.0/24</text>
+    <rect x="480" y="785" width="190" height="40" rx="5" class="endpoint"/>
+    <text x="495" y="811" class="body">PostgreSQL endpoint</text>
+    <rect x="690" y="785" width="190" height="40" rx="5" class="endpoint"/>
+    <text x="705" y="811" class="body">Managed Redis endpoint</text>
+    <rect x="900" y="785" width="190" height="40" rx="5" class="endpoint"/>
+    <text x="915" y="811" class="body">Registry endpoint</text>
+    <rect x="1110" y="785" width="200" height="40" rx="5" class="endpoint"/>
+    <text x="1125" y="811" class="body">Key Vault endpoint</text>
+    <path d="M1310 540 H1345 V730 H575 V785" class="dataflow"/>
+    <path d="M785 730 V785" class="dataflow"/>
+    <text x="45" y="740" class="small">Runtime identity: Entra tokens for PostgreSQL</text>
+    <text x="45" y="758" class="small">and Redis; image pull from ACR.</text>
+    <text x="45" y="786" class="small">Writes are acknowledged after PostgreSQL commits;</text>
+    <text x="45" y="804" class="small">caches hold SQL-confirmed immutable orders only.</text>
+    <text x="45" y="832" class="small">Public data-plane access is disabled everywhere.</text>
+    <rect x="40" y="970" width="360" height="105" rx="6" class="identity"/>
+    <text x="60" y="1000" class="label">PostgreSQL 16, zone-redundant HA</text>
+    <text x="60" y="1025" class="body">Primary zone 1, standby zone 2</text>
+    <text x="60" y="1048" class="small">ForcedFailover swaps primary and standby</text>
+    <rect x="490" y="970" width="270" height="105" rx="6" class="identity"/>
+    <text x="510" y="1000" class="label">Azure Managed Redis (HA)</text>
+    <text x="510" y="1025" class="body">Shared confirmed-order reads</text>
+    <text x="510" y="1048" class="small">Entra auth, TLS 10000</text>
+    <rect x="790" y="970" width="260" height="105" rx="6" class="identity"/>
+    <text x="810" y="1000" class="label">Premium ACR</text>
+    <text x="810" y="1025" class="body">One digest-pinned image</text>
+    <text x="810" y="1048" class="small">Same source as AKS</text>
+    <rect x="1080" y="970" width="280" height="105" rx="6" class="identity"/>
+    <text x="1100" y="1000" class="label">Key Vault</text>
+    <text x="1100" y="1025" class="body">Diagnostics token for the runner</text>
+    <text x="1100" y="1048" class="small">RBAC, private access</text>
+    <path d="M575 825 V945 H220 V970" class="dataflow"/>
+    <path d="M785 825 V945 H625 V970" class="dataflow"/>
+    <path d="M995 825 V970" class="dataflow"/>
+    <path d="M1210 825 V970" class="dataflow"/>
+    <path d="M650 200 V215 H415 V1020 H400" class="fault"/>
+  </g>
+  <g inkscape:groupmode="layer" inkscape:label="Evidence boundary" id="evidence-boundary">
+    <rect x="40" y="1095" width="1320" height="70" rx="8" class="control"/>
+    <text x="60" y="1122" class="label">Evidence boundary</text>
+    <text x="60" y="1148" class="body">Faults cover replica capacity loss and PostgreSQL role failover. Container Apps infrastructure, ingress and regional services keep running; whole-zone loss is BLOCKED.</text>
+  </g>
+</svg>

@@ -1,82 +1,17 @@
-# Architecture and flow diagrams
+# Architecture diagrams
 
-[Executive summary with both architectures](../executive-summary.md#2-the-two-measured-architectures) | [Reading order](../lab-guide.md#read-in-this-order)
+The three SVG files are editable in Inkscape. Each uses named layers, generic labels and private address ranges; none contains tenant, subscription or resource names.
 
-## Current target and evidence contract
+| Diagram | Platform |
+| --- | --- |
+| [04-private-linux-app-service.svg](04-private-linux-app-service.svg) | App Service: six workers in three zones, Private Endpoint ingress, VNet Integration egress |
+| [06-private-aks-zone-lab.svg](06-private-aks-zone-lab.svg) | AKS: six single-node pools, internal load balancer, zone-compute fault boundary |
+| [07-private-container-apps.svg](07-private-container-apps.svg) | Container Apps: internal zone-redundant environment, six replicas, readiness-withdrawal fault |
 
-Read the measured architecture views first. The historical drawings below describe the earlier Container Apps design.
-
-- [Private AKS architecture](06-private-aks-zone-lab.svg): nine nodes, six application pods on distinct workers across three zones, private internal load balancing, PostgreSQL HA, shared confirmed-order caching and the owned compute-fault boundary. The separate governance-managed public telemetry exception is shown explicitly. Use the [versioned results](../aks-results.md#final-bounded-close-summary----7-november-2026) to distinguish original failures, repaired compute PASS results and final database INCONCLUSIVE.
-- [Private App Service target architecture](04-private-linux-app-service.svg): managed six-worker plan, required three-zone participation, separate outbound Integration/inbound PE subnets, private application/SCM/database paths and one runner. The same shape serves the Linux baseline and the Windows comparison variant.
-- [Deterministic native suite evidence contract](05-native-chaos-evidence.svg): independent baseline, exact-instance, zone-selected, database, combined and real-zone verdicts, including effect overlap and all-write durability.
-
-These are editable SVG sources with generic labeled components. On Linux, App Service rejects native process deletion, so the Linux application and combined cases remain BLOCKED. On the [Windows comparison variant](../app-service-results.md#windows-comparison-variant-complete-native-suite-6-november), baseline and process-crash cases passed; database and combined cases passed recovery and durability on 6 November 2026. Database and combined full-phase availability failed separately at about 97.3%, and HA-AZ-001 remains BLOCKED on both platforms. All 92,616 acknowledged App Service measurement writes across 31 runs were retained with checksums. The recorded .NET 9 support deadline is 10 November 2026; further runs require supported-runtime qualification. Open the sources in Inkscape; export a PNG only when a preview is needed.
-
-## Historical drawings
-
-The three drawings below depict Container Apps and the previous Automation lifecycle. They remain historical artifacts. The [current specification](../specification.md) and current target/evidence diagrams above supersede their conflicting topology, fault and lifecycle content.
-
-The SVG files are the editable sources. Open them directly in Inkscape. The PNG files provide previews for Markdown readers and sharing.
-
-For a connected explanation of the components, request paths, test evidence, and lifecycle transitions shown here, read the [architecture and operating guide](../architecture-guide.md).
-
-| Diagram | Editable SVG | PNG preview | Specification |
-| --- | --- | --- | --- |
-| Private architecture | [Open SVG](01-private-architecture.svg) | [Open PNG](01-private-architecture.png) | [Target architecture](../specification.md#2-target-architecture) |
-| HA test dynamics | [Open SVG](02-ha-test-dynamics.svg) | [Open PNG](02-ha-test-dynamics.png) | [Experiments](../specification.md#4-experiment-catalog-and-evidence) and [measurements](../specification.md#5-workload-procedure-and-measurements) |
-| Lab lifecycle | [Open SVG](03-lab-lifecycle.svg) | [Open PNG](03-lab-lifecycle.png) | [Lifecycle commands](../specification.md#8-lab-lifecycle-commands) |
-
-## 1. Private architecture
-
-Shows the two lab-owned VNets, private endpoints, and regional managed services. The supporting-services panel aggregates the network-group private DNS zones and operations-group NAT/Bastion. NAT and Bastion are hosted with operations; the panel is a logical grouping. Private-zone links serve both VNets through Azure-provided DNS, and direct bidirectional peering carries private cross-VNet traffic. No hub VNet, Azure Firewall, or appliance UDR is deployed.
-
-Standard NAT is a single-zone management egress dependency outside the application request path; the diagram makes no claim of zone-redundant management connectivity.
-
-Container Apps uses VNet integration and an environment private endpoint. Azure manages replica placement across zones. The zone badges show the available zone set; individual replica IDs have no asserted zone mapping.
-
-PostgreSQL uses the Private Link-compatible model. Its primary and standby occupy distinct zones. Azure manages the additional WAL replica. Full database nodes and the log role have different responsibilities.
-
-The control panel lists orchestration relationships. Azure Automation runs lifecycle code on the private Hybrid Workers. Those workers access private control storage and perform private checks.
-
-![Private architecture](01-private-architecture.png)
-
-## 2. HA test dynamics
-
-Shows the combined test sequence and the separate readiness-withdrawal and database-failover mechanisms. Load and the independent canary continue during injection.
-
-Actual database disruption must overlap the replica withdrawal for the combined scenario. Recovery is measured from observed disruption. Reports require write reconciliation and cleanup evidence.
-
-Chaos Studio Workspaces and Scenarios carry a preview label. Their regional schema and behavior require validation. A full-zone verdict requires qualifying real-zone injection and affected-zone evidence.
-
-![HA test dynamics](02-ha-test-dynamics.png)
-
-## 3. Lab lifecycle
-
-Shows build, verified readiness, suspension, resume, and destruction. Successful build or resume arms the 24-hour lease. Idempotent reruns preserve its existing deadline.
-
-The two private Hybrid Workers, control storage, and required networking remain available during suspension. Hourly reconciliation stops PostgreSQL again after a platform-initiated restart.
-
-Destroy removes the complete lab-owned environment, including networks and lifecycle control. Final deletion runs from the external operator or CI context. Mandatory Azure-retained records are disclosed.
-
-![Lab lifecycle](03-lab-lifecycle.png)
-
-## Editing and export
-
-Each SVG contains five Inkscape layers: Background, Boundaries, Connectors, Components, and Labels. Text remains editable. Service icons are embedded vector groups with unique IDs. The files require no external images or icon-library paths.
-
-After editing an SVG, regenerate its corresponding PNG with Inkscape. From this directory in PowerShell:
+To export a PNG preview from this folder:
 
 ```powershell
-& 'C:\Program Files\Inkscape\bin\inkscape.com' `
-  '.\01-private-architecture.svg' `
-  '--export-type=png' `
-  '--export-filename=.\01-private-architecture.png'
+& 'C:\Program Files\Inkscape\bin\inkscape.com' '.\07-private-container-apps.svg' '--export-type=png' '--export-filename=.\07-private-container-apps.png'
 ```
 
-Use the corresponding filename for the other diagrams. Preserve the service icons' shape, colors, and proportions.
-
-## Icon provenance
-
-Service icons come from the supplied local Azure Public Service Icons collection. Their original artwork is embedded in the SVGs. Microsoft publishes the [Azure architecture icons and usage terms](https://learn.microsoft.com/en-us/azure/architecture/icons/). The diagrams illustrate the services in accordance with that architectural use.
-
-The historical drawings follow the earlier specification preserved at Git tag `baseline-before-app-service-refactor`. The [current specification](../specification.md) and [D17-D19](../../DECISIONS-ACCEPTED.md#d17-private-azure-app-service-across-three-zones) define their required replacement.
+The earlier Container Apps and lifecycle drawings (01–03) and the native-evidence diagram (05) are preserved at Git tag `detailed-records-2026-11-10`.
