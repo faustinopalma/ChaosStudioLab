@@ -19,9 +19,17 @@ $lock=[IO.File]::Open("$ManifestPath.lock",'OpenOrCreate','ReadWrite','None')
 $sshOptions=@(Get-LabSshOptions $m $root)
 $sshArgs=$sshOptions+@('-p',"$TunnelPort",'csloperator@127.0.0.1')
 $children=[Collections.Generic.List[hashtable]]::new()
-function Invoke-Private([string] $Command){
-    & ssh @sshArgs $Command | Out-Host
-    if($LASTEXITCODE -ne 0){throw "Private command failed ($LASTEXITCODE): $Command"}
+function Invoke-Private([string] $Command,[switch] $Retry){
+    for($attempt=1;;$attempt++){
+        & ssh @sshArgs $Command | Out-Host
+        $exit=$LASTEXITCODE
+        if($exit -eq 0){return}
+        # ssh returns 255 for its own transport failures; only idempotent commands are retried after the tunnel recovers.
+        if(-not $Retry -or $exit -ne 255 -or $attempt -ge 4){throw "Private command failed ($exit): $Command"}
+        Write-Warning "Private transport failed ($attempt/3); waiting for the tunnel and retrying the idempotent command."
+        Start-Sleep 15
+        Wait-LabSsh $m $root $TunnelPort
+    }
 }
 function Start-Private([string] $Label,[string] $Command,[string] $ReadyLine){
     $info=[Diagnostics.ProcessStartInfo]::new((Get-Command ssh).Source)
@@ -52,12 +60,16 @@ function Complete-Private([hashtable] $Child,[int] $TimeoutSeconds=1830){
     return $Child.exitCode
 }
 function Get-Remote([string] $Remote,[string] $Local){
-    & scp @sshOptions -P $TunnelPort "csloperator@127.0.0.1:$Remote" $Local
-    if($LASTEXITCODE -ne 0){throw "Private evidence retrieval failed: $Remote"}
+    for($attempt=1;$attempt -le 4;$attempt++){
+        & scp @sshOptions -P $TunnelPort "csloperator@127.0.0.1:$Remote" $Local
+        if($LASTEXITCODE -eq 0){return}
+        Start-Sleep 15
+    }
+    throw "Private evidence retrieval failed: $Remote"
 }
 function Qualify([string] $Label){
     $name="aca-placement-$caseId-$Label.json"
-    Invoke-Private "cd ~/csl && timeout 330 pwsh -NoProfile -File scripts/runner/qualify-aca.ps1 -OutputPath results/$name"
+    Invoke-Private "cd ~/csl && timeout 330 pwsh -NoProfile -File scripts/runner/qualify-aca.ps1 -OutputPath results/$name" -Retry
     Get-Remote "csl/results/$name" "$caseRoot\$name"
     Get-Content "$caseRoot\$name" -Raw|ConvertFrom-Json -AsHashtable
 }
@@ -70,8 +82,20 @@ function Get-Postgres([string] $Label){
 }
 function Complete-Measurement([hashtable] $Load,[string] $RunId,[string] $Phase){
     $exit=Complete-Private $Load
+    if($exit -eq 255){
+        # The SSH session dropped; the guest load keeps writing to its own log. Wait for its own completion record.
+        Write-Warning 'Load session transport dropped; waiting for the guest run to write run.json.'
+        $deadline=[DateTimeOffset]::UtcNow.AddMinutes(25)
+        do{
+            Start-Sleep 30
+            & ssh @sshArgs "test -s ~/csl/results/$RunId/run.json" 2>$null
+            $done=$LASTEXITCODE -eq 0
+        }while(-not $done -and [DateTimeOffset]::UtcNow -lt $deadline)
+        if(-not $done){throw "Guest load $RunId did not complete after the transport drop."}
+        $exit=0
+    }
     $retentionStarted=[DateTimeOffset]::UtcNow
-    Invoke-Private "cd ~/csl && timeout 3600 pwsh -NoProfile -File scripts/runner/verify.ps1 -VerifyAllRuns > all-history-$caseId.log 2>&1"
+    Invoke-Private "cd ~/csl && timeout 3600 pwsh -NoProfile -File scripts/runner/verify.ps1 -VerifyAllRuns > all-history-$caseId.log 2>&1" -Retry
     Save-LabRunnerEvidence $ManifestPath $Phase $TunnelPort
     $history=Get-Content "$root\evidence\results\all-runs-durability.json" -Raw|ConvertFrom-Json -AsHashtable
     if($history.status -ne 'PASS' -or $history.readSource -ne 'private-postgresql-direct-snapshot' -or
@@ -144,7 +168,7 @@ try{
         try{
             Start-Sleep 45
             if($load.process.HasExited -or $health.process.HasExited -or $topology.process.HasExited){throw 'BLOCKED: load/observer ended before injection.'}
-            Invoke-Private "cd ~/csl && test -s results/$runId/started.json"
+            Invoke-Private "cd ~/csl && test -s results/$runId/started.json" -Retry
             if($database){
                 $intent=Start-LabNativeExecution $configuration.id $m $ManifestPath "$caseRoot\database"
                 $submittedAt=[DateTimeOffset]$intent.requestedAtUtc
@@ -165,7 +189,14 @@ try{
                 $name="replica-fault-$runId.json"
                 $faultStarted=[DateTimeOffset]::UtcNow
                 if(-not $submittedAt){$submittedAt=$faultStarted}
-                Invoke-Private "cd ~/csl && timeout 120 pwsh -NoProfile -File scripts/runner/fault-aca.ps1 -OutputPath results/$name -Count 2 -TtlSeconds 360 -Mode unready -Reason $TestId"
+                try{Invoke-Private "cd ~/csl && timeout 120 pwsh -NoProfile -File scripts/runner/fault-aca.ps1 -OutputPath results/$name -Count 2 -TtlSeconds 360 -Mode unready -Reason $TestId"}
+                catch{
+                    # Never resubmit the fault: wait for the guest adapter's own result after a transport drop.
+                    Write-Warning "Fault adapter session failed: $($_.Exception.Message). Waiting for the guest result without resubmitting."
+                    $deadline=[DateTimeOffset]::UtcNow.AddSeconds(180);$done=$false
+                    do{Start-Sleep 15;& ssh @sshArgs "test -s ~/csl/results/$name" 2>$null;$done=$LASTEXITCODE -eq 0}while(-not $done -and [DateTimeOffset]::UtcNow -lt $deadline)
+                    if(-not $done){throw}
+                }
                 $faultPath="$caseRoot\$name"
                 Get-Remote "csl/results/$name" $faultPath
                 $report.replicaFault=Get-Content $faultPath -Raw|ConvertFrom-Json -AsHashtable

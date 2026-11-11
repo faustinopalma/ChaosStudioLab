@@ -14,21 +14,25 @@ $token=& az keyvault secret show --vault-name $c.VAULT_NAME --name diagnostics-t
 if($LASTEXITCODE -ne 0 -or -not $token){throw 'Fault adapter secret retrieval failed.'}
 $targets=[Collections.Generic.List[object]]::new()
 $attempts=[Collections.Generic.List[object]]::new()
+# Every HTTP 202 is a new withdrawal on a distinct replica (an active lease answers 409), so the
+# accepted count is the hard safety limit. It is incremented before any response parsing.
+$accepted=0
 $deadline=[DateTimeOffset]::UtcNow.AddSeconds(90)
 $body=@{mode=$Mode;ttlSeconds=$TtlSeconds;reason=$Reason}|ConvertTo-Json -Compress
 try{
-    while($targets.Count -lt $Count -and [DateTimeOffset]::UtcNow -lt $deadline){
+    while($accepted -lt $Count -and [DateTimeOffset]::UtcNow -lt $deadline){
         $requested=[DateTimeOffset]::UtcNow
         $entry=[ordered]@{requestedAtUtc=$requested.ToString('O');statusCode=0;replicaId=$null;error=$null}
         try{
             $response=Invoke-WebRequest "https://$($c.API_FQDN)/diagnostics/replica-fault" -Method Post -Body $body -ContentType 'application/json' `
                 -Headers @{Authorization="Bearer $token";Connection='close';'X-Run-Id'="fault-$Reason"} -SkipHttpErrorCheck -TimeoutSec 10
             $entry.statusCode=$response.StatusCode
+            if($response.StatusCode -eq 202){$accepted++}
             if($response.StatusCode -in @(202,409)){
                 $result=$response.Content|ConvertFrom-Json
-                $entry.replicaId=$result.replicaId
-                if($response.StatusCode -eq 202 -and $result.replicaId -notin $targets.replicaId){
-                    $targets.Add([ordered]@{replicaId=$result.replicaId;processId=$result.processId;processStartedAtUtc=$result.processStartedAtUtc
+                $entry.replicaId=[string]$result.replicaId
+                if($response.StatusCode -eq 202){
+                    $targets.Add([ordered]@{replicaId=[string]$result.replicaId;processId=$result.processId;processStartedAtUtc=$result.processStartedAtUtc
                         requestedAtUtc=$requested.ToString('O');acceptedAtUtc=$result.acceptedAtUtc
                         expiresAtUtc=if($Mode -eq 'unready'){$result.expiresAtUtc}else{$null}})
                 }
@@ -36,11 +40,12 @@ try{
         }catch{$entry.error=$_.Exception.Message}
         $entry.observedAtUtc=[DateTimeOffset]::UtcNow.ToString('O')
         $attempts.Add($entry)
-        if($targets.Count -lt $Count){Start-Sleep -Milliseconds 500}
+        if($accepted -lt $Count){Start-Sleep -Milliseconds 500}
     }
-    $status=if($targets.Count -eq $Count){'APPLIED'}else{'INCOMPLETE'}
-    @{status=$status;mode=$Mode;ttlSeconds=$TtlSeconds;reason=$Reason;targets=$targets.ToArray();attempts=$attempts.ToArray()
+    $distinct=@($targets|ForEach-Object {$_['replicaId']}|Sort-Object -Unique)
+    $status=if($accepted -eq $Count -and $distinct.Count -eq $Count){'APPLIED'}else{'INCOMPLETE'}
+    @{status=$status;mode=$Mode;ttlSeconds=$TtlSeconds;reason=$Reason;acceptedWithdrawals=$accepted;targets=$targets.ToArray();attempts=$attempts.ToArray()
         completedAtUtc=[DateTimeOffset]::UtcNow.ToString('O')}|ConvertTo-Json -Depth 10|Set-Content -LiteralPath $OutputPath
-    if($status -ne 'APPLIED'){throw "Fault adapter reached $($targets.Count) of $Count distinct replicas."}
-    "CSL_REPLICA_FAULT_APPLIED:$($targets.replicaId -join ',')"
+    if($status -ne 'APPLIED'){throw "Fault adapter reached $accepted accepted withdrawals and $($distinct.Count) distinct replicas; requested $Count."}
+    "CSL_REPLICA_FAULT_APPLIED:$($distinct -join ',')"
 }finally{$token=$null}
