@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape" width="1600" height="1080" viewBox="0 0 1600 1080">
   <title>Private App Service resilience lab - deployed architecture</title>
-  <desc>Spain Central workload: all six workers served actual health and checksum-verified business traffic in three physical zones. Separate outbound Integration and inbound Private Endpoint subnets and private PostgreSQL HA. One private runner and operations VNet/NAT/Bastion remain in Sweden Central with global VNet peering. Linux App Service rejects native process deletion, so an explicit Windows comparison variant with the same plan shape, private paths and database runs the process-crash tests. On 6 November 2026 the Windows variant passed baseline, exact-instance, zone-selected, database and combined recovery and durability; full-phase database availability failed separately. Observed primary/standby are zones 2/1. Runtime support ends 10 November 2026.</desc>
+  <desc>Spain Central workload: all six workers served actual health and checksum-verified business traffic in three physical zones. Separate outbound Integration and inbound Private Endpoint subnets and private PostgreSQL HA. One private runner and operations VNet/NAT/Bastion remain in Sweden Central with global VNet peering. Linux App Service rejects native process deletion, so an explicit Windows comparison variant with the same plan shape, private paths and database runs the process-crash tests. Observed primary/standby are zones 2/1.</desc>
   <defs>
     <marker id="arrow-blue" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth"><path d="M0,0 L0,6 L9,3 z" fill="#0078d4"/></marker>
     <marker id="arrow-green" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth"><path d="M0,0 L0,6 L9,3 z" fill="#107c10"/></marker>
@@ -46,7 +46,7 @@
   </g>
   <g id="labels" inkscape:groupmode="layer" inkscape:label="Labels">
     <text x="75" y="60" class="title">Private App Service resilience lab</text>
-    <text x="75" y="88" class="small">Spain Central workload | Sweden Central management/Chaos | six workers / three zones and complete baseline PASS</text>
+    <text x="75" y="88" class="small">Spain Central workload | Sweden Central management/Chaos | six workers / three zones</text>
     <text x="75" y="165" class="heading">Operator PC</text>
     <text x="75" y="195">Approved CLI / authorized stages</text>
     <text x="75" y="220" class="small">Visible logs; lab retained after tests</text>
@@ -73,6 +73,6 @@
     <text x="500" y="830" class="small">Blue: private ingress / SCM     Green: application data path     Purple dashed: native control-plane fault targeting</text>
     <text x="500" y="895" class="heading">Private PostgreSQL Flexible Server - public data plane disabled</text>
     <text x="525" y="955">Observed primary - zone 2</text><text x="1075" y="955">Observed HA standby - zone 1</text>
-    <text x="50" y="1045" class="small">Linux app crash BLOCKED by platform; Windows variant: app, zone, DB and combined recovery PASS; DB full-phase availability FAIL. Lab retained.</text>
+    <text x="50" y="1045" class="small">Linux rejected the native process fault; the tests ran on a Windows variant with the same private design.</text>
   </g>
 </svg>

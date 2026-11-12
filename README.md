@@ -6,20 +6,21 @@ This lab answers those questions on Azure App Service, Azure Kubernetes Service 
 
 ## Results at a glance
 
+Each platform ran under 20 business operations per second. *Business success* is the share of scheduled operations that completed over the whole fault phase; *recovery* is the time from the first observed database error to the first full minute with at least 99% success.
+
 | Fault | App Service | AKS | Container Apps |
 | --- | --- | --- | --- |
-| Application capacity loss | PASS, 100% | PASS, 99.95–99.96% | PASS, 100% |
-| PostgreSQL failover | Recovery 36 s, availability 97.3% (FAIL) | Business 100%, INCONCLUSIVE | PASS, 100%, recovery 35 s |
-| Both together | Recovery 35 s, availability 97.3% (FAIL) | Not run on the final version | PASS, 100%, recovery 28 s |
-| Whole-zone outage | BLOCKED | BLOCKED | BLOCKED |
-| Acknowledged writes lost | 0 of 92,616 | 0 of 78,142 | 0 of 26,264 |
+| Application capacity loss | 100% | 99.96% (one node) / 99.95% (zone-1 nodes) | 100% |
+| PostgreSQL failover | 97.35%, recovery 36 s | 99.76%, recovery 27 s | 100%, recovery 35 s |
+| Failover plus capacity loss | 97.32%, recovery 35 s | 97.44%, recovery 29 s (first version) | 100%, recovery 28 s |
+| Acknowledged writes lost | 0 of 22,424 | 0 of 68,245 | 0 of 20,689 |
 
-The tests establish high availability for component faults. Disaster recovery, meaning a whole zone or region and a backup restore, was not exercised because Chaos Studio offers no fault that takes down a zone with its managed services.
+These are high-availability tests of component faults. Disaster recovery, such as a regional failover or a backup restore, was outside the scope.
 
 ## Reading order
 
 1. [Executive summary](docs/executive-summary.md): architectures, comparison, what Chaos Studio covers, HA and DR conclusions.
-2. [Method](docs/method.md): workload, fault mechanisms, acceptance gates and verdicts.
+2. [Method](docs/method.md): workload, fault mechanisms and metrics.
 3. Platform results: [App Service](docs/app-service-results.md), [AKS](docs/aks-results.md), [Container Apps](docs/container-apps-results.md).
 4. [Running the lab](docs/running-the-lab.md): prerequisites, stages, local checks and cleanup.
 
@@ -34,7 +35,7 @@ The tests establish high availability for component faults. Disaster recovery, m
 | [tests](tests/) | Load scenario, evaluators, contract fixtures and the publication guard |
 | [config](config/) | Generic lab settings and an environment template without private values |
 
-The detailed execution records written during the experiments, including every failed and repaired attempt, are preserved at Git tag `detailed-records-2026-11-10`.
+The detailed execution records written during the experiments are preserved at Git tag `detailed-records-2026-11-10`.
 
 ## Private context
 

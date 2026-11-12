@@ -29,7 +29,7 @@ foreach ($test in 'BASE-001','HA-REPLICA-001','HA-DB-001','HA-COMBINED-001') {
 }
 ```
 
-The preflight records every resource outside the lab so the final inventory can be compared with it. `Application` migrates the database, builds the image on the runner, pushes it to the private registry, deploys the container app with that exact digest and runs the private smoke and durability checks. Each test writes its verdict and evidence under `.local\aca-run\tests\`.
+The preflight records every resource outside the lab so the final inventory can be compared with it. `Application` migrates the database, builds the image on the runner, pushes it to the private registry, deploys the container app with that exact digest and runs the private smoke and durability checks. Each test writes its measurements and evidence under `.local\aca-run\tests\`.
 
 ## AKS and App Service
 

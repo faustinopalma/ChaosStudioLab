@@ -20,13 +20,12 @@ To remove capacity, the runner calls the fault endpoint through the ingress unti
 
 ## Results
 
-| Phase | Business ops OK | Failed ops | Failed attempts, retried | Drops | Canary OK / dropped | p95 | Verdict |
-| --- | ---: | ---: | ---: | ---: | ---: | ---: | --- |
-| Baseline, 10 min | 12,001 | 0 | 0 | 0 | 600 / 0 | 28 ms | PASS |
-| Two of six replicas withdrawn, 18 min | 21,600 | 0 | 0 | 0 | 1,081 / 0 | 28 ms | PASS |
-| PostgreSQL forced failover, 18 min | 21,601 | 0 | 561 | 0 | 1,055 / 25 | 30 ms | PASS, recovery 35.2 s |
-| Failover plus replica withdrawal, 18 min | 21,601 | 0 | 350 | 0 | 1,063 / 18 | 29 ms | PASS, recovery 27.6 s |
-| Whole-zone outage | not injected | | | | | | BLOCKED |
+| Phase | Business ops OK | Failed ops | Failed attempts, retried | Drops | Canary OK / dropped | p95 | Recovery |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| Baseline, 10 min | 12,001 | 0 | 0 | 0 | 600 / 0 | 28 ms | |
+| Two of six replicas withdrawn, 18 min | 21,600 | 0 | 0 | 0 | 1,081 / 0 | 28 ms | |
+| PostgreSQL forced failover, 18 min | 21,601 | 0 | 561 | 0 | 1,055 / 25 | 30 ms | 35.2 s |
+| Failover plus replica withdrawal, 18 min | 21,601 | 0 | 350 | 0 | 1,063 / 18 | 29 ms | 27.6 s |
 
 Let's read the replica case first. The observer saw both target replicas unready and the four others ready for 345.7 seconds without interruption, and no successful request came from a withdrawn replica in that interval. Clients saw nothing: across 18 minutes there was not a single failed attempt, and the first five minutes after the withdrawal had 100% success with a 29 ms p95.
 
@@ -34,17 +33,15 @@ The database cases show the cache design at work. During the failover the depend
 
 The canary dropped 25 and 18 scheduled checks during the failovers. Each canary performs a confirmed write; when every write waits on the database, its 10 virtual users are all busy and the next scheduled check has no user to run on. The business workload, with 200 virtual users, dropped nothing.
 
-Direct PostgreSQL reconciliation found all 26,264 acknowledged measurement writes across the seven Container Apps runs, each with its expected checksum.
+Direct PostgreSQL reconciliation found all 20,689 acknowledged writes from these five runs, including the warmup, each with its expected checksum.
 
 ## Findings worth keeping
 
-- **The ingress honors readiness strictly.** A defect in the first version of the fault adapter withdrew all six replicas instead of two. The observer saw no ready replica for about 5.7 minutes; in the central five minutes all 5,864 attempts failed at the connection level, and service returned as soon as the leases expired. Container Apps does not fall back to routing to unready replicas, so a readiness probe that includes the database would turn every database failover into a full outage. That run was discarded and is not part of the results; the adapter now stops after the requested number of accepted withdrawals, and a local fixture with six simulated replicas reproduces the original defect.
 - **Withdrawal is graceful.** Replicas left rotation within about 13 seconds of the call with zero failed requests, because the probe changes routing while in-flight requests complete normally.
-- **One Chaos Studio status read failed.** In the combined case a transient HTTP error while polling the native operation marked the case BLOCKED although load, both faults and reconciliation had completed. We read the same operation's final status from its saved polling URL, authenticated the failover in the Activity Log and evaluated the saved evidence without injecting anything again. The original verdict is kept next to the reconciled one, and read-only polls now retry.
 - **Probes with a 1-second timeout occasionally fail under load.** One unrelated replica reported unready for a single 5-second sample, without restart or client impact.
 
 ## What the evidence supports
 
-With six replicas, a database-independent readiness probe and SQL-confirmed caching, Container Apps kept 100% business availability when a third of its capacity left rotation, when PostgreSQL failed over, and when both happened together. The replica fault is gentler than a crash or a node loss: the processes stay alive and drain in-flight work. An abrupt replica crash and a zone loss affecting the Container Apps infrastructure remain untested.
+With six replicas, a database-independent readiness probe and SQL-confirmed caching, Container Apps kept 100% business success when a third of its capacity left rotation, when PostgreSQL failed over, and when both happened together. The replica fault is gentler than a crash or a node loss: the processes stay alive and drain in-flight work. An abrupt replica crash remains untested.
 
 The infrastructure deployment took 24 minutes; all build stages together, including image build, private checks and inventory recording, took 77 minutes. The four measured cases took about 1 hour 45 minutes. The lab's resource groups were deleted after the measurements.

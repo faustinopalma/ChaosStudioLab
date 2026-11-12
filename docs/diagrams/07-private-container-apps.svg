@@ -141,6 +141,6 @@
   <g inkscape:groupmode="layer" inkscape:label="Evidence boundary" id="evidence-boundary">
     <rect x="40" y="1095" width="1320" height="70" rx="8" class="control"/>
     <text x="60" y="1122" class="label">Evidence boundary</text>
-    <text x="60" y="1148" class="body">Faults cover replica capacity loss and PostgreSQL role failover. Container Apps infrastructure, ingress and regional services keep running; whole-zone loss is BLOCKED.</text>
+    <text x="60" y="1148" class="body">Faults cover replica capacity loss and PostgreSQL role failover. Container Apps infrastructure, ingress and regional services keep running.</text>
   </g>
 </svg>

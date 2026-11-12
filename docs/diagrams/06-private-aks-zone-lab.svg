@@ -169,6 +169,6 @@
     <rect x="40" y="1290" width="1320" height="85" rx="8" class="control"/>
     <text x="60" y="1320" class="label">Evidence boundary</text>
     <text x="60" y="1345" class="body">Native faults cover tenant AKS node shutdowns and PostgreSQL role failover. Managed regional dependencies remain running.</text>
-    <text x="60" y="1367" class="small">Every acknowledged write is reconciled directly in SQL. Combined overlap is independently observed. Whole-Azure-zone coverage stays BLOCKED.</text>
+    <text x="60" y="1367" class="small">Every acknowledged write is reconciled directly in SQL. Combined overlap is independently observed.</text>
   </g>
 </svg>

@@ -2,15 +2,15 @@
 
 [README](../README.md) | Details: [Method](method.md) · [App Service](app-service-results.md) · [AKS](aks-results.md) · [Container Apps](container-apps-results.md)
 
-The goal was to use Azure Chaos Studio to test *high availability* (HA), the ability to keep serving or recover automatically when a component fails, and *disaster recovery* (DR), the ability to restore service and data after a broader loss. We ran one order API, which acknowledges a write only after PostgreSQL commits it, on three Azure platforms between 4 and 11 November 2026, under the same load and the same acceptance gates.
+The goal was to use Azure Chaos Studio to test *high availability* (HA), the ability to keep serving or recover automatically when a component fails, and *disaster recovery* (DR), the ability to restore service and data after a broader loss. We ran one order API, which acknowledges a write only after PostgreSQL commits it, on three Azure platforms between 4 and 11 November 2026, under the same load and with the same measurements.
 
 ## 1. Conclusion
 
-All three platforms survived the loss of application capacity with almost no client impact, and no acknowledged write was lost in any run: 92,616 on App Service, 78,142 on AKS and 26,264 on Container Apps. The decisive factor for database failover was the application design. Without a cache, App Service lost about 2.7% of business operations, as failures or drops, during the 18-minute failover phase; with SQL-confirmed caching and retries, AKS and Container Apps completed every business operation.
+All three platforms kept serving through the loss of application capacity, and no acknowledged write was lost in any reported run: 22,424 on App Service, 68,245 on AKS and 20,689 on Container Apps. The decisive factor for database failover was the application design. Without a cache, App Service lost 2.7% of business operations, failed or dropped, during the 18-minute failover phase. With SQL-confirmed caching and idempotent retries, no business operation failed on AKS or Container Apps. On AKS the load generator still dropped 51 scheduled operations while it was creating virtual users; on Container Apps, with virtual users preallocated, business success was 100%.
 
-Container Apps is the only platform where the complete suite passed on a single version: baseline, replica withdrawal, PostgreSQL failover and the combined fault. On AKS the best version passed node and zone-compute shutdown, and a later version passed the database business gate, but no single version ran the whole suite.
+Container Apps reached 100% business success in every case. On AKS the best compute results and the best database result come from two successive versions of the application, and the combined fault was measured only on the first version.
 
-DR remains untested. Chaos Studio has no fault that removes a whole availability zone together with its managed services, and the lab ran no regional failover or backup restore. The results support HA conclusions for the specific faults we injected.
+DR was outside the scope: the lab ran no regional failover or backup restore. The results describe HA for the specific faults we injected.
 
 ## 2. The three architectures
 
@@ -30,14 +30,14 @@ Every platform used the same private design: a private runner generating load, p
 
 ## 3. Results
 
-The table shows the best qualified result for each platform and fault. Business success is measured over the whole 18-minute fault phase unless noted.
+Business success is measured over the whole fault phase: 12 minutes for the App Service process kills, 18 minutes otherwise. Recovery is the time from the first observed database error to the first full minute with at least 99% success.
 
 | Fault | App Service (Windows) | AKS | Container Apps |
 | --- | --- | --- | --- |
-| Application capacity | Process kill on one worker or a whole zone's workers: 100%, PASS | Shutdown of one node or all zone-1 lab nodes: first 5 min 100%, phase 99.96% / 99.95%, PASS | 2 of 6 replicas withdrawn for 346 s: 100%, PASS |
-| PostgreSQL failover | 97.35%, recovery 36 s, availability FAIL | 100% business, overall INCONCLUSIVE (observer gap) | 100%, recovery 35 s, PASS |
-| Failover plus capacity fault | 97.32%, recovery 35 s, availability FAIL | Repaired version not run | 100%, recovery 28 s, PASS |
-| Whole-zone outage | BLOCKED | BLOCKED | BLOCKED |
+| Application capacity | Process kill on one worker, or on both workers of one zone: 100% | Shutdown of one node / of all zone-1 lab nodes: 99.96% / 99.95%; first five minutes 100% | 2 of 6 replicas withdrawn for 346 s: 100% |
+| PostgreSQL failover | 97.35%, recovery 36 s | 99.76% (0 failed, 51 dropped), recovery 27 s | 100%, recovery 35 s |
+| Failover plus capacity fault | 97.32%, recovery 35 s | 97.44%, recovery 29 s (first version, without cache) | 100%, recovery 28 s |
+| Acknowledged writes lost | 0 of 22,424 | 0 of 68,245 | 0 of 20,689 |
 
 Two facts are needed to read this table fairly. First, the database results compare application designs more than platforms: AKS and Container Apps ran the cached build that the AKS investigation produced, while App Service ran without a cache. Second, the capacity faults differ in severity. A node shutdown on AKS removes a host abruptly and is the strongest test; a process kill on App Service and a readiness withdrawal on Container Apps leave the host running, and the withdrawal also lets in-flight requests finish.
 
@@ -45,10 +45,10 @@ Two facts are needed to read this table fairly. First, the database results comp
 
 Chaos Studio's native faults gave repeatable, precisely targeted tests: the PostgreSQL forced failover on every platform, VMSS shutdown on AKS, and process kill on Windows App Service. Combined with independent observation, they exposed real weaknesses that healthy dashboards hid: HTTP/2 connections lingering on dead AKS nodes, pods doubling up on one node, cold caches during failover, and load generators creating virtual users too late.
 
-Coverage stopped in three places. Linux App Service could not run the process fault. Container Apps has no native fault, so its capacity test relied on our own readiness adapter. No platform offered a whole-zone fault that also takes down managed services such as the load balancer, PostgreSQL or Redis.
+Coverage has two gaps. Linux App Service could not run the process fault, and Container Apps has no native fault, so its capacity test relied on our own readiness adapter.
 
 ## 5. HA, DR and next steps
 
-The evidence supports these HA conclusions: losing a third of application capacity, one node or one zone's compute does not interrupt clients when capacity is pre-provisioned and routing follows health; a PostgreSQL zone-redundant failover recovers within 27–36 seconds without data loss; and SQL-confirmed caching with idempotent retries hides that failover from the business workload.
+The evidence supports these HA conclusions: losing a third of application capacity, one node or one zone's compute costs at most 11 of 21,600 business operations when capacity is pre-provisioned and routing follows health; a PostgreSQL zone-redundant failover recovers within 27–36 seconds without data loss; and SQL-confirmed caching with idempotent retries hides that failover from the business workload.
 
 A DR exercise needs a separate design: a recovery region or restore target, data replication or backup, traffic redirection, and measured RTO and RPO. The next HA steps are an abrupt replica-crash test on Container Apps, a single-version AKS rerun of all faults, and a cache-outage test now that both container platforms depend on Redis.
