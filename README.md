@@ -1,27 +1,22 @@
 # Azure Chaos Studio resilience lab
 
-An order API commits a write to PostgreSQL and then acknowledges it. If an application process, a compute node, a third of the replicas or the database primary fails, do clients keep working, how fast does service recover, and does every acknowledged write survive?
+An order API commits each write to PostgreSQL before acknowledging it. When application replicas, a compute node or the database primary fail, do clients keep working, how quickly does service recover, and does every acknowledged write survive?
 
-This lab answers those questions on Azure App Service, Azure Kubernetes Service (AKS) and Azure Container Apps, with Azure Chaos Studio injecting the faults and an independent private runner measuring the effect. Everything runs on private networks with zone-redundant PostgreSQL.
+This laboratory explored those questions on Azure Container Apps, Azure Kubernetes Service (AKS) and Azure App Service. Azure Chaos Studio injected the faults and an independent private runner measured the effect under constant load. All three environments used private networking and zone-redundant PostgreSQL.
 
-## Results at a glance
+> **Scope.** These results come from a single laboratory exercise run in November 2026: one application, one load profile of 20 operations per second, and specific regions and configurations. They describe how this design behaved under these faults. Results elsewhere depend on application design, configuration and load; Azure availability commitments are defined in the [Azure SLAs](https://aka.ms/CSLA).
 
-Each platform ran under 20 business operations per second. *Business success* is the share of scheduled operations that completed over the whole fault phase; *recovery* is the time from the first observed database error to the first full minute with at least 99% success.
+## Key findings
 
-| Fault | App Service | AKS | Container Apps |
-| --- | --- | --- | --- |
-| Application capacity loss | 100% | 99.96% (one node) / 99.95% (zone-1 nodes) | 100% |
-| PostgreSQL failover | 97.35%, recovery 36 s | 99.76%, recovery 27 s | 100%, recovery 35 s |
-| Failover plus capacity loss | 97.32%, recovery 35 s | 97.44%, recovery 29 s (first version) | 100%, recovery 28 s |
-| Acknowledged writes lost | 0 of 22,424 | 0 of 68,245 | 0 of 20,689 |
-
-These are high-availability tests of component faults. Disaster recovery, such as a regional failover or a backup restore, was outside the scope.
+- **Capacity loss was absorbed on all three platforms.** In their final configurations, losing two of six Container Apps replicas, one AKS node, all lab nodes in one zone, or the application process on App Service workers cost at most 11 business operations per fault phase of 14,400 to 21,600.
+- **Application design determined what clients saw during a database failover.** Service recovered 27–36 seconds after each PostgreSQL zone-redundant failover. With a shared cache of confirmed reads, no business operation failed; without it, 97.3% completed and the errors were concentrated in the role change.
+- **No acknowledged write was lost.** Reconciliation after the runs found all 111,358 acknowledged writes with their expected checksums.
 
 ## Reading order
 
-1. [Executive summary](docs/executive-summary.md): architectures, comparison, what Chaos Studio covers, HA and DR conclusions.
+1. [Executive summary](docs/executive-summary.md): architectures, results and conclusions.
 2. [Method](docs/method.md): workload, fault mechanisms and metrics.
-3. Platform results: [App Service](docs/app-service-results.md), [AKS](docs/aks-results.md), [Container Apps](docs/container-apps-results.md).
+3. Platform results: [Container Apps](docs/container-apps-results.md), [AKS](docs/aks-results.md), [App Service](docs/app-service-results.md).
 4. [Running the lab](docs/running-the-lab.md): prerequisites, stages, local checks and cleanup.
 
 ## Repository layout
@@ -35,12 +30,4 @@ These are high-availability tests of component faults. Disaster recovery, such a
 | [tests](tests/) | Load scenario, evaluators, contract fixtures and the publication guard |
 | [config](config/) | Generic lab settings and an environment template without private values |
 
-The detailed execution records written during the experiments are preserved at Git tag `detailed-records-2026-11-10`.
-
-## Private context
-
-Tenant and subscription IDs, accounts, resource names, credentials and raw evidence stay in the ignored `.local\` and `.azure\` folders. Run the publication guard before committing or sharing:
-
-```powershell
-pwsh .\tests\Test-Publication.ps1
-```
+Tenant and subscription IDs, accounts, resource names, credentials and raw evidence stay in the ignored `.local\` and `.azure\` folders; `pwsh .\tests\Test-Publication.ps1` checks this before each commit.

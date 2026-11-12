@@ -1,4 +1,4 @@
-<svg xmlns="http://www.w3.org/2000/svg" xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape" width="1400" height="1400" viewBox="0 0 1400 1400" role="img" aria-labelledby="title description">
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape" width="1400" height="1240" viewBox="0 0 1400 1240" role="img" aria-labelledby="title description">
   <title id="title">Private AKS and PostgreSQL native Chaos laboratory</title>
   <desc id="description">One private runner accesses an internal load balancer serving six Linux pods on six distinct worker nodes across three observed physical zones. Three system nodes span the same zones. PostgreSQL uses private zone-redundant HA; private HA Azure Managed Redis shares SQL-confirmed immutable reads across workers. Native Chaos Actions shut down exact tenant node scale sets or the selected-zone nodes and force PostgreSQL failover. Regional managed dependencies remain running. Direct private SQL snapshots verify every acknowledged write independently of both cache layers.</desc>
   <defs>
@@ -24,7 +24,7 @@
     <marker id="management-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 L10 5 L0 10 Z" fill="#5c2d91"/></marker>
     <marker id="fault-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 L10 5 L0 10 Z" fill="#f7630c"/></marker>
   </defs>
-  <rect width="1400" height="1400" fill="#ffffff"/>
+  <rect width="1400" height="1240" fill="#ffffff"/>
   <g inkscape:groupmode="layer" inkscape:label="Title and management" id="management-context">
     <text x="40" y="48" class="heading">Private AKS: six workers, three observed physical zones</text>
     <text x="40" y="78" class="body">Sweden Central | Azure Linux | fixed node pools | private HTTPS application and private PostgreSQL HA</text>
@@ -157,18 +157,11 @@
     <text x="60" y="1050" class="small">Public access and access-key auth disabled;</text>
     <text x="60" y="1068" class="small">SQL commits and direct retention stay separate.</text>
     <path d="M480 930 H400 V1010 H360" class="dataflow"/>
-    <rect x="40" y="1115" width="320" height="135" rx="6" class="control"/>
-    <text x="60" y="1145" class="label">Governance-managed telemetry</text>
-    <text x="60" y="1171" class="body">Defender default workspace</text>
-    <text x="60" y="1197" class="small">Public ingestion/query remain enabled.</text>
-    <text x="60" y="1220" class="small">Provider-created in an existing default group;</text>
-    <text x="60" y="1238" class="small">outside the four owned laboratory groups.</text>
-    <path d="M460 740 H380 V1180 H360" class="fault"/>
   </g>
   <g inkscape:groupmode="layer" inkscape:label="Measurement boundary" id="measurement-boundary">
-    <rect x="40" y="1290" width="1320" height="85" rx="8" class="control"/>
-    <text x="60" y="1320" class="label">Evidence boundary</text>
-    <text x="60" y="1345" class="body">Native faults cover tenant AKS node shutdowns and PostgreSQL role failover. Managed regional dependencies remain running.</text>
-    <text x="60" y="1367" class="small">Every acknowledged write is reconciled directly in SQL. Combined overlap is independently observed.</text>
+    <rect x="40" y="1130" width="1320" height="85" rx="8" class="control"/>
+    <text x="60" y="1160" class="label">Evidence boundary</text>
+    <text x="60" y="1185" class="body">Native faults cover tenant AKS node shutdowns and PostgreSQL role failover. Managed regional dependencies remain running.</text>
+    <text x="60" y="1207" class="small">Every acknowledged write is reconciled directly in SQL. Combined overlap is independently observed.</text>
   </g>
 </svg>

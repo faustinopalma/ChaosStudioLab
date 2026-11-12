@@ -49,7 +49,7 @@
     <text x="75" y="88" class="small">Spain Central workload | Sweden Central management/Chaos | six workers / three zones</text>
     <text x="75" y="165" class="heading">Operator PC</text>
     <text x="75" y="195">Approved CLI / authorized stages</text>
-    <text x="75" y="220" class="small">Visible logs; lab retained after tests</text>
+    <text x="75" y="220" class="small">Visible logs; bounded stages</text>
     <text x="75" y="325" class="heading">Modern Chaos Studio</text>
     <text x="75" y="355">Workspace: Sweden Central</text>
     <text x="75" y="385" class="small">Native process crash + DB failover</text>
@@ -59,7 +59,7 @@
     <text x="520" y="245">spaincentral-az1</text><text x="870" y="245">spaincentral-az2</text><text x="1220" y="245">spaincentral-az3</text>
     <text x="540" y="312">worker 1</text><text x="695" y="312">worker 2</text><text x="890" y="312">worker 3</text><text x="1045" y="312">worker 4</text><text x="1240" y="312">worker 5</text><text x="1395" y="312">worker 6</text>
     <text x="500" y="400" class="small">Observed: two workers per physical zone; every worker served healthy and checksum-verified business requests.</text>
-    <text x="500" y="430" class="small">Private app + SCM; public access disabled; lab .NET 9 (support ends 10 Nov); checksummed package.</text>
+    <text x="500" y="430" class="small">Private app + SCM; public access disabled; checksummed package.</text>
     <text x="75" y="560" class="heading">Operations: Sweden Central</text>
     <text x="95" y="625" class="heading">One private runner</text><text x="95" y="655">Bastion SSH + NAT egress</text><text x="95" y="685" class="small">Bounded load / private publication</text>
     <text x="500" y="560" class="heading">Workload VNet - dedicated, separate subnets</text>
